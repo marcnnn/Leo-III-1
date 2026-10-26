@@ -1,0 +1,502 @@
+defmodule Astraea.Tstp do
+  @moduledoc """
+  TSTP output of SZS answers and LCF-verified refutations, after Leo-III's
+  `leo.modules.output` (`SZSResult`, `SZSOutput`, `ToTHF.withAnnotation`).
+
+  `derivation/4` turns a verified `{:proved, steps, stats}` proof DAG into a
+  CNF refutation in THF syntax, structured for derivation checkers such as GDV:
+
+    * the input formulas the proof depends on, with `file(Problem, Name)` sources
+    * conjectures negated by `inference(negate_conjecture, [status(cth)], ...)`
+    * the input clauses, each derived from its formulas by
+      `inference(cnf, [status(esa)], ...)`
+    * one `thf(c_<id>, plain, Clause, inference(Rule, [status(thm)], Parents))`
+      per kernel step (`Astraea.ProofChecker`), with `bind/2` parent details
+      for instantiations, ending in `$false`
+
+  Terms are printed by `Astraea.External.ThfPrinter`. Every clause is closed by
+  universally quantifying its free variables `V<id>`.
+
+  The clausifier does not record which formula an input clause came from, so
+  `derivation/4` recovers it by clausifying candidate formulas one at a time
+  (with the problem's definitions) and matching clauses up to variable renaming.
+  A clause that matches no single formula cites all candidate formulas that share
+  a symbol with it, which keeps the derivation connected but weakens that step.
+  """
+
+  alias Astraea.{Arena, Clausifier, ProofChecker, TptpLower}
+  alias Astraea.External.ThfPrinter
+
+  # Node tags (u8) matching `Astraea.Arena`
+  @tag_const 1
+  @tag_app 4
+  @tag_lam 5
+  @tag_eq 6
+  @tag_not 7
+  @tag_or 8
+  @tag_forall 9
+
+  # Formulas clausified one by one to recover the origin of input clauses.
+  @max_origin_candidates 256
+
+  @szs_names %{
+    theorem: "Theorem",
+    unsatisfiable: "Unsatisfiable",
+    contradictory_axioms: "ContradictoryAxioms",
+    counter_satisfiable: "CounterSatisfiable",
+    satisfiable: "Satisfiable",
+    gave_up: "GaveUp",
+    timeout: "Timeout",
+    resource_out: "ResourceOut",
+    memory_out: "MemoryOut",
+    inappropriate: "Inappropriate",
+    unknown: "Unknown",
+    error: "Error",
+    input_error: "InputError",
+    syntax_error: "SyntaxError",
+    type_error: "TypeError",
+    usage_error: "UsageError",
+    forced: "Forced",
+    user: "User"
+  }
+
+  @doc """
+  Returns the SZS ontology name of a status atom (`:counter_satisfiable` ->
+  `"CounterSatisfiable"`).
+  """
+  @spec szs_name(atom()) :: String.t()
+  def szs_name(status), do: Map.get(@szs_names, status, "Unknown")
+
+  @doc """
+  Renders `% SZS status <Status> for <problem>`, with ` : <info>` when given.
+  """
+  @spec status_line(atom(), String.t(), String.t() | nil) :: String.t()
+  def status_line(status, problem, info \\ nil) do
+    base = "% SZS status #{szs_name(status)} for #{problem}"
+    if info in [nil, ""], do: base, else: base <> " : " <> info
+  end
+
+  @doc """
+  Wraps `body` in `% SZS output start/end <dataform> for <problem>` lines.
+  """
+  @spec output_block(String.t(), String.t(), iodata()) :: iodata()
+  def output_block(dataform, problem, body) do
+    [
+      ["% SZS output start ", dataform, " for ", problem, "\n"],
+      body,
+      ["% SZS output end ", dataform, " for ", problem, "\n"]
+    ]
+  end
+
+  @doc """
+  Renders an LCF-verified refutation as a TSTP derivation (without the SZS
+  output block). `lowered` is the problem the proof was found for and
+  `stats.arena` the arena of its steps. Options:
+    * `:problem` - file name cited in `file/2` sources (default `"unknown"`)
+    * `:problem_path`, `:tptp_root` - the problem file (and the root its includes
+      are resolved against) whose formulas are printed verbatim
+  """
+  @spec derivation(TptpLower.t(), [ProofChecker.step()], map(), keyword()) :: String.t()
+  def derivation(%TptpLower{} = lowered, steps, %{arena: %Arena{} = arena}, opts \\ []) do
+    problem = Keyword.get(opts, :problem, "unknown")
+    {arena, clauses} = replay(arena, steps)
+
+    leaves = for {:axiom, id, clause} <- steps, do: {id, clause}
+    origins = origins(lowered, arena, leaves)
+    conj_names = MapSet.new(lowered.conjectures, &elem(&1, 0))
+
+    used =
+      origins |> Map.values() |> List.flatten() |> MapSet.new()
+
+    {inputs, syms} = input_formulas(lowered, used, problem, opts)
+
+    {derived, syms} =
+      Enum.map_reduce(steps, syms, fn step, syms ->
+        id = elem(step, 1)
+        {body, syms} = ThfPrinter.clause(arena, Map.fetch!(clauses, id), syms)
+
+        {role, source, syms} =
+          case step do
+            {:axiom, _id, _clause} ->
+              parents = Map.fetch!(origins, id)
+              conj? = Enum.any?(parents, &MapSet.member?(conj_names, &1))
+              parents = Enum.map(parents, &if(conj?(&1, conj_names), do: neg_name(&1), else: &1))
+
+              {if(conj?, do: "negated_conjecture", else: "plain"),
+               inference("cnf", "esa", Enum.map(parents, &name/1)), syms}
+
+            _ ->
+              {rule, parents, syms} = rule(arena, step, syms)
+              {"plain", inference(rule, "thm", parents), syms}
+          end
+
+        {["thf(", step_name(id), ", ", role, ", ", body, ",\n    ", source, ").\n"], syms}
+      end)
+
+    IO.iodata_to_binary([
+      ThfPrinter.declarations(arena, syms, "decl_"),
+      inputs,
+      derived
+    ])
+  end
+
+  @doc """
+  Replays the clauses derived by the (already verified) kernel `steps`, keyed by
+  step id. Mirrors the conclusions computed by `Astraea.ProofChecker`.
+  """
+  @spec replay(Arena.t(), [ProofChecker.step()]) ::
+          {Arena.t(), %{non_neg_integer() => ProofChecker.clause()}}
+  def replay(%Arena{} = arena, steps) do
+    Enum.reduce(steps, {arena, %{}}, fn step, {ar, derived} ->
+      {ar, clause} = conclusion(ar, derived, step)
+      {ar, Map.put(derived, elem(step, 1), clause)}
+    end)
+  end
+
+  defp conclusion(arena, _derived, {:axiom, _id, clause}), do: {arena, clause}
+
+  defp conclusion(arena, _derived, {:refl, _id, term}) do
+    {arena, norm} = Arena.beta_eta_norm(arena, term)
+    unit_eq(arena, norm, norm)
+  end
+
+  defp conclusion(arena, derived, {:symm, _id, p}) do
+    {lhs, rhs} = unit_sides(arena, derived[p])
+    unit_eq(arena, rhs, lhs)
+  end
+
+  defp conclusion(arena, derived, {:trans, _id, p1, p2}) do
+    {a, _} = unit_sides(arena, derived[p1])
+    {_, c} = unit_sides(arena, derived[p2])
+    unit_eq(arena, a, c)
+  end
+
+  defp conclusion(arena, derived, {:subst, _id, p, subst}) do
+    Enum.reduce(derived[p], {arena, MapSet.new()}, fn {pol, atom}, {ar, acc} ->
+      {ar, subbed} = Arena.subst_fvar(ar, atom, subst)
+      {ar, MapSet.put(acc, {pol, subbed})}
+    end)
+  end
+
+  defp conclusion(arena, derived, {:cong, _id, p, eq_atom, arg}) do
+    {@tag_eq, _, _, lhs, rhs} = Arena.get_node(arena, eq_atom)
+    {arena, fa} = Arena.mk_app(arena, lhs, arg)
+    {arena, ga} = Arena.mk_app(arena, rhs, arg)
+    {arena, fa} = Arena.beta_eta_norm(arena, fa)
+    {arena, ga} = Arena.beta_eta_norm(arena, ga)
+    {arena, eq} = Arena.mk_eq(arena, fa, ga)
+    {arena, derived[p] |> MapSet.delete({:pos, eq_atom}) |> MapSet.put({:pos, eq})}
+  end
+
+  defp conclusion(arena, derived, {:func_ext, _id, p, fvar, ty}) do
+    {lhs, rhs} = unit_sides(arena, derived[p])
+    {arena, fv} = Arena.mk_fvar(arena, fvar, ty)
+    {arena, l} = abstract(arena, lhs, fv, ty)
+    {arena, r} = abstract(arena, rhs, fv, ty)
+    unit_eq(arena, l, r)
+  end
+
+  defp conclusion(arena, derived, {:paramod, _id, e, t, eq_atom, target_lit, rewritten_lit}) do
+    clause =
+      derived[e]
+      |> MapSet.delete({:pos, eq_atom})
+      |> MapSet.union(MapSet.delete(derived[t], target_lit))
+      |> MapSet.put(rewritten_lit)
+
+    {arena, clause}
+  end
+
+  defp conclusion(arena, derived, {:resolve, _id, p1, p2, {:pos, atom}}) do
+    {c1, c2} = {derived[p1], derived[p2]}
+
+    {arena, l1, l2} =
+      if MapSet.member?(c1, {:pos, atom}) and MapSet.member?(c2, {:neg, atom}) do
+        {arena, {:pos, atom}, {:neg, atom}}
+      else
+        {@tag_eq, _, _, l, r} = Arena.get_node(arena, atom)
+        {arena, sym} = Arena.mk_eq(arena, r, l)
+
+        if MapSet.member?(c1, {:pos, atom}) and MapSet.member?(c2, {:neg, sym}),
+          do: {arena, {:pos, atom}, {:neg, sym}},
+          else: {arena, {:pos, sym}, {:neg, atom}}
+      end
+
+    {arena, MapSet.union(MapSet.delete(c1, l1), MapSet.delete(c2, l2))}
+  end
+
+  defp unit_sides(arena, clause) do
+    [{:pos, eq}] = MapSet.to_list(clause)
+    {@tag_eq, _, _, lhs, rhs} = Arena.get_node(arena, eq)
+    {lhs, rhs}
+  end
+
+  defp unit_eq(arena, lhs, rhs) do
+    {arena, eq} = Arena.mk_eq(arena, lhs, rhs)
+    {arena, MapSet.new([{:pos, eq}])}
+  end
+
+  defp abstract(arena, term, fv, ty) do
+    {arena, body} = Arena.abstract_subterm(arena, term, fv, 0)
+    {arena, lam} = Arena.mk_lam(arena, ty, body)
+    Arena.beta_eta_norm(arena, lam)
+  end
+
+  # Inference rule names and parents (with `bind/2` details for instantiations).
+  defp rule(arena, step, syms) do
+    case step do
+      {:refl, _, _} ->
+        {"refl", [], syms}
+
+      {:symm, _, p} ->
+        {"symmetry", [step_name(p)], syms}
+
+      {:trans, _, p1, p2} ->
+        {"transitivity", [step_name(p1), step_name(p2)], syms}
+
+      {:cong, _, p, _, _} ->
+        {"arg_cong", [step_name(p)], syms}
+
+      {:func_ext, _, p, _, _} ->
+        {"func_ext", [step_name(p)], syms}
+
+      {:paramod, _, p1, p2, _, _, _} ->
+        {"paramod", [step_name(p1), step_name(p2)], syms}
+
+      {:resolve, _, p1, p2, _} ->
+        {"resolution", [step_name(p1), step_name(p2)], syms}
+
+      {:subst, _, p, subst} ->
+        {binds, syms} =
+          subst
+          |> Enum.sort()
+          |> Enum.map_reduce(syms, fn {var, term}, syms ->
+            {t, syms} = ThfPrinter.formula(arena, term, syms)
+            {["bind(V", Integer.to_string(var), ", $thf(", t, "))"], syms}
+          end)
+
+        parent =
+          if binds == [],
+            do: step_name(p),
+            else: [step_name(p), ":[", Enum.intersperse(binds, ", "), "]"]
+
+        {"instantiate", [parent], syms}
+    end
+  end
+
+  defp inference(rule, status, parents) do
+    ["inference(", rule, ", [status(", status, ")], [", Enum.intersperse(parents, ", "), "])"]
+  end
+
+  defp step_name(id), do: ["c_", Integer.to_string(id)]
+
+  defp neg_name(name), do: "neg_" <> name
+
+  defp conj?(name, conj_names), do: MapSet.member?(conj_names, name)
+
+  @name_word ~r/^([a-z][A-Za-z0-9_]*|[0-9]+)$/
+
+  defp name(name) do
+    if Regex.match?(@name_word, name), do: name, else: ThfPrinter.atom(name)
+  end
+
+  # Input formulas cited by the clausification steps, in problem order. They are
+  # printed as written in the problem file when it can be read (so that `file/2`
+  # leaves match it verbatim), else from their lowered form.
+  defp input_formulas(lowered, used, problem, opts) do
+    file = ThfPrinter.atom(problem)
+    originals = original_formulas(opts)
+
+    axioms =
+      for {n, role, term} <- lowered.axioms, MapSet.member?(used, n), do: {n, role, term}
+
+    conjs =
+      for {n, term} <- lowered.conjectures, MapSet.member?(used, n), do: {n, "conjecture", term}
+
+    Enum.flat_map_reduce(axioms ++ conjs, MapSet.new(), fn {n, role, term}, syms ->
+      {lang, role, f, syms} =
+        case Map.fetch(originals, n) do
+          {:ok, {lang, orig_role, f}} ->
+            {lang, orig_role, f, syms}
+
+          :error ->
+            {f, syms} = ThfPrinter.formula(lowered.arena, term, syms)
+            {"thf", role, f, syms}
+        end
+
+      line = [
+        lang,
+        "(",
+        name(n),
+        ", ",
+        role,
+        ", ",
+        f,
+        ",\n    file(",
+        file,
+        ", ",
+        name(n),
+        ")).\n"
+      ]
+
+      if role == "conjecture" do
+        neg = [
+          [lang, "(", name(neg_name(n)), ", negated_conjecture, ~ (", f, "),\n    "],
+          [inference("negate_conjecture", "cth", [name(n)]), ").\n"]
+        ]
+
+        {[line, neg], syms}
+      else
+        {[line], syms}
+      end
+    end)
+  end
+
+  defp original_formulas(opts) do
+    with path when is_binary(path) <- Keyword.get(opts, :problem_path),
+         root = Keyword.get_lazy(opts, :tptp_root, &Astraea.TptpCorpus.default_tptp_root/0),
+         {:ok, unit, _diagnostics} <-
+           Tptp.Unit.from_file(path, resolver: {Tptp.Resolver.Fs, root: root}, max_concurrency: 1) do
+      for {_file, stmt} <- Tptp.Unit.formulae(unit), into: %{} do
+        {Tptp.Node.value(stmt.name),
+         {Atom.to_string(stmt.language), Tptp.Node.value(stmt.role),
+          Tptp.Printer.Canonical.to_iodata(stmt.formula)}}
+      end
+    else
+      _ -> %{}
+    end
+  end
+
+  # ---------------------------------------------------------------------------
+  # Clause origins
+  # ---------------------------------------------------------------------------
+
+  # Maps each leaf `{id, clause}` to the names of the input formulas it came from.
+  defp origins(lowered, arena, leaves) do
+    leaf_keys = Map.new(leaves, fn {id, clause} -> {id, clause_key(arena, clause)} end)
+    leaf_syms = Map.new(leaves, fn {id, clause} -> {id, clause_symbols(arena, clause)} end)
+    wanted = leaf_syms |> Map.values() |> Enum.reduce(MapSet.new(), &MapSet.union/2)
+
+    formulas =
+      Enum.map(lowered.axioms, fn {n, role, t} -> {n, role, t} end) ++
+        Enum.map(lowered.conjectures, fn {n, t} -> {n, "conjecture", t} end)
+
+    formula_syms =
+      Map.new(formulas, fn {n, _role, t} -> {n, term_symbols(lowered.arena, t, MapSet.new())} end)
+
+    candidates =
+      formulas
+      |> Enum.filter(fn {n, role, _t} ->
+        role != "definition" and not MapSet.disjoint?(formula_syms[n], wanted)
+      end)
+      |> Enum.take(@max_origin_candidates)
+
+    clause_sets = clause_sets(lowered, candidates)
+
+    Map.new(leaves, fn {id, _clause} ->
+      key = leaf_keys[id]
+
+      case for({n, keys} <- clause_sets, MapSet.member?(keys, key), do: n) do
+        [n | _] ->
+          {id, [n]}
+
+        [] ->
+          sharing =
+            for {n, _role, _t} <- formulas,
+                not MapSet.disjoint?(formula_syms[n], leaf_syms[id]),
+                do: n
+
+          {id, if(sharing == [], do: Enum.map(formulas, &elem(&1, 0)), else: sharing)}
+      end
+    end)
+  end
+
+  # Clause keys of each candidate formula, clausified together with the problem's
+  # definitions (which the clausifier inlines) minus the definitions' own clauses.
+  defp clause_sets(lowered, candidates) do
+    defs = Enum.filter(lowered.axioms, fn {_n, role, _t} -> role == "definition" end)
+    only = fn axioms, conjs, ib -> %{lowered | axioms: axioms, conjectures: conjs} |> keys(ib) end
+    base = only.(defs, [], false)
+
+    Enum.map(candidates, fn
+      {n, "conjecture", t} ->
+        keys =
+          MapSet.union(only.(defs, [{n, t}], false), only.(defs, [{n, t}], true))
+
+        {n, MapSet.difference(keys, base)}
+
+      ax ->
+        {elem(ax, 0), MapSet.difference(only.(defs ++ [ax], [], false), base)}
+    end)
+  end
+
+  defp keys(lowered, inline_bridges) do
+    {arena, clauses} =
+      Clausifier.clausify(lowered, sine_limit: nil, inline_bridges: inline_bridges)
+
+    MapSet.new(clauses, &clause_key(arena, &1))
+  end
+
+  @doc """
+  A key identifying `clause` up to renaming of its free variables: literals are
+  sorted by their variable-blind rendering and variables numbered by first
+  occurrence. Keys of clauses from different arenas are comparable.
+  """
+  @spec clause_key(Arena.t(), ProofChecker.clause()) :: String.t()
+  def clause_key(%Arena{} = arena, clause) do
+    marked =
+      clause
+      |> Enum.map(fn {pol, atom} ->
+        {printed, _} =
+          ThfPrinter.formula(arena, atom, MapSet.new(),
+            var_name: &["\0", Integer.to_string(&1), "\0"]
+          )
+
+        printed = IO.iodata_to_binary(printed)
+        {String.replace(printed, ~r/\0\d+\0/, "_"), pol, printed}
+      end)
+      |> Enum.sort()
+      |> Enum.map_join(" | ", fn {_blind, pol, printed} -> "#{pol} #{printed}" end)
+
+    {key, _numbering} =
+      ~r/\0(\d+)\0/
+      |> Regex.split(marked, include_captures: true)
+      |> Enum.map_reduce(%{}, fn part, numbering ->
+        case Regex.run(~r/^\0(\d+)\0$/, part) do
+          [_, id] ->
+            numbering = Map.put_new(numbering, id, map_size(numbering))
+            {"X#{numbering[id]}", numbering}
+
+          nil ->
+            {part, numbering}
+        end
+      end)
+
+    Enum.join(key)
+  end
+
+  defp clause_symbols(arena, clause) do
+    Enum.reduce(clause, MapSet.new(), fn {_pol, atom}, acc -> term_symbols(arena, atom, acc) end)
+  end
+
+  defp term_symbols(arena, id, acc) do
+    {tag, _flags, _ty, left, right} = Arena.get_node(arena, id)
+
+    case tag do
+      @tag_const ->
+        name = Map.fetch!(arena.symbol_names, left)
+        if String.starts_with?(name, "$"), do: acc, else: MapSet.put(acc, name)
+
+      tag when tag in [@tag_app, @tag_eq, @tag_or] ->
+        term_symbols(arena, right, term_symbols(arena, left, acc))
+
+      tag when tag in [@tag_lam, @tag_forall] ->
+        term_symbols(arena, right, acc)
+
+      @tag_not ->
+        term_symbols(arena, left, acc)
+
+      _ ->
+        acc
+    end
+  end
+end
