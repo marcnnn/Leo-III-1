@@ -24,7 +24,7 @@ defmodule Astraea.MixProject do
       {:rustler, "~> 0.36"},
       {:jason, "~> 1.4"},
       {:stream_data, "~> 1.1", only: [:dev, :test]},
-      {:benchee, "~> 1.3", only: [:dev, :test]}
+      {:benchee, "~> 1.3"}
     ]
   end
 
@@ -32,7 +32,8 @@ defmodule Astraea.MixProject do
     [
       "gate.1": ["test --only gate1"],
       "gate.2": ["test --only gate2"],
-      "gate.3": ["test --only gate3"]
+      "gate.3": ["test --only gate3"],
+      "gate.4": ["gate.four"]
     ]
   end
 end
