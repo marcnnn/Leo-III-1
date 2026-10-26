@@ -1,39 +1,38 @@
 # TPTP Test, Soundness & Evaluation Plan (Astraea on `armix` & HPC)
 
 **Target Corpus:** `TPTP-v9.3.1` (released Aug 21, 2026) + `BuggedProblems-v9.3.1.txt`  
-**Primary Synthesis & CI Node:** `armix` (`aarch64` 14-core Neoverse-N1, 31 GiB RAM, OTP 27 JIT, Rust 1.97.1, `z3`/`cvc5`/`bitwuzla`/`yices`)  
+**Primary Synthesis & CI Node:** `armix` (`aarch64` 14-core Neoverse-N1, 31 GiB RAM, 1.1 TiB free NVMe/LVM, OTP 27 JIT, Rust 1.97.1, `z3`/`cvc5`/`bitwuzla`/`yices`)  
 **Large-Scale Ablation Cluster:** `zib` (`bgnlogin1.nhr.zib.de`, NHR@ZIB HPC)  
 **Repository Fork:** `marcnnn/Leo-III-1` (`armix:~/Projects/opensource/Leo-III`, branch `astraea`)
 
 ---
 
-## 1. Infrastructure & Storage Constraints on `armix`
-
-Probing `armix` revealed two key operational parameters that shape the test setup:
+## 1. Infrastructure & Storage Setup on `armix`
 
 1. **Compute & Native Toolchains Ready:**
    * **CPU / Memory:** 14 physical ARM64 Neoverse-N1 cores (1 thread/core, zero hyperthreading jitter — ideal for deterministic benchmarking and ARM NEON / `std::simd` vectorization) with 31 GiB RAM (~25 GiB available).
    * **Runtimes:** Erlang/OTP 27 (`[jit] [smp:14:14]`), Elixir (`mix`), Rust `1.97.1` (`cargo`/`rustc`), Python `3.12.3`.
    * **Pre-Installed External Solvers:** `/home/marc/tools/oss-cad-suite/bin/{z3,cvc5,bitwuzla,boolector,yices}` are already present on `armix` for SMT/FOF cross-verification.
-   * **Reference Leo-III Oracle:** Stock `leo3-v1.7.18.jar` (from `leoprover/Leo-III` releases) or local `sbt assembly` jar (requires OpenJDK 21 via `dnf` or `asdf` on `armix`) serves as the differential HOL oracle.
-2. **Disk Headroom Protection (`/` at 16 GiB free):**
-   * Unpacking the full `TPTP-v9.3.1.tgz` (893 MB compressed $\to$ **10.5 GB** across CNF/FOF/TFF/THF) onto `armix` would consume >70% of remaining `/` free space (note: `vda3` LUKS container has ~1 TB unallocated LVM extents if needed later, but we stay lean by default).
-   * **Solution — Streaming THF-Slice Extraction:** `scripts/tptp_thf0_setup.py` streams `TPTP-v9.3.1.tgz` over HTTP directly into `tar`, extracting **only** `Problems/*/*^*.p` (higher-order THF problems) and `Axioms/*` into `~/.cache/tptp/TPTP-v9.3.1`, keeping disk footprint under **~350 MB** with zero temporary tarball on disk.
+   * **Reference Leo-III Oracle:** Stock `leo3-v1.7.18.jar` (from `leoprover/Leo-III` releases) or local `sbt assembly` jar serves as the differential HOL oracle.
+2. **Full `$TPTP` Installation (`~/.local/share/tptp/TPTP-v9.3.1`):**
+   * With `/` expanded to **2.0 TiB (`1.1 TiB` free)** on `armix`, `scripts/tptp_thf0_setup.py bootstrap --full` installs the **complete `TPTP-v9.3.1` distribution** (~10.5 GB unpacked across THF, TFF, FOF, CNF, `Axioms/`, and `Documents/`) at `~/.local/share/tptp/TPTP-v9.3.1` and exports `$TPTP` in `~/.zshenv` so Leo-III's `contrib/` tools, external provers, and Astraea resolve `include('Axioms/...')` identically.
+   * For constrained laptops or scratch containers, omitting `--full` streams only the ~300 MB THF slice (`Problems/*/*^*.p` + `Axioms/*`).
 
 ---
 
 ## 2. Strict THF0 Filtering & Corpus Hygiene
 
-Not every `^` file in TPTP is monomorphic classical HOL (THF0). Following `Notes/master_thesis_proposal.md` Section 5, `scripts/tptp_thf0_setup.py` scans every `Problems/*/*^*.p` (and transitively included `Axioms/*.ax`) and enforces four hygiene filters:
+Not every `^` file in TPTP is monomorphic classical HOL (THF0). Following `Notes/master_thesis_proposal.md` Section 5, [`classify_problem`](file:///Users/marcnickert/Projects/opensource/Leo-III/scripts/tptp_thf0_setup.py#L148-L216) scans every `Problems/*/*^*.p` (plus transitively included `Axioms/*.ax`) using both official TPTP `% SPC` / `% Syntax` headers and body checks:
 
 1. **Official Bug Exclusion:** Drop any problem listed in `BuggedProblems-v9.3.1.txt` (e.g., `SYN000^2`, `ITP115^4..7`, `ITP122^4..7`, `ITP125^4..7`).
-2. **Monomorphic THF0 Syntax Gate:**
-   * **Include:** Base types (`$i`, `$o`, user `$tType` declarations), function types (`>`), `@` application, `^` $\lambda$-abstraction, `!` / `?` quantifiers, `=` / `!=`, standard Boolean connectives, and `$ite` / `$let` (only after lowering pass is enabled; tagged separately in manifest).
+2. **Monomorphic THF0 Syntax Gate (`TH0_*_*_NAR`):**
+   * **Include:** Base types (`$i`, `$o`, user `$tType` declarations), function types (`>`), `@` application, `^` $\lambda$-abstraction, `!` / `?` quantifiers, `=` / `!=`, standard Boolean connectives, and `$ite` / `$let` (only after lowering pass is enabled; tagged separately via `has_let_ite` in `thf_catalog.csv`).
    * **Exclude (Out-of-Scope Extensions):**
-     * Polymorphic TH1 (`!>` type quantification, `$tType > ...` type constructors).
-     * Interpreted arithmetic (`$int`, `$rat`, `$real`, `$sum`, `$product`, `$less`, ...).
+     * Polymorphic TH1 (`SPC` starting with `TH1_`, `!>` / `?*` type quantification, `@@+`/`@@-`/`@=`, `$tType > ...` type constructors).
+     * Interpreted arithmetic (`SPC` ending in `_ARI`, `$int`, `$rat`, `$real`, `$sum`, `$product`, `$less`, ...).
+     * Product/union/subtype extensions (`*`, `+`, `<<` non-zero in `% Syntax` type-connective counts).
      * Non-classical modal/deontic `$modal` logic specifications (`thf(..., logic, ...)`).
-     * Choice operator `@+` / `@-` (tracked in a separate optional subset `thf0_choice` so core completeness/soundness tests don't conflate choice axioms).
+     * Indefinite/definite choice operators `@+` / `@-` (tracked separately via `has_choice` so core completeness/soundness tests don't conflate choice axioms).
 3. **SZS Status Classification:**
    * **Provable (`THM-like`):** `Theorem`, `ContradictoryAxioms`
    * **Soundness Traps (`CSA-like`):** `CounterSatisfiable`, `Satisfiable`
@@ -49,16 +48,16 @@ To ensure scientific rigor (preventing LLM benchmark memorization and cross-run 
 | Tier | Manifest | Target Size | Composition & SZS Balance | Timeout | Purpose & Access Policy |
 | :--- | :--- | :---: | :--- | :---: | :--- |
 | **Tier 0** | `Leo-Unit` | ~25 | Repo-local `src/test/resources/problems/{b_eta,b_f,boolext,ext_test,ext_test_2,norm1,res1,SYN000/*}.p` | 500 ms | Instant `<2s` sanity check on every `mix test` / `cargo test` run. |
-| **Tier 1** | `TPTP-Smoke` | 50 | 35 `THM` (Rating `0.00–0.25`) + **15 `CSA`/`SAT` traps**, stratified across `SYO`, `SET`, `ALG`, `LCL`, `PUZ`, `SEU` | 1.0 s | **Gate 3 Inner Synthesis Gate:** Runs across all 14 `armix` cores in **~3.5s wall-clock** per LLM synthesis iteration. Any false proof on `CSA`/`SAT` is an immediate hard reject. |
-| **Tier 2** | `TPTP-Dev` | 300 | 240 `THM` (Ratings `0.00–0.85`) + **60 `CSA`/`SAT` traps**, stratified by domain & axiom count | 10.0 s | **Harness Optimization & PGO Training:** Used for BEAM telemetry, `PatternAntiUnification` rule collapsing, watchlist harvesting, and KBO precedence tuning. **Anonymized before any LLM exposure.** |
-| **Tier 3** | `TPTP-Holdout` | 500+ | 400 `THM` (Ratings `0.00–1.00`, incl. `ITP` Sledgehammer batch problems) + **100 `CSA`/`SAT` traps** | 60 s (CASC) | **Frozen Blind Thesis Benchmark:** SHA-256 locked. **Never** read by the synthesis agent or PGO cross-run learner; evaluated only for milestone & final thesis RQ1/RQ3 tables on `armix` / `zib`. |
+| **Tier 1** | `TPTP-Smoke` | 50 | 35 `THM` (Rating `0.00–0.25`) + **15 `CSA`/`SAT` traps**, stratified across domains | 1.0 s | **Gate 3 Inner Synthesis Gate:** Runs across all 14 `armix` cores in **~3.5s wall-clock** per LLM synthesis iteration. Any false proof on `CSA`/`SAT` is an immediate hard reject. |
+| **Tier 2** | `TPTP-Dev` | 300 | 240 `THM` + **60 `CSA`/`SAT` traps**, disjoint from Smoke & Holdout | 10.0 s | **Harness Optimization & PGO Training:** Used for BEAM telemetry, `PatternAntiUnification` rule collapsing, watchlist harvesting, and KBO precedence tuning. **Anonymized before any LLM exposure.** |
+| **Tier 3** | `TPTP-Holdout` | up to 500 | Up to 400 `THM` + **100 `CSA`/`SAT` traps** | 60 s (CASC) | **Frozen Blind Thesis Benchmark:** SHA-256 locked in `manifest_lock.json`. **Never** read by the synthesis agent or PGO cross-run learner; evaluated only for milestone & final thesis RQ1/RQ3 tables on `armix` / `zib`. |
 
 ### Mandatory Anonymization Preprocessor (`anonymize` mode)
 Whenever a `TPTP-Smoke` or `TPTP-Dev` problem produces a failing counterexample or trace fed back to the LLM synthesis agent:
 1. All `include('Axioms/...')` statements are recursively inlined.
-2. All `%` comment headers (problem code, domain, rating, English description, SZS status, references) are stripped.
-3. All user-defined type, constant, variable, and formula names (`thf(ax_1, axiom, ...)`) are deterministically renamed to opaque tokens (`ty_001`, `sym_001`, `V_001`, `f_0001`) using a salted per-run bijection.
-4. Built-in TPTP symbols (`$i`, `$o`, `$true`, `$false`, `=`, `!`, `?`, `^`, `@`) remain intact so logical semantics and structural complexity are preserved identically while zero TPTP identity leaks into the prompt.
+2. All `%` comment headers (problem code, domain, rating, SPC, English description, SZS status, references) are stripped.
+3. All user-defined type, constant, variable, and formula names (`thf(ax_1, axiom, ...)`) are deterministically renamed to opaque tokens (`s_0001`, `V_0001`) using a salted per-run bijection.
+4. Built-in TPTP symbols (`$i`, `$o`, `$tType`, `$true`, `$false`, `=`, `!`, `?`, `^`, `@`) remain intact so logical semantics and structural complexity are preserved identically while zero TPTP identity leaks into the prompt.
 
 ---
 
@@ -117,17 +116,17 @@ Once kernels pass Gates 1–4 on `armix`, the full thesis evaluation runs across
 
 ---
 
-## 6. Quickstart Commands on `armix`
+## 6. Commands on `armix`
 
 ```bash
-# 1. Stream-extract THF slice (~300 MB) of TPTP-v9.3.1 & build deterministic splits
-ssh armix 'python3 ~/Projects/opensource/Leo-III/scripts/tptp_thf0_setup.py bootstrap \
-  --dest ~/.cache/tptp/TPTP-v9.3.1 \
+# 1. Install full TPTP-v9.3.1 (~10.5 GB) & generate locked THF0 manifests
+ssh armix 'python3 ~/Projects/opensource/Leo-III/scripts/tptp_thf0_setup.py bootstrap --full \
+  --dest ~/.local/share/tptp/TPTP-v9.3.1 \
   --manifests ~/Projects/opensource/Leo-III/benchmarks/manifests'
 
 # 2. Anonymize a problem (inline axioms + strip headers + scramble symbols) for LLM feedback
 ssh armix 'python3 ~/Projects/opensource/Leo-III/scripts/tptp_thf0_setup.py anonymize \
-  ~/.cache/tptp/TPTP-v9.3.1/Problems/SYO/SYO001^1.p \
-  --tptp-root ~/.cache/tptp/TPTP-v9.3.1 \
+  ~/.local/share/tptp/TPTP-v9.3.1/Problems/SYO/SYO001^1.p \
+  --tptp-root ~/.local/share/tptp/TPTP-v9.3.1 \
   --seed run-001'
 ```
