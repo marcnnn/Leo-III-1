@@ -41,6 +41,36 @@ defmodule Astraea.TptpCorpus do
     |> String.split("\n", trim: true)
   end
 
+  @spec load_catalog_map() :: %{String.t() => map()}
+  def load_catalog_map do
+    @manifests_dir
+    |> Path.join("thf_catalog.csv")
+    |> File.read!()
+    |> String.split(~r/\r?\n/, trim: true)
+    |> Enum.drop(1)
+    |> Map.new(fn line ->
+      [problem, domain, spc, rel_path, status, rating | _rest] = String.split(line, ",")
+
+      {problem,
+       %{
+         problem: problem,
+         domain: domain,
+         spc: spc,
+         rel_path: rel_path,
+         status: status,
+         rating: rating
+       }}
+    end)
+  end
+
+  @spec load_split_entries(:smoke | :dev | :holdout) :: [map()]
+  def load_split_entries(tier) when tier in [:smoke, :dev, :holdout] do
+    cat = load_catalog_map()
+
+    load_split(tier)
+    |> Enum.map(&Map.fetch!(cat, &1))
+  end
+
   @spec problem_path(String.t(), String.t()) :: String.t()
   def problem_path(problem_stem, tptp_root \\ default_tptp_root()) do
     domain = String.slice(problem_stem, 0, 3)

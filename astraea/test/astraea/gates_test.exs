@@ -2,7 +2,7 @@ defmodule Astraea.GatesTest do
   use ExUnit.Case, async: true
   use ExUnitProperties
 
-  alias Astraea.{Arena, Native, ProofChecker, TptpCorpus, TptpLower}
+  alias Astraea.{Arena, Native, ProofChecker, Prover, TptpCorpus, TptpLower}
 
   # ---------------------------------------------------------------------------
   # Gate 1: StreamData HOL & Arena Invariants
@@ -160,6 +160,47 @@ defmodule Astraea.GatesTest do
 
     incomplete_proof = Enum.take(valid_proof, 4)
     assert {:error, {:not_empty_clause, _}} = ProofChecker.verify_refutation(arena, incomplete_proof)
+  end
+
+  @tag :gate3
+  test "Gate 3: Prover solves higher-order THF0 theorems with LCF verification and never proves CounterSatisfiable formulas" do
+    # 1. Higher-Order Leibniz Equality + Lambda Beta-Reduction Theorem
+    thm_src = """
+    thf(f_type, type, f: $i > $i).
+    thf(a_type, type, a: $i).
+    thf(b_type, type, b: $i).
+    thf(ax_leibniz, axiom, ! [Q: $i > $o]: ((Q @ a) => (Q @ b))).
+    thf(conj, conjecture, ((^ [X: $i]: (f @ X)) @ a) = (f @ b)).
+    """
+
+    assert {:proved, steps, stats} = Prover.prove_string(thm_src)
+    assert length(steps) >= 3
+    assert stats.proof_length == length(steps)
+
+    # 2. Positive Functional Extensionality (`:func_ext` xi-rule) + Paramodulation under HO Predicate
+    ext_src = """
+    thf(q_type, type, q: ($i > $i) > $o).
+    thf(p_type, type, p: $i > $o).
+    thf(g_type, type, g: $i > $i).
+    thf(a_type, type, a: $i).
+    thf(ax_pa, axiom, p @ a).
+    thf(ax_cond_id, axiom, ! [X: $i]: ((p @ a) => ((g @ X) = X))).
+    thf(ax_q_id, axiom, q @ (^ [X: $i]: X)).
+    thf(conj_qg, conjecture, q @ g).
+    """
+
+    assert {:proved, ext_steps, _} = Prover.prove_string(ext_src)
+    assert Enum.any?(ext_steps, &(elem(&1, 0) == :func_ext))
+
+    # 3. Soundness Trap (CounterSatisfiable): `p(a)` does NOT entail `! [X: $i]: p(X)`
+    csa_src = """
+    thf(p_type, type, p: $i > $o).
+    thf(a_type, type, a: $i).
+    thf(ax_pa, axiom, p @ a).
+    thf(conj_invalid, conjecture, ! [X: $i]: (p @ X)).
+    """
+
+    assert {:saturated, _} = Prover.prove_string(csa_src, timeout_ms: 500)
   end
 
   @tag :gate3

@@ -7,14 +7,17 @@ defmodule Astraea.Arena do
   supporting:
     1. Spine / de Bruijn higher-order terms with reference beta-eta normalization,
     2. Binder-free typed combinator lowering (S, K, I, B, C) and reduction,
-    3. Content-addressed Skolem symbol derivation (`skolem_hash/2`), and
-    4. Reference Knuth-Bendix Ordering (`kbo_compare/3`) & Feature Vector (`feature_vector/2`).
+    3. Content-addressed Skolem symbol derivation (`skolem_hash/2`),
+    4. Free-variable substitution (`subst_fvar/3`), one-way pattern matching (`match_pattern/4`),
+       and higher-order pattern/syntactic unification (`unify/4`), and
+    5. Reference Knuth-Bendix Ordering (`kbo_compare/3`) & Feature Vector (`feature_vector/2`).
   """
 
   import Bitwise
 
   @type type_id :: non_neg_integer()
   @type term_id :: non_neg_integer()
+  @type subst :: %{non_neg_integer() => term_id()}
 
   # Built-in base types
   @ty_o 0
@@ -500,7 +503,14 @@ defmodule Astraea.Arena do
 
       @tag_not ->
         {arena, l_norm} = beta_eta_norm(arena, left)
-        mk_not(arena, l_norm)
+
+        case get_node(arena, l_norm) do
+          {@tag_not, _, _, inner_id, _} ->
+            {arena, inner_id}
+
+          _ ->
+            mk_not(arena, l_norm)
+        end
 
       _ ->
         {arena, term_id}
@@ -543,6 +553,392 @@ defmodule Astraea.Arena do
   end
 
   # ---------------------------------------------------------------------------
+  # Free-Variable Substitution, Occurs-Check, and Unification
+  # ---------------------------------------------------------------------------
+
+  @doc """
+  Returns the set of free variables `{fvar_id, ty_id}` occurring in `term_id`.
+  """
+  @spec free_vars(t(), term_id()) :: MapSet.t({non_neg_integer(), type_id()})
+  def free_vars(%__MODULE__{} = arena, term_id) do
+    collect_fvars(arena, term_id, MapSet.new())
+  end
+
+  defp collect_fvars(%__MODULE__{} = arena, term_id, acc) do
+    {tag, flags, ty_id, left, right} = get_node(arena, term_id)
+
+    if band(flags, @flag_has_fvar) == 0 do
+      acc
+    else
+      case tag do
+        @tag_fvar ->
+          MapSet.put(acc, {left, ty_id})
+
+        @tag_not ->
+          collect_fvars(arena, left, acc)
+
+        t when t in [@tag_lam, @tag_forall] ->
+          collect_fvars(arena, right, acc)
+
+        t when t in [@tag_app, @tag_eq, @tag_or] ->
+          acc = collect_fvars(arena, left, acc)
+          collect_fvars(arena, right, acc)
+
+        _ ->
+          acc
+      end
+    end
+  end
+
+  @doc """
+  Applies a free-variable substitution `subst` (`%{fvar_id => replacement_term_id}`)
+  to `term_id` and beta-eta normalizes any newly created redexes.
+  """
+  @spec subst_fvar(t(), term_id(), subst()) :: {t(), term_id()}
+  def subst_fvar(%__MODULE__{} = arena, term_id, subst) when map_size(subst) == 0,
+    do: {arena, term_id}
+
+  def subst_fvar(%__MODULE__{} = arena, term_id, subst) do
+    {arena, raw} = do_subst_fvar(arena, term_id, subst, 0)
+    beta_eta_norm(arena, raw)
+  end
+
+  defp do_subst_fvar(%__MODULE__{} = arena, term_id, subst, depth) do
+    {tag, flags, _ty_id, left, right} = get_node(arena, term_id)
+
+    if band(flags, @flag_has_fvar) == 0 do
+      {arena, term_id}
+    else
+      case tag do
+        @tag_fvar ->
+          case Map.fetch(subst, left) do
+            {:ok, rep_id} ->
+              {arena, shifted} = shift(arena, rep_id, depth, 0)
+              do_subst_fvar(arena, shifted, Map.delete(subst, left), depth)
+
+            :error ->
+              {arena, term_id}
+          end
+
+        @tag_app ->
+          {arena, l2} = do_subst_fvar(arena, left, subst, depth)
+          {arena, r2} = do_subst_fvar(arena, right, subst, depth)
+          mk_app(arena, l2, r2)
+
+        @tag_lam ->
+          {arena, b2} = do_subst_fvar(arena, right, subst, depth + 1)
+          mk_lam(arena, left, b2)
+
+        @tag_forall ->
+          {arena, b2} = do_subst_fvar(arena, right, subst, depth + 1)
+          mk_forall(arena, left, b2)
+
+        @tag_eq ->
+          {arena, l2} = do_subst_fvar(arena, left, subst, depth)
+          {arena, r2} = do_subst_fvar(arena, right, subst, depth)
+          mk_eq(arena, l2, r2)
+
+        @tag_or ->
+          {arena, l2} = do_subst_fvar(arena, left, subst, depth)
+          {arena, r2} = do_subst_fvar(arena, right, subst, depth)
+          mk_or(arena, l2, r2)
+
+        @tag_not ->
+          {arena, l2} = do_subst_fvar(arena, left, subst, depth)
+          mk_not(arena, l2)
+
+        _ ->
+          {arena, term_id}
+      end
+    end
+  end
+
+  @spec occurs_fvar?(t(), term_id(), non_neg_integer(), subst()) :: boolean()
+  def occurs_fvar?(%__MODULE__{} = arena, term_id, target_fvar, subst \\ %{}) do
+    {tag, flags, _ty_id, left, right} = get_node(arena, term_id)
+
+    if band(flags, @flag_has_fvar) == 0 do
+      false
+    else
+      case tag do
+        @tag_fvar ->
+          cond do
+            left == target_fvar ->
+              true
+
+            Map.has_key?(subst, left) ->
+              occurs_fvar?(arena, Map.fetch!(subst, left), target_fvar, subst)
+
+            true ->
+              false
+          end
+
+        @tag_not ->
+          occurs_fvar?(arena, left, target_fvar, subst)
+
+        t when t in [@tag_lam, @tag_forall] ->
+          occurs_fvar?(arena, right, target_fvar, subst)
+
+        t when t in [@tag_app, @tag_eq, @tag_or] ->
+          occurs_fvar?(arena, left, target_fvar, subst) or
+            occurs_fvar?(arena, right, target_fvar, subst)
+
+        _ ->
+          false
+      end
+    end
+  end
+
+  @doc """
+  One-way syntactic/symmetric-equality pattern matching (`pat_id` against `target_id`),
+  binding only free variables in `pat_id` without modifying `target_id`.
+  """
+  @spec match_pattern(t(), term_id(), term_id(), subst()) :: {:ok, subst()} | :error
+  def match_pattern(%__MODULE__{} = arena, pat_id, target_id, subst \\ %{}) do
+    {tp, fp, ty_p, lp, rp} = get_node(arena, pat_id)
+    {tt, _ft, ty_t, lt, rt} = get_node(arena, target_id)
+
+    cond do
+      ty_p != ty_t ->
+        :error
+
+      tp == @tag_fvar ->
+        if has_loose_bvar?(arena, target_id, 0) do
+          :error
+        else
+          case Map.fetch(subst, lp) do
+            {:ok, ^target_id} -> {:ok, subst}
+            {:ok, _other} -> :error
+            :error -> {:ok, Map.put(subst, lp, target_id)}
+          end
+        end
+
+      band(fp, @flag_has_fvar) == 0 ->
+        if pat_id == target_id, do: {:ok, subst}, else: :error
+
+      tp == tt ->
+        case tp do
+          @tag_not ->
+            match_pattern(arena, lp, lt, subst)
+
+          t when t in [@tag_lam, @tag_forall] ->
+            if lp == lt, do: match_pattern(arena, rp, rt, subst), else: :error
+
+          @tag_eq ->
+            with {:ok, s1} <- match_pattern(arena, lp, lt, subst),
+                 {:ok, s2} <- match_pattern(arena, rp, rt, s1) do
+              {:ok, s2}
+            else
+              :error ->
+                with {:ok, s1} <- match_pattern(arena, lp, rt, subst),
+                     {:ok, s2} <- match_pattern(arena, rp, lt, s1) do
+                  {:ok, s2}
+                end
+            end
+
+          t when t in [@tag_app, @tag_or] ->
+            with {:ok, s1} <- match_pattern(arena, lp, lt, subst) do
+              match_pattern(arena, rp, rt, s1)
+            end
+
+          _ ->
+            :error
+        end
+
+      true ->
+        :error
+    end
+  end
+
+  @doc """
+  Unifies two HOL terms `s_id` and `t_id` under existing substitution `subst`.
+  Supports syntactic first-order unification, alpha/beta/eta equivalence,
+  higher-order pattern abstraction (`F @ c` / `F @ X`), and symmetric equality (`=`).
+  Returns `{:ok, arena, subst}` or `:error`.
+  """
+  @spec unify(t(), term_id(), term_id(), subst()) :: {:ok, t(), subst()} | :error
+  def unify(%__MODULE__{} = arena, s_id, t_id, subst \\ %{}) do
+    {arena, s_norm} = subst_fvar(arena, s_id, subst)
+    {arena, t_norm} = subst_fvar(arena, t_id, subst)
+
+    if s_norm == t_norm do
+      {:ok, arena, subst}
+    else
+      {ts, _fs, ty_s, ls, rs} = get_node(arena, s_norm)
+      {tt, _ft, ty_t, lt, rt} = get_node(arena, t_norm)
+
+      cond do
+        ty_s != ty_t ->
+          :error
+
+        ts == @tag_fvar ->
+          bind_fvar(arena, ls, t_norm, subst)
+
+        tt == @tag_fvar ->
+          bind_fvar(arena, lt, s_norm, subst)
+
+        ts == @tag_lam and tt == @tag_lam and ls == lt ->
+          unify(arena, rs, rt, subst)
+
+        ts == @tag_not and tt == @tag_not ->
+          unify(arena, ls, lt, subst)
+
+        ts == @tag_eq and tt == @tag_eq ->
+          case unify_pair(arena, ls, lt, rs, rt, subst) do
+            {:ok, _, _} = ok -> ok
+            :error -> unify_pair(arena, ls, rt, rs, lt, subst)
+          end
+
+        ts == @tag_or and tt == @tag_or ->
+          unify_pair(arena, ls, lt, rs, rt, subst)
+
+        ts == @tag_app and tt == @tag_app ->
+          case unify_pair(arena, ls, lt, rs, rt, subst) do
+            {:ok, _, _} = ok ->
+              ok
+
+            :error ->
+              try_ho_pattern_unify(arena, s_norm, t_norm, subst)
+          end
+
+        ts == @tag_app or tt == @tag_app ->
+          try_ho_pattern_unify(arena, s_norm, t_norm, subst)
+
+        true ->
+          :error
+      end
+    end
+  end
+
+  defp unify_pair(arena, l1, l2, r1, r2, subst) do
+    with {:ok, arena, subst} <- unify(arena, l1, l2, subst) do
+      unify(arena, r1, r2, subst)
+    end
+  end
+
+  @doc """
+  Returns true iff `term_id` contains an escaping (unbound) de Bruijn index `BVar(i)`
+  with `i >= depth`. Closed lambda/forall terms return `false` at `depth = 0`.
+  """
+  @spec has_loose_bvar?(t(), term_id(), non_neg_integer()) :: boolean()
+  def has_loose_bvar?(%__MODULE__{} = arena, term_id, depth \\ 0) do
+    {tag, flags, _ty, left, right} = get_node(arena, term_id)
+
+    if band(flags, @flag_has_bvar) == 0 do
+      false
+    else
+      case tag do
+        @tag_bvar ->
+          left >= depth
+
+        @tag_not ->
+          has_loose_bvar?(arena, left, depth)
+
+        t when t in [@tag_lam, @tag_forall] ->
+          has_loose_bvar?(arena, right, depth + 1)
+
+        t when t in [@tag_app, @tag_eq, @tag_or] ->
+          has_loose_bvar?(arena, left, depth) or has_loose_bvar?(arena, right, depth)
+
+        _ ->
+          false
+      end
+    end
+  end
+
+  defp bind_fvar(arena, fvar_id, target_id, subst) do
+    # Do not bind a free variable to a term with escaping de Bruijn bound variables
+    if has_loose_bvar?(arena, target_id, 0) or occurs_fvar?(arena, target_id, fvar_id, subst) do
+      :error
+    else
+      {:ok, arena, Map.put(subst, fvar_id, target_id)}
+    end
+  end
+
+  # Pragmatic higher-order imitation/abstraction when head is a free function variable:
+  # e.g. `Q @ u =?= rhs` where `Q` is an unbound FVar and `u` occurs in `rhs` -> `Q := ^ [X]: rhs[u := X]`
+  defp try_ho_pattern_unify(arena, s_id, t_id, subst) do
+    case match_fvar_app(arena, s_id, t_id, subst) do
+      {:ok, _, _} = ok -> ok
+      :error -> match_fvar_app(arena, t_id, s_id, subst)
+    end
+  end
+
+  defp match_fvar_app(arena, app_id, other_id, subst) do
+    case get_node(arena, app_id) do
+      {@tag_app, _, _, fun_id, arg_id} ->
+        case get_node(arena, fun_id) do
+          {@tag_fvar, _, _f_ty, fvar_id, _} ->
+            if occurs_fvar?(arena, other_id, fvar_id, subst) or
+                 occurs_fvar?(arena, arg_id, fvar_id, subst) do
+              :error
+            else
+              arg_ty = type_of(arena, arg_id)
+              {arena, abstracted_body} = abstract_subterm(arena, other_id, arg_id, 0)
+              {arena, lam_id} = mk_lam(arena, arg_ty, abstracted_body)
+              bind_fvar(arena, fvar_id, lam_id, subst)
+            end
+
+          _ ->
+            :error
+        end
+
+      _ ->
+        :error
+    end
+  end
+
+  @doc """
+  Replaces occurrences of `target_id` inside `term_id` with `BVar(depth)`,
+  shifting existing bound variables `>= depth` up by 1.
+  """
+  @spec abstract_subterm(t(), term_id(), term_id(), non_neg_integer()) :: {t(), term_id()}
+  def abstract_subterm(%__MODULE__{} = arena, term_id, target_id, depth \\ 0) do
+    if term_id == target_id do
+      mk_bvar(arena, depth, type_of(arena, target_id))
+    else
+      {tag, _flags, ty_id, left, right} = get_node(arena, term_id)
+
+      case tag do
+        @tag_bvar ->
+          if left >= depth, do: mk_bvar(arena, left + 1, ty_id), else: {arena, term_id}
+
+        @tag_app ->
+          {arena, l2} = abstract_subterm(arena, left, target_id, depth)
+          {arena, r2} = abstract_subterm(arena, right, target_id, depth)
+          mk_app(arena, l2, r2)
+
+        @tag_lam ->
+          {arena, t_shifted} = shift(arena, target_id, 1, 0)
+          {arena, b2} = abstract_subterm(arena, right, t_shifted, depth + 1)
+          mk_lam(arena, left, b2)
+
+        @tag_forall ->
+          {arena, t_shifted} = shift(arena, target_id, 1, 0)
+          {arena, b2} = abstract_subterm(arena, right, t_shifted, depth + 1)
+          mk_forall(arena, left, b2)
+
+        @tag_eq ->
+          {arena, l2} = abstract_subterm(arena, left, target_id, depth)
+          {arena, r2} = abstract_subterm(arena, right, target_id, depth)
+          mk_eq(arena, l2, r2)
+
+        @tag_or ->
+          {arena, l2} = abstract_subterm(arena, left, target_id, depth)
+          {arena, r2} = abstract_subterm(arena, right, target_id, depth)
+          mk_or(arena, l2, r2)
+
+        @tag_not ->
+          {arena, l2} = abstract_subterm(arena, left, target_id, depth)
+          mk_not(arena, l2)
+
+        _ ->
+          {arena, term_id}
+      end
+    end
+  end
+
+  # ---------------------------------------------------------------------------
   # Typed Combinator Lowering (S, K, I, B, C) & Combinator Reduction
   # ---------------------------------------------------------------------------
 
@@ -561,7 +957,6 @@ defmodule Astraea.Arena do
         mk_app(arena, l_c, r_c)
 
       @tag_lam ->
-        # First convert inner lambdas bottom-up, then bracket-abstract BVar(0)
         {arena, body_c} = to_combinators(arena, right)
         bracket_abstract(arena, left, body_c)
 
@@ -588,12 +983,10 @@ defmodule Astraea.Arena do
     {tag, _flags, body_ty, left, right} = get_node(arena, body_id)
 
     cond do
-      # [x] x  ==>  I : var_ty > var_ty
       tag == @tag_bvar and left == 0 ->
         {arena, i_ty} = intern_type(arena, {:arrow, var_ty, var_ty})
         mk_comb(arena, :i, i_ty)
 
-      # [x] M (where x not in M)  ==>  K @ M
       not occurs_bvar?(arena, body_id, 0) ->
         {arena, shifted} = shift(arena, body_id, -1, 1)
         {arena, ret_ty} = intern_type(arena, {:arrow, var_ty, body_ty})
@@ -601,18 +994,15 @@ defmodule Astraea.Arena do
         {arena, k_node} = mk_comb(arena, :k, k_ty)
         mk_app(arena, k_node, shifted)
 
-      # [x] (F @ G)
       tag == @tag_app ->
         f_has = occurs_bvar?(arena, left, 0)
         g_has = occurs_bvar?(arena, right, 0)
 
         cond do
-          # Eta rule: [x] (F @ x) ==> F
           not f_has and elem(get_node(arena, right), 0) == @tag_bvar and
               elem(get_node(arena, right), 3) == 0 ->
             shift(arena, left, -1, 1)
 
-          # B combinator: [x] (F @ G) when x only in G ==> B @ F @ ([x] G)
           not f_has and g_has ->
             {arena, f_s} = shift(arena, left, -1, 1)
             {arena, g_abs} = bracket_abstract(arena, var_ty, right)
@@ -625,7 +1015,6 @@ defmodule Astraea.Arena do
             {arena, bf} = mk_app(arena, b_node, f_s)
             mk_app(arena, bf, g_abs)
 
-          # C combinator: [x] (F @ G) when x only in F ==> C @ ([x] F) @ G
           f_has and not g_has ->
             {arena, f_abs} = bracket_abstract(arena, var_ty, left)
             {arena, g_s} = shift(arena, right, -1, 1)
@@ -638,7 +1027,6 @@ defmodule Astraea.Arena do
             {arena, cf} = mk_app(arena, c_node, f_abs)
             mk_app(arena, cf, g_s)
 
-          # S combinator: [x] (F @ G) when x in both ==> S @ ([x] F) @ ([x] G)
           true ->
             {arena, f_abs} = bracket_abstract(arena, var_ty, left)
             {arena, g_abs} = bracket_abstract(arena, var_ty, right)
@@ -689,19 +1077,14 @@ defmodule Astraea.Arena do
 
   defp reduce_comb_spine(%__MODULE__{} = arena, f_id, x_id) do
     case get_node(arena, f_id) do
-      # I @ x  ==>  x
       {@tag_comb, _, _, @comb_i, _} ->
         {arena, x_id}
 
-      # (K @ a) @ x  ==>  a
       {@tag_app, _, _, k_id, a_id} ->
         case get_node(arena, k_id) do
           {@tag_comb, _, _, @comb_k, _} ->
             {arena, a_id}
 
-          # ((C @ f) @ g) @ x  ==>  (f @ x) @ g
-          # ((B @ f) @ g) @ x  ==>  f @ (g @ x)
-          # ((S @ f) @ g) @ x  ==>  (f @ x) @ (g @ x)
           {@tag_app, _, _, comb_id, arg1_id} ->
             case get_node(arena, comb_id) do
               {@tag_comb, _, _, @comb_b, _} ->
@@ -740,7 +1123,8 @@ defmodule Astraea.Arena do
   @doc """
   Computes the structural weight and free-variable multiset of `term_id` for KBO.
   """
-  @spec term_weight_and_vars(t(), term_id()) :: {pos_integer(), %{non_neg_integer() => pos_integer()}}
+  @spec term_weight_and_vars(t(), term_id()) ::
+          {pos_integer(), %{non_neg_integer() => pos_integer()}}
   def term_weight_and_vars(%__MODULE__{} = arena, term_id) do
     {tag, _flags, _ty_id, left, right} = get_node(arena, term_id)
 
@@ -840,13 +1224,7 @@ defmodule Astraea.Arena do
 
   @doc """
   Computes a 16-lane u32 feature vector (`FVIndex`) for SIMD forward/backward
-  subsumption filtering (Schulz 2013):
-    lane 0: total node count (size)
-    lane 1: tree depth
-    lane 2..12: counts of node tags 1..11
-    lane 13..15: hashed symbol signature buckets (mod 3)
-  A clause/term with feature vector `fv_a` can subsume `fv_b` only if
-  `forall i in 0..15: fv_a[i] <= fv_b[i]`.
+  subsumption filtering (Schulz 2013).
   """
   @spec feature_vector(t(), term_id()) :: [non_neg_integer()]
   def feature_vector(%__MODULE__{} = arena, term_id) do
@@ -864,9 +1242,8 @@ defmodule Astraea.Arena do
 
   defp walk_fv(%__MODULE__{} = arena, term_id, counts) do
     {tag, _flags, _ty_id, left, right} = get_node(arena, term_id)
-    # Lane 0 (index 1 in :counters): size
     :counters.add(counts, 1, 1)
-    # Lanes 2..12 (indices 3..13 in :counters): tag counts for tags 1..11
+
     if tag >= 1 and tag <= 11 do
       :counters.add(counts, tag + 2, 1)
     end

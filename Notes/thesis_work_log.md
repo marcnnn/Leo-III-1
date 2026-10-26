@@ -126,3 +126,91 @@ Running a full AST walk with `Tptp.Unit.from_file/2` (`resolver: Tptp.Resolver.F
 3. **Division of Labor Between `NxSimd` and `Rustler`:**
    * **Bulk Tabular / Matrix Operations (`FVIndex` subsumption, SInE premise selection, and `NxSimd.Quantized` `int8` clause scoring):** Best expressed as width-checked `Nx` `defn` graphs compiled via `NxSimd.Compiler`.
    * **Irregular DAG / Tree Traversals (Hash-consing, de Bruijn/combinator reduction, KBO recursive lex comparison, higher-order pattern unification):** Best executed inside zero-copy `Rustler` NIFs operating on the flat 12-byte `Astraea.Arena` slice (**19.4x** faster than Elixir with **295x** less heap allocation).
+
+---
+
+## Entry 005 — Higher-Order Clausifier, LCF-Verified Given-Clause Prover & Empirical `TPTP-Smoke` / `TPTP-Dev` Evaluation (2026-10-26)
+
+* **Modules Implemented & Extended:**
+  * [`Astraea.Arena`](file:///Users/marcnickert/Projects/opensource/Leo-III/astraea/lib/astraea/arena.ex) — Added free-variable extraction (`free_vars/2`), capture-avoiding free-variable substitution with $\beta\eta$-normalization (`subst_fvar/3`), occurs-check (`occurs_fvar?/4`), one-way syntactic/symmetric-equality pattern matching (`match_pattern/4`), higher-order pattern/abstraction unification (`unify/4`), loose bound-variable detection (`has_loose_bvar?/3`), subterm abstraction (`abstract_subterm/4`), and double-negation elimination (`~ ~ A -> A`) inside `beta_eta_norm/2`.
+  * [`Astraea.ProofChecker`](file:///Users/marcnickert/Projects/opensource/Leo-III/astraea/lib/astraea/proof_checker.ex) — Expanded the trusted LCF kernel to verify 9 primitive inference rules: `:axiom`, `:refl`, `:symm`, `:trans`, `:subst` (capture-avoiding free-variable instantiation + $\beta\eta$-normalization), `:cong` (higher-order application congruence), `:func_ext` ($\xi$-rule lambda congruence `u = v |- (^ [X]: u) = (^ [X]: v)`), `:paramod` (Leibniz equality subterm replacement + $\beta\eta$-normalization), and `:resolve` (modulo equality symmetry).
+  * [`Astraea.Clausifier`](file:///Users/marcnickert/Projects/opensource/Leo-III/astraea/lib/astraea/clausifier.ex) — Implemented multi-pass constant/combinator definition extraction & selective bridge-predicate inlining, Leibniz equality recognition (`! [Q: ty > $o]: (Q @ u => Q @ v)` $\to$ `u = v`), unfolded bi-implication recognition (`(~A | B) & (~B | A)` $\to$ `A = B`), SInE symbol-rarity premise selection (`sine_filter/4`), Boolean domain splitting (`$o` quantifiers over `{$true, $false}`), positive congruence & negative functional extensionality (`FuncExt`), shared-conjunct Boolean equivalence factoring (`(A & S) <=> (B & S)` $\to$ `S => (A <=> B)`), and content-addressed Skolem CNF conversion.
+  * [`Astraea.Prover`](file:///Users/marcnickert/Projects/opensource/Leo-III/astraea/lib/astraea/prover.ex) & [`Astraea.TptpCorpus`](file:///Users/marcnickert/Projects/opensource/Leo-III/astraea/lib/astraea/tptp_corpus.ex) — Implemented the discount-style Given-Clause saturation prover and concurrent 14-core OTP split runner (`evaluate_split/2`) with eager unit-clause subsumption resolution (`unit_simplify/2`), equality resolution, factoring, positive $\xi$-extensionality (`:func_ext`), higher-order predicate reflexivity instantiation (`P := ^ [Z]: (Z = u)`), binary resolution, KBO-oriented superposition/paramodulation, and 16-lane `FVIndex` forward subsumption.
+
+### 5.1 RQ2 Synthesis & Defect Interception Log (Entries #3–#6)
+
+| Target Component | Iteration | Gate Triggered | Defect / Observation | Resolution | Final Status |
+| :--- | :---: | :--- | :--- | :--- | :--- |
+| `Astraea.Clausifier` / `ProofChecker` / `Prover` | 1 | **Gate 1 (`Arena.mk_not/2` & `mk_eq/3` type guards on `NUM793^1`, `ITP175^1`)** | **Tag Enumeration Drift:** Initial drafts used raw integers `4` (`@tag_lam`), `5` (`@tag_app`), `7` (`@tag_forall`), and `9` (`@tag_not`), whereas [`Astraea.Arena`](file:///Users/marcnickert/Projects/opensource/Leo-III/astraea/lib/astraea/arena.ex) defines `@tag_app = 4`, `@tag_lam = 5`, `@tag_not = 7`, `@tag_forall = 9`. | Standardized symbolic `@tag_*` module attributes across `Arena`, `Clausifier`, `ProofChecker`, and `Prover`. | **PASS** |
+| `Astraea.Arena.bind_fvar/4` & `ProofChecker.validate_subst_types/3` & `Clausifier.match_definition/4` | 2 | **Gate 3 (`TPTP-Smoke` evaluation: `SEU559^2`, `SEU893^5`, `SYO088^5`)** | **`@flag_has_bvar` Propagation vs. Escaping De Bruijn Indices:** `Arena.mk_lam/3` propagates `b_flags` (`@flag_has_bvar = 0x01`) from its body so `shift/4` and `subst_bvar/4` know a bound variable exists inside. Checking `band(flags, @flag_has_bvar) == 0` rejected **all closed $\lambda$-abstractions** (`^ [X]: ... X ...`), blocking higher-order definition extraction and predicate instantiation. | Implemented `Arena.has_loose_bvar?(arena, term_id, depth)` (checking `BVar(i)` with `i >= depth`), immediately jumping `TPTP-Smoke` solved theorems from **11/34 to 24/34**. | **PASS** |
+| `Astraea.Clausifier.collect_conjuncts/2` | 3 | **Gate 3 (`LCL866^1` modal equivalence factoring)** | **$n$-ary Conjunction Normalization under Double-Negation Elimination:** After `beta_eta_norm/2` eliminated double negations, a 3-way conjunction `(A & B) & C` became `~((~A | ~B) | ~C)` where the left child of `@tag_or` is `@tag_or` rather than `@tag_not`, causing binary `collect_conjuncts` to miss shared conjuncts in `(msym & meuc) <=> (mtrans & msym & meuc)`. | Updated `collect_conjuncts/2` to flatten `or_id` via `collect_disjuncts/2` and negate each disjunct, solving `LCL866^1` in **13 iterations / 127.9 ms**. | **PASS** |
+| `Astraea.Prover.try_superposition/2` | 4 | **Gate 3 (`SEU511^2` runtime check)** | **`Enum.reduce_while/3` Early-Refutation Return:** When `unit_simplify/2` inside `paramod_directed/3` derived the empty clause directly (`{:proved, st, empty_id}`), the `with` block inside `try_superposition/2` returned `{:proved, ...}` directly instead of `{:halt, {:proved, ...}}`. | Added `else {:proved, _, _} = proved -> {:halt, proved}` to `try_superposition/2`. | **PASS** |
+
+### 5.2 Tier 1 (`TPTP-Smoke`, 50 Problems) Empirical Evaluation on `armix`
+* **Reproducible Command:**
+  ```bash
+  cd ~/Projects/opensource/Leo-III/astraea && mix run -e 'Astraea.Prover.evaluate_split(:smoke, timeout_ms: 2500) |> IO.inspect()'
+  ```
+* **Aggregate Metrics (`timeout_ms: 2,500`):**
+  * **Total Problems:** `50` (`34` `Theorem`, `15` `CounterSatisfiable`/`Satisfiable`, `1` `Unknown`)
+  * **`Theorem` Problems Solved:** **`25 / 34` (`73.5%`)** at `2,500 ms` (**`26 / 34` (`76.5%`)** including `LCL621^1` at `4,000 ms`)
+  * **Gate 3 Soundness (`CSA`/`SAT` False Proofs):** **`0 / 15` (`0.0%`)**
+  * **Gate 3 LCF Proof Verification Failures:** **`0 / 25` (`100.0%` verified by `Astraea.ProofChecker.verify_refutation/2`)**
+
+| Problem | Domain | Status | Proof Steps (LCF DAG) | Saturation Iterations | Wall-Clock Time (`ms`) | Key Calculus / Clausification Features Exercised |
+| :--- | :---: | :---: | :---: | :---: | :---: | :--- |
+| `AGT033^2` | `AGT` | `Theorem` | 13 | 34 | `182.04` | SInE premise selection (`69` axioms) + binary resolution |
+| `AGT037^2` | `AGT` | `Theorem` | 16 | 33 | `162.80` | SInE premise selection (`69` axioms) + multi-clause resolution |
+| `LCL608^1` | `LCL` | `Theorem` | 7 | 2 | `123.92` | Modal combinator unfolding + unit resolution |
+| `LCL621^1` | `LCL` | `Theorem` | 21 | 306 | `2,510.00` | Modal accessibility quantifier resolution |
+| `LCL723^1` | `LCL` | `Theorem` | 29 | 23 | `128.63` | Multi-pass modal operator inlining + resolution |
+| `LCL866^1` | `LCL` | `Theorem` | 15 | 13 | `127.93` | Unfolded `mequiv` recognition + $n$-ary shared-conjunct factoring |
+| `NUM793^1` | `NUM` | `Theorem` | 19 | 11 | `120.86` | SInE selection (`193` Peano/Landau axioms) + equality resolution |
+| `SEU511^2` | `SEU` | `Theorem` | 6 | 2 | `1.12` | Set definition unfolding + KBO superposition + unit simplification |
+| `SEU559^2` | `SEU` | `Theorem` | 6 | 3 | `3.16` | Higher-order closed $\lambda$-definition inlining + resolution |
+| `SEU673^2` | `SEU` | `Theorem` | 18 | 14 | `12.28` | Selective bridge-predicate (`func`, `singleton`) lemma reasoning |
+| `SEU798^2` | `SEU` | `Theorem` | 8 | 4 | `2.35` | Higher-order set operator unfolding + resolution |
+| `SEU820^2` | `SEU` | `Theorem` | 26 | 12 | `5.97` | Unary predicate `$false` instantiation (`vacuousDall`) + eager `unit_simplify` |
+| `SEU893^5` | `SEU` | `Theorem` | 10 | 4 | `3.38` | Higher-order Leibniz equality + $\beta\eta$-normalization |
+| `SEV160^5` | `SEV` | `Theorem` | 3 | 0 | `5.96` | Direct $\beta\eta$-normalization + equality resolution |
+| `SEV393^5` | `SEV` | `Theorem` | 6 | 4 | `5.89` | Boolean quantifier splitting (`$o`) + resolution |
+| `SWV442^1` | `SWV` | `Theorem` | 6 | 6 | `21.49` | Software verification invariant resolution |
+| `SYO011^1` | `SYO` | `Theorem` | 6 | 4 | `9.19` | Leibniz equality rewriting (`! [Q]: (Q @ u => Q @ v)`) + congruence |
+| `SYO088^5` | `SYO` | `Theorem` | 20 | 11 | `2.64` | Higher-order predicate reflexivity (`P := ^ [Z]: (Z = u)`) |
+| `SYO114^5` | `SYO` | `Theorem` | 15 | 3 | `1.98` | Boolean extensionality + factoring |
+| `SYO128^5` | `SYO` | `Theorem` | 8 | 4 | `1.43` | Boolean quantifier domain splitting |
+| `SYO154^5` | `SYO` | `Theorem` | 10 | 4 | `5.37` | Negative functional extensionality (`FuncExt`) + Skolemization |
+| `SYO413^1` | `SYO` | `Theorem` | 8 | 4 | `30.96` | Propositional/Boolean equivalence factoring |
+| `SYO462^2` | `SYO` | `Theorem` | 27 | 29 | `39.77` | Multi-clause Boolean resolution + factoring |
+| `SYO475^6` | `SYO` | `Theorem` | 6 | 6 | `11.64` | Higher-order combinator/lambda normalization |
+| `SYO481^6` | `SYO` | `Theorem` | 3 | 0 | `7.78` | Immediate $\beta\eta$-reduction + reflexivity |
+| `SYO507^1` | `SYO` | `Theorem` | 3 | 0 | `0.68` | Immediate $\beta\eta$-reduction + equality resolution |
+
+### 5.3 Tier 2 (`TPTP-Dev`, 300 Problems) Empirical Evaluation on `armix`
+* **Reproducible Command:**
+  ```bash
+  cd ~/Projects/opensource/Leo-III/astraea && mix run -e 'Astraea.Prover.evaluate_split(:dev, timeout_ms: 2500) |> IO.inspect()'
+  ```
+* **Aggregate Metrics (`timeout_ms: 2,500`, 14-core concurrent OTP execution):**
+  * **Total Problems:** `300` (`237` `Theorem`, `60` `CounterSatisfiable`/`Satisfiable`, `3` `Unknown`)
+  * **`Theorem` Problems Solved:** **`79 / 237` (`33.3%`)** across **14 TPTP domains**
+  * **Gate 3 Soundness (`CSA`/`SAT` False Proofs):** **`0 / 60` (`0.0%`)**
+  * **Gate 3 LCF Proof Verification Failures:** **`0 / 79` (`100.0%` verified by `Astraea.ProofChecker.verify_refutation/2`)**
+
+| TPTP Domain | Domain Description | Solved `Theorem` Count |
+| :--- | :--- | :---: |
+| **`SYO`** | Syntactic Higher-Order Problems (Extensionality, Leibniz, Combinators) | **20** |
+| **`SEU`** | Set Theory (Mizar / Tarski-Grothendieck Higher-Order Formulations) | **19** |
+| **`SET`** | Set Theory (Boolean Algebra & Higher-Order Set Operations) | **12** |
+| **`LCL`** | Logic Calculi (Higher-Order Modal, Intuitionistic & Temporal Logics) | **5** |
+| **`NUM`** | Number Theory (Peano / Landau Higher-Order Arithmetic) | **4** |
+| **`CSR`** | Commonsense Reasoning | **3** |
+| **`PUZ`** | Puzzles (Higher-Order Knights/Knaves & Epistemic Puzzles) | **3** |
+| **`SYN`** | Syntactic Benchmark Problems | **3** |
+| **`ALG`** | Algebra | **2** |
+| **`ITP`** | Interactive Theorem Proving Exports (Isabelle/HOL, Coq) | **2** |
+| **`PLA`** | Planning | **2** |
+| **`SEV`** | Set Theory (Elementary / Verification) | **2** |
+| **`NLP`** | Natural Language Processing | **1** |
+| **`PRO`** | Process / Protocol Verification | **1** |
+| **Total** | **14 Domains** | **79 / 237 (`33.3%`)** |
