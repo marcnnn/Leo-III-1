@@ -19,13 +19,26 @@ defmodule Astraea.MixProject do
   end
 
   defp deps do
-    [
+    base = [
       {:tptp, "~> 0.3.0"},
       {:rustler, "~> 0.36"},
       {:jason, "~> 1.4"},
       {:stream_data, "~> 1.1", only: [:dev, :test]},
       {:benchee, "~> 1.3"}
     ]
+
+    nx_simd_path = Path.expand("../../../nx_simd", __DIR__)
+    nx_fixed_path = Path.expand("../../../nx_fixed", __DIR__)
+
+    if File.dir?(nx_simd_path) and File.dir?(nx_fixed_path) do
+      base ++
+        [
+          {:nx_fixed, path: nx_fixed_path},
+          {:nx_simd, path: nx_simd_path}
+        ]
+    else
+      base
+    end
   end
 
   defp aliases do
