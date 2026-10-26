@@ -22,6 +22,7 @@ defmodule Astraea.MixProject do
     base = [
       {:tptp, "~> 0.3.0"},
       {:rustler, "~> 0.36"},
+      {:muontrap, "~> 2.0"},
       {:jason, "~> 1.4"},
       {:stream_data, "~> 1.1", only: [:dev, :test]},
       {:benchee, "~> 1.3"}

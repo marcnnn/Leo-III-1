@@ -3,3 +3,4 @@
 /*.ez
 erl_crash.dump
 /native/**/target/
+/priv/native/

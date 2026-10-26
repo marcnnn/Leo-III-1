@@ -253,3 +253,38 @@ Across all **264 verified higher-order refutations**, [`Astraea.Compressor.compr
   * `:refl` — `36` (`1.1%`)
   * `:func_ext` — `5` (`0.15%`)
 * **Macro-Inference Takeaway:** Over **91.1%** (`730 / 801`) of the remaining `:subst` steps after `:subst -> :subst` fusion feed directly into `:resolve` (`inst_resolve`) or `:paramod` (`superposition`). Contracting `inst_resolve`, `superposition`, and `eq_resolution` into derived `CompressedRule` macro-steps reduces the logical proof certificate length by an additional **809 steps (`24.5%`)**, yielding a combined two-stage DAG compression ratio of **29.95%** (`3,559` raw steps $\to$ `2,493` macro-compressed steps).
+
+---
+
+## Entry 008: External Prover Integration over MuonTrap Ports & Unsat-Core Reconstruction (2026-10-27)
+
+* **Modules Implemented** (port of Leo-III's `leo.modules.external`):
+  * [`Astraea.External`](file:///Users/marcnickert/Projects/opensource/Leo-III/astraea/lib/astraea/external.ex): runs E, Vampire, Zipperposition, cvc5, iProver, Satallax, Leo-III and LEO-II as OS processes via `MuonTrap.cmd/3`, on the original TPTP file or on Astraea's clausified clause set. Specs live in [`External.Provers`](file:///Users/marcnickert/Projects/opensource/Leo-III/astraea/lib/astraea/external/provers.ex), SZS answers are parsed by [`External.SZS`](file:///Users/marcnickert/Projects/opensource/Leo-III/astraea/lib/astraea/external/szs.ex) (TPTP comment lines only).
+  * [`External.ThfPrinter`](file:///Users/marcnickert/Projects/opensource/Leo-III/astraea/lib/astraea/external/thf_printer.ex) and [`External.TffPrinter`](file:///Users/marcnickert/Projects/opensource/Leo-III/astraea/lib/astraea/external/tff_printer.ex): clause sets as THF0, or as first-order TFF0 via applicative encoding with lambda lifting (sound for refutations, deliberately incomplete).
+  * [`External.Reconstruct`](file:///Users/marcnickert/Projects/opensource/Leo-III/astraea/lib/astraea/external/reconstruct.ex): Sledgehammer-style reconstruction. The unsat core is read from `file(_, Name)` annotations of the TSTP proof and re-proved by `Astraea.Prover`, so every accepted proof still passes `Astraea.ProofChecker`.
+  * `Astraea.Portfolio` `external:` option (whole-problem racers) and `Astraea.Prover` `cooperate:` option (Leo-III style mid-search cooperation; core sub-proofs are spliced onto existing derivations via `seed:`).
+* **Process Isolation Findings:**
+  * Without cgroups, MuonTrap only signals its direct child; forked prover workers and JVMs survived kills. Fixed with [`priv/process_group.sh`](file:///Users/marcnickert/Projects/opensource/Leo-III/astraea/priv/process_group.sh), which kills the prover's whole process group.
+  * The `oss-cad-suite` cvc5 1.0.1-dev segfaults on 4 of 12 THF smoke problems. As a separate process this is just a failed worker; as a NIF it would have taken down the BEAM. Replaced by cvc5 1.4.2 (`~/tools/cvc5`).
+* **Prover Builds on `armix`:** E 3.5.1-ho and E 3.5.1 (`~/tools/eprover-ho`, `~/tools/eprover`), Vampire 5.1.0 (`~/tools/vampire`), cvc5 1.4.2 (`~/tools/cvc5`).
+
+### 8.1 Evaluation on `TPTP-Smoke` and `TPTP-Dev` (2.5 s per problem, 3 problems in parallel)
+
+* **Reproducible Command on `armix`:**
+  ```bash
+  export PATH=~/tools/eprover-ho/bin:~/tools/eprover/bin:~/tools/vampire/bin:~/tools/cvc5/bin:$PATH
+  mix external.eval --split dev --timeout 2500 --concurrency 3 --out /tmp/external_dev.json
+  ```
+
+| Split | Configuration | LCF-Verified Solved | of which Externally Assisted | Unverified External Only | `CSA`/`SAT` False Proofs | External Unsound Answers |
+| :--- | :--- | :---: | :---: | :---: | :---: | :---: |
+| `TPTP-Smoke` (34 `THM`) | Baseline portfolio | `27` | `0` | `0` | `0 / 15` | `0` |
+| `TPTP-Smoke` | + racers (E-HO, Vampire, cvc5) | **`30`** | `4` | `4` | `0 / 15` | `0` |
+| `TPTP-Smoke` | + mid-search cooperation (E-HO) | `27` | `2` | `0` | `0 / 15` | `0` |
+| `TPTP-Dev` (237 `THM`) | Baseline portfolio | `82` (`34.60%`) | `0` | `0` | `0 / 60` | `0` |
+| `TPTP-Dev` | + racers (E-HO, Vampire, cvc5) | **`93` (`39.24%`)** | `15` | `60` | `0 / 60` | `0` |
+| `TPTP-Dev` | + mid-search cooperation (E-HO) | `88` (`37.13%`) | `13` | `0` | `0 / 60` | `0` |
+
+* The baseline reproduces Entry 007 exactly (`82 / 237` on `TPTP-Dev`).
+* External provers find many more refutations than can currently be reconstructed (`60` unverified on `TPTP-Dev`). Reconstruction fails when the core still needs inferences `Astraea.Prover` lacks within the remaining budget, so these are a direct target list for prover improvements.
+* `TPTP-Holdout` was not run, per its blind-benchmark policy.

@@ -15,9 +15,19 @@ defmodule Astraea.Prover do
 
   Every refutation (`SZS status Theorem`) constructs a minimal DAG of primitive inference
   steps and passes it through `Astraea.ProofChecker.verify_refutation/2` before returning.
+
+  With `:cooperate`, the loop periodically hands its current clause set to external
+  provers (Leo-III style cooperation, see `Astraea.External`). An external refutation
+  is reconstructed by a seeded sub-search on its unsat core whose proof is spliced onto
+  the existing derivations of the core clauses, so cooperation never weakens the LCF
+  guarantee unless `:trust_external` is set.
   """
 
-  alias Astraea.{Arena, Clausifier, ProofChecker, TptpCorpus, TptpLower}
+  alias Astraea.{Arena, Clausifier, External, ProofChecker, TptpCorpus, TptpLower}
+  alias Astraea.External.Reconstruct
+
+  # Below this remaining budget an external call cannot finish in time.
+  @min_external_ms 300
 
   # Node tags (u8) matching `Astraea.Arena`
   @tag_const 1
@@ -45,7 +55,14 @@ defmodule Astraea.Prover do
             max_clause_lits: 6,
             max_clause_weight: 45,
             scoring_mode: :goal_directed,
-            deadline_ms: nil
+            deadline_ms: nil,
+            opts: [],
+            cooperate: [],
+            coop_interval: 40,
+            coop_max_clauses: 400,
+            coop_last_dispatch: 0,
+            coop_inflight: %{},
+            coop_log: []
 
   @type result ::
           {:proved, [ProofChecker.step()], map()}
@@ -93,7 +110,22 @@ defmodule Astraea.Prover do
     prove_clauses(arena, clauses, opts)
   end
 
-  @spec prove_clauses(Arena.t(), [ProofChecker.clause()], keyword()) :: result()
+  @doc """
+  Saturates `input_clauses`. Besides the strategy options (`:timeout_ms`,
+  `:max_iterations`, `:max_clause_lits`, `:max_clause_weight`, `:scoring_mode`):
+    * `:cooperate` - external provers to call during search, as names or
+      `{name, opts}` (options of `Astraea.External.run/3`, plus `:spec`, `:format`)
+    * `:cooperate_interval` - iterations between external calls (default 40)
+    * `:cooperate_max_clauses` - clauses per call: all active and unit clauses, then
+      the best-scored passive ones (default 400)
+    * `:trust_external` - return `{:proved_external, stats}` when an external
+      refutation cannot be reconstructed (default `false`)
+    * `:seed` - `%{steps:, ids:, next_step_id:, next_fvar_id:}`: the input clauses
+      were already derived as steps `ids` of `steps`, so they are not registered as
+      axioms and a refutation includes their derivations
+  """
+  @spec prove_clauses(Arena.t(), [ProofChecker.clause()], keyword()) ::
+          result() | {:proved_external, map()}
   def prove_clauses(%Arena{} = arena, input_clauses, opts \\ []) do
     timeout_ms = Keyword.get(opts, :timeout_ms, 2_500)
     max_iters = Keyword.get(opts, :max_iterations, 450)
@@ -108,10 +140,28 @@ defmodule Astraea.Prover do
       max_clause_lits: max_lits,
       max_clause_weight: max_weight,
       scoring_mode: scoring_mode,
-      deadline_ms: deadline
+      deadline_ms: deadline,
+      opts: opts,
+      cooperate: opts |> Keyword.get(:cooperate, []) |> Enum.map(&normalize_external/1),
+      coop_interval: Keyword.get(opts, :cooperate_interval, 40),
+      coop_max_clauses: Keyword.get(opts, :cooperate_max_clauses, 400)
     }
 
-    case init_clauses(state, input_clauses) do
+    {state, seed_ids} =
+      case Keyword.get(opts, :seed) do
+        nil ->
+          {state, nil}
+
+        seed ->
+          {%{
+             state
+             | steps: seed.steps,
+               next_step_id: seed.next_step_id,
+               next_fvar_id: max(state.next_fvar_id, seed.next_fvar_id)
+           }, seed.ids}
+      end
+
+    case init_clauses(state, input_clauses, seed_ids) do
       {:proved, state, empty_id} ->
         finalize_proof(state, empty_id)
 
@@ -185,11 +235,18 @@ defmodule Astraea.Prover do
   # Initialization & Saturation Loop
   # ---------------------------------------------------------------------------
 
-  defp init_clauses(%__MODULE__{} = state, clauses) do
-    # Pass 1: Register all initial clauses as `:axiom` steps in their original order
+  defp init_clauses(%__MODULE__{} = state, clauses, seed_ids) do
+    # Pass 1: Register all initial clauses as `:axiom` steps in their original order;
+    # seeded clauses keep the ids of their existing derivations instead.
+    entries = if seed_ids, do: Enum.zip(clauses, seed_ids), else: Enum.map(clauses, &{&1, nil})
+
     {state, axiom_items} =
-      Enum.reduce(clauses, {state, []}, fn clause, {st, acc} ->
-        {st, c_item} = add_step(st, {:axiom, st.next_step_id, clause}, clause, 0)
+      Enum.reduce(entries, {state, []}, fn {clause, seed_id}, {st, acc} ->
+        {st, c_item} =
+          case seed_id do
+            nil -> add_step(st, {:axiom, st.next_step_id, clause}, clause, 0)
+            id -> {st, clause_item(st, id, clause, 0)}
+          end
 
         st =
           if MapSet.size(clause) == 1 and length(st.units) < 48 do
@@ -229,48 +286,55 @@ defmodule Astraea.Prover do
   end
 
   defp saturation_loop(%__MODULE__{passive: []} = state) do
-    {:saturated, stats(state)}
+    finish(state, {:saturated, stats(state)})
   end
 
   defp saturation_loop(%__MODULE__{iterations: iters, max_iterations: max_iters} = state)
        when iters >= max_iters do
-    {:resource_out, stats(state)}
+    finish(state, {:resource_out, stats(state)})
   end
 
   defp saturation_loop(%__MODULE__{} = state) do
     if System.monotonic_time(:millisecond) >= state.deadline_ms do
-      {:resource_out, stats(state)}
+      finish(state, {:resource_out, stats(state)})
     else
-      {given, rest_passive} = pop_best_passive(state.passive, state.iterations)
-      state = %{state | passive: rest_passive, iterations: state.iterations + 1}
-      {state, given} = condense_clause(state, given)
-
-      case unit_simplify(state, given) do
-        {:proved, state, empty_id} ->
-          finalize_proof(state, empty_id)
-
-        {:ok, state, given} ->
-          if forward_subsumed?(state.arena, state.active, given) do
-            saturation_loop(state)
-          else
-            case generate_inferences(state, given) do
-              {:proved, state, empty_id} ->
-                finalize_proof(state, empty_id)
-
-              {:cont, state, new_items} ->
-                units =
-                  if MapSet.size(given.lits) == 1 and length(state.units) < 48 do
-                    [given | state.units]
-                  else
-                    state.units
-                  end
-
-                state = %{state | active: [given | state.active], units: units}
-                state = enqueue_passive(state, new_items)
-                saturation_loop(state)
-            end
-          end
+      case cooperate(state) do
+        {:done, result, state} -> finish(state, result)
+        {:cont, state} -> given_clause_step(state)
       end
+    end
+  end
+
+  defp given_clause_step(%__MODULE__{} = state) do
+    {given, rest_passive} = pop_best_passive(state.passive, state.iterations)
+    state = %{state | passive: rest_passive, iterations: state.iterations + 1}
+    {state, given} = condense_clause(state, given)
+
+    case unit_simplify(state, given) do
+      {:proved, state, empty_id} ->
+        finish(state, finalize_proof(state, empty_id))
+
+      {:ok, state, given} ->
+        if forward_subsumed?(state.arena, state.active, given) do
+          saturation_loop(state)
+        else
+          case generate_inferences(state, given) do
+            {:proved, state, empty_id} ->
+              finish(state, finalize_proof(state, empty_id))
+
+            {:cont, state, new_items} ->
+              units =
+                if MapSet.size(given.lits) == 1 and length(state.units) < 48 do
+                  [given | state.units]
+                else
+                  state.units
+                end
+
+              state = %{state | active: [given | state.active], units: units}
+              state = enqueue_passive(state, new_items)
+              saturation_loop(state)
+          end
+        end
     end
   end
 
@@ -961,7 +1025,18 @@ defmodule Astraea.Prover do
 
   defp add_step(%__MODULE__{} = state, step, lits, depth) do
     id = state.next_step_id
+    item = clause_item(state, id, lits, depth)
 
+    state = %{
+      state
+      | steps: Map.put(state.steps, id, step),
+        next_step_id: id + 1
+    }
+
+    {state, item}
+  end
+
+  defp clause_item(%__MODULE__{} = state, id, lits, depth) do
     fvars =
       Enum.reduce(lits, MapSet.new(), fn {_pol, atom_id}, acc ->
         MapSet.union(acc, Arena.free_vars(state.arena, atom_id))
@@ -996,7 +1071,7 @@ defmodule Astraea.Prover do
           num_lits * 15 + weight + num_fvars * 6 + depth * 3 + goal_bonus
       end
 
-    item = %{
+    %{
       id: id,
       lits: lits,
       fvars: fvars,
@@ -1006,14 +1081,6 @@ defmodule Astraea.Prover do
       fv: fv,
       score: score
     }
-
-    state = %{
-      state
-      | steps: Map.put(state.steps, id, step),
-        next_step_id: id + 1
-    }
-
-    {state, item}
   end
 
   # ---------------------------------------------------------------------------
@@ -1153,12 +1220,213 @@ defmodule Astraea.Prover do
   defp step_parents({:resolve, _id, p1, p2, _lit}), do: [p1, p2]
 
   defp stats(%__MODULE__{} = state) do
-    %{
+    base = %{
       iterations: state.iterations,
       active_clauses: length(state.active),
       passive_clauses: length(state.passive),
       total_steps: state.next_step_id - 1,
       arena_nodes: map_size(state.arena.nodes)
     }
+
+    if state.cooperate == [],
+      do: base,
+      else: Map.put(base, :external_calls, Enum.reverse(state.coop_log))
+  end
+
+  # ---------------------------------------------------------------------------
+  # External Prover Cooperation
+  # ---------------------------------------------------------------------------
+
+  defp normalize_external(name) when is_atom(name), do: {name, []}
+
+  defp normalize_external({name, ext_opts}) when is_atom(name) and is_list(ext_opts),
+    do: {name, ext_opts}
+
+  defp cooperate(%__MODULE__{cooperate: []} = state), do: {:cont, state}
+
+  defp cooperate(%__MODULE__{} = state) do
+    state = maybe_dispatch_external(state)
+    inflight = state.coop_inflight
+
+    receive do
+      {:astraea_external, ref, res} when is_map_key(inflight, ref) ->
+        {call, inflight} = Map.pop(inflight, ref)
+        File.rm(call.file)
+        handle_external_answer(%{state | coop_inflight: inflight}, call, res)
+    after
+      0 -> {:cont, state}
+    end
+  end
+
+  # One round of calls at a time: the next snapshot is only taken once every
+  # prover of the previous round has answered.
+  defp maybe_dispatch_external(%__MODULE__{} = state) do
+    remaining = state.deadline_ms - System.monotonic_time(:millisecond)
+
+    if map_size(state.coop_inflight) == 0 and
+         state.iterations - state.coop_last_dispatch >= state.coop_interval and
+         remaining >= @min_external_ms do
+      items = coop_snapshot(state)
+      clauses = Enum.map(items, & &1.lits)
+
+      state.cooperate
+      |> Enum.reduce(%{state | coop_last_dispatch: state.iterations}, fn {name, ext_opts}, st ->
+        dispatch_external(st, name, ext_opts, items, clauses, remaining)
+      end)
+    else
+      state
+    end
+  end
+
+  defp coop_snapshot(%__MODULE__{} = state) do
+    passive_budget = max(state.coop_max_clauses - length(state.active), 0)
+    best_passive = state.passive |> Enum.sort_by(& &1.score) |> Enum.take(passive_budget)
+    Enum.uniq_by(state.units ++ state.active ++ best_passive, & &1.id)
+  end
+
+  defp dispatch_external(%__MODULE__{} = state, name, ext_opts, items, clauses, remaining) do
+    prover = Keyword.get(ext_opts, :spec, name)
+    ext_opts = Keyword.update(ext_opts, :timeout_ms, remaining, &min(&1, remaining))
+
+    written =
+      try do
+        External.write_clause_problem(prover, state.arena, clauses, ext_opts)
+      rescue
+        e in ArgumentError -> {:error, Exception.message(e)}
+      end
+
+    case written do
+      {:ok, file} ->
+        parent = self()
+        ref = make_ref()
+
+        # Linked, so killing this prover (e.g. by `Astraea.Portfolio`) also kills the call.
+        pid =
+          spawn_link(fn ->
+            res =
+              try do
+                External.run(prover, file, ext_opts)
+              rescue
+                e -> {:error, e}
+              end
+
+            send(parent, {:astraea_external, ref, res})
+          end)
+
+        call = %{prover: name, pid: pid, file: file, items: List.to_tuple(items)}
+        %{state | coop_inflight: Map.put(state.coop_inflight, ref, call)}
+
+      {:error, reason} ->
+        log_external(state, %{prover: name, iteration: state.iterations, error: reason})
+    end
+  end
+
+  defp handle_external_answer(%__MODULE__{} = state, call, {:ok, %External.Result{} = res}) do
+    entry = %{
+      prover: call.prover,
+      iteration: state.iterations,
+      clauses_sent: tuple_size(call.items),
+      szs_status: res.status,
+      elapsed_ms: res.elapsed_ms
+    }
+
+    if External.SZS.classify(res.status) == :unsat do
+      core_items =
+        res.proof
+        |> Reconstruct.core_names()
+        |> Reconstruct.clause_indices()
+        |> Enum.filter(&(&1 < tuple_size(call.items)))
+        |> Enum.map(&elem(call.items, &1))
+
+      reconstruct_core(state, res, core_items, Map.put(entry, :core_size, length(core_items)))
+    else
+      {:cont, log_external(state, entry)}
+    end
+  end
+
+  defp handle_external_answer(%__MODULE__{} = state, call, {:error, reason}) do
+    {:cont,
+     log_external(state, %{prover: call.prover, iteration: state.iterations, error: reason})}
+  end
+
+  defp reconstruct_core(%__MODULE__{} = state, res, [], entry) do
+    unverified_answer(state, res, Map.put(entry, :reconstructed, false))
+  end
+
+  defp reconstruct_core(%__MODULE__{} = state, res, core_items, entry) do
+    remaining = max(state.deadline_ms - System.monotonic_time(:millisecond), 0)
+
+    seed = %{
+      steps: state.steps,
+      ids: Enum.map(core_items, & &1.id),
+      next_step_id: state.next_step_id,
+      next_fvar_id: state.next_fvar_id
+    }
+
+    sub_opts =
+      state.opts
+      |> Keyword.drop([:cooperate, :seed])
+      |> Keyword.merge(timeout_ms: remaining, seed: seed)
+
+    case prove_clauses(state.arena, Enum.map(core_items, & &1.lits), sub_opts) do
+      {:proved, steps, sub_stats} ->
+        state = log_external(state, Map.put(entry, :reconstructed, true))
+
+        result_stats =
+          state
+          |> stats()
+          |> Map.merge(%{
+            proof_length: sub_stats.proof_length,
+            arena: sub_stats.arena,
+            external_assist: Map.put(entry, :reconstructed, true)
+          })
+
+        {:done, {:proved, steps, result_stats}, state}
+
+      other ->
+        entry = Map.merge(entry, %{reconstructed: false, reconstruction: elem(other, 0)})
+        unverified_answer(state, res, entry)
+    end
+  end
+
+  defp unverified_answer(%__MODULE__{} = state, res, entry) do
+    state = log_external(state, entry)
+
+    if Keyword.get(state.opts, :trust_external, false) do
+      result_stats =
+        state
+        |> stats()
+        |> Map.merge(%{
+          prover: entry.prover,
+          input: :clauses,
+          szs_status: res.status,
+          proof: res.proof
+        })
+
+      {:done, {:proved_external, result_stats}, state}
+    else
+      {:cont, state}
+    end
+  end
+
+  defp log_external(%__MODULE__{} = state, entry),
+    do: %{state | coop_log: [entry | state.coop_log]}
+
+  # Kills outstanding external calls (their MuonTrap ports close with them) and drops
+  # answers that raced the kill.
+  defp finish(%__MODULE__{coop_inflight: inflight}, result) do
+    Enum.each(inflight, fn {ref, call} ->
+      Process.unlink(call.pid)
+      Process.exit(call.pid, :kill)
+      File.rm(call.file)
+
+      receive do
+        {:astraea_external, ^ref, _res} -> :ok
+      after
+        0 -> :ok
+      end
+    end)
+
+    result
   end
 end
