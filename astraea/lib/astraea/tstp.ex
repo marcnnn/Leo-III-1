@@ -39,6 +39,11 @@ defmodule Astraea.Tstp do
   # Formulas clausified one by one to recover the origin of input clauses.
   @max_origin_candidates 256
 
+  # Free variables as marked by `clause_key/3`, optionally with Skolem symbols.
+  @renamed ~r/\0\d+\0/
+  @renamed_with_skolems ~r/\0\d+\0|\bsk_[0-9a-f]{8}\b/
+  @masked [skolems: :masked]
+
   @szs_names %{
     theorem: "Theorem",
     unsatisfiable: "Unsatisfiable",
@@ -316,6 +321,8 @@ defmodule Astraea.Tstp do
       {lang, role, f, syms} =
         case Map.fetch(originals, n) do
           {:ok, {lang, orig_role, f}} ->
+            # The lowered form only contributes the symbols to declare.
+            {_lowered_f, syms} = ThfPrinter.formula(lowered.arena, term, syms)
             {lang, orig_role, f, syms}
 
           :error ->
@@ -372,7 +379,7 @@ defmodule Astraea.Tstp do
 
   # Maps each leaf `{id, clause}` to the names of the input formulas it came from.
   defp origins(lowered, arena, leaves) do
-    leaf_keys = Map.new(leaves, fn {id, clause} -> {id, clause_key(arena, clause)} end)
+    leaf_keys = Map.new(leaves, fn {id, clause} -> {id, clause_key(arena, clause, @masked)} end)
     leaf_syms = Map.new(leaves, fn {id, clause} -> {id, clause_symbols(arena, clause)} end)
     wanted = leaf_syms |> Map.values() |> Enum.reduce(MapSet.new(), &MapSet.union/2)
 
@@ -392,22 +399,72 @@ defmodule Astraea.Tstp do
 
     clause_sets = clause_sets(lowered, candidates)
 
+    definitions =
+      for {n, "definition", t} <- formulas, sym = defined_symbol(lowered.arena, t), into: %{} do
+        {sym, n}
+      end
+
     Map.new(leaves, fn {id, _clause} ->
       key = leaf_keys[id]
 
-      case for({n, keys} <- clause_sets, MapSet.member?(keys, key), do: n) do
-        [n | _] ->
-          {id, [n]}
+      parents =
+        case for({n, keys} <- clause_sets, MapSet.member?(keys, key), do: n) do
+          [n | _] ->
+            [n]
 
-        [] ->
-          sharing =
-            for {n, _role, _t} <- formulas,
-                not MapSet.disjoint?(formula_syms[n], leaf_syms[id]),
-                do: n
+          [] ->
+            sharing =
+              for {n, _role, _t} <- formulas,
+                  not MapSet.disjoint?(formula_syms[n], leaf_syms[id]),
+                  do: n
 
-          {id, if(sharing == [], do: Enum.map(formulas, &elem(&1, 0)), else: sharing)}
-      end
+            if sharing == [], do: Enum.map(formulas, &elem(&1, 0)), else: sharing
+        end
+
+      {id, parents ++ definitions_used(parents, definitions, formula_syms)}
     end)
+  end
+
+  # The definitions (`c = t` with role `definition`) that the clausifier inlined
+  # into `names`, transitively.
+  defp definitions_used(names, definitions, formula_syms) do
+    syms = names |> Enum.map(&formula_syms[&1]) |> Enum.reduce(MapSet.new(), &MapSet.union/2)
+    close_definitions(syms, MapSet.new(names), definitions, formula_syms, [])
+  end
+
+  defp close_definitions(syms, seen, definitions, formula_syms, acc) do
+    new =
+      for {sym, n} <- definitions,
+          MapSet.member?(syms, sym),
+          not MapSet.member?(seen, n),
+          do: n
+
+    case new do
+      [] ->
+        Enum.reverse(acc)
+
+      _ ->
+        syms = Enum.reduce(new, syms, &MapSet.union(&2, formula_syms[&1]))
+        seen = MapSet.union(seen, MapSet.new(new))
+        close_definitions(syms, seen, definitions, formula_syms, Enum.reverse(new) ++ acc)
+    end
+  end
+
+  # The constant defined by `! [X..]: (c @ X..) = t`.
+  defp defined_symbol(arena, id) do
+    case Arena.get_node(arena, id) do
+      {@tag_forall, _, _, _dom, body} -> defined_symbol(arena, body)
+      {@tag_eq, _, _, lhs, _rhs} -> head_symbol(arena, lhs)
+      _ -> nil
+    end
+  end
+
+  defp head_symbol(arena, id) do
+    case Arena.get_node(arena, id) do
+      {@tag_app, _, _, fun, _arg} -> head_symbol(arena, fun)
+      {@tag_const, _, _, sym, _} -> Map.fetch!(arena.symbol_names, sym)
+      _ -> nil
+    end
   end
 
   # Clause keys of each candidate formula, clausified together with the problem's
@@ -433,16 +490,23 @@ defmodule Astraea.Tstp do
     {arena, clauses} =
       Clausifier.clausify(lowered, sine_limit: nil, inline_bridges: inline_bridges)
 
-    MapSet.new(clauses, &clause_key(arena, &1))
+    MapSet.new(clauses, &clause_key(arena, &1, @masked))
   end
 
   @doc """
   A key identifying `clause` up to renaming of its free variables: literals are
   sorted by their variable-blind rendering and variables numbered by first
   occurrence. Keys of clauses from different arenas are comparable.
+
+  With `skolems: :masked` Skolem symbols are renamed like variables. Their
+  content-addressed names depend on the variable numbering of the clausification
+  run, so this matches clauses of separate runs, but it also identifies clauses
+  that differ only in their Skolem symbols.
   """
-  @spec clause_key(Arena.t(), ProofChecker.clause()) :: String.t()
-  def clause_key(%Arena{} = arena, clause) do
+  @spec clause_key(Arena.t(), ProofChecker.clause(), keyword()) :: String.t()
+  def clause_key(%Arena{} = arena, clause, opts \\ []) do
+    renamed = if opts[:skolems] == :masked, do: @renamed_with_skolems, else: @renamed
+
     marked =
       clause
       |> Enum.map(fn {pol, atom} ->
@@ -452,22 +516,20 @@ defmodule Astraea.Tstp do
           )
 
         printed = IO.iodata_to_binary(printed)
-        {String.replace(printed, ~r/\0\d+\0/, "_"), pol, printed}
+        {String.replace(printed, renamed, "_"), pol, printed}
       end)
       |> Enum.sort()
       |> Enum.map_join(" | ", fn {_blind, pol, printed} -> "#{pol} #{printed}" end)
 
     {key, _numbering} =
-      ~r/\0(\d+)\0/
+      renamed
       |> Regex.split(marked, include_captures: true)
       |> Enum.map_reduce(%{}, fn part, numbering ->
-        case Regex.run(~r/^\0(\d+)\0$/, part) do
-          [_, id] ->
-            numbering = Map.put_new(numbering, id, map_size(numbering))
-            {"X#{numbering[id]}", numbering}
-
-          nil ->
-            {part, numbering}
+        if Regex.match?(renamed, part) do
+          numbering = Map.put_new(numbering, part, map_size(numbering))
+          {"X#{numbering[part]}", numbering}
+        else
+          {part, numbering}
         end
       end)
 

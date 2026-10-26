@@ -45,6 +45,14 @@ defmodule Astraea.InterfaceTest do
   thf(conj_invalid, conjecture, ! [X: $i]: (p @ X)).
   """
 
+  @def_src """
+  thf(leibeq_decl, type, leibeq: $i > $i > $o).
+  thf(leibeq, definition, leibeq = (^ [X: $i, Y: $i]: ! [P: $i > $o]: ((P @ X) => (P @ Y)))).
+  thf(f_decl, type, f: $i > $i).
+  thf(p_decl, type, p: ($i > $i) > $o).
+  thf(conj, conjecture, ((! [X: $i]: (leibeq @ (f @ X) @ X)) & (p @ (^ [X: $i]: X))) => (p @ f)).
+  """
+
   setup do
     dir =
       Path.join(System.tmp_dir!(), "astraea_interface_test_#{System.unique_integer([:positive])}")
@@ -124,6 +132,18 @@ defmodule Astraea.InterfaceTest do
                ~r/inference\(instantiate, \[status\(thm\)\], \[c_\d+:\[bind\(V\d+, \$thf\(a\)\)\]\]\)/
 
       assert {:ok, _derivation, []} = Tptp.Derivation.from_string(tstp)
+    end
+
+    test "clausification steps cite the definitions they inline", %{dir: dir} do
+      path = write_problem(dir, "def.p", @def_src)
+      {lowered, {:proved, steps, stats}} = prove!(@def_src)
+      tstp = Tstp.derivation(lowered, steps, stats, problem: "def.p", problem_path: path)
+
+      assert tstp =~ "inference(cnf, [status(esa)], [neg_conj, leibeq])"
+      assert tstp =~ "type, leibeq: ($i > ($i > $o)))."
+      assert tstp =~ "file('def.p', leibeq)"
+      assert {:ok, derivation, []} = Tptp.Derivation.from_string(tstp)
+      assert "leibeq" in derivation.leaves
     end
 
     test "without the problem file input formulas are printed from their lowered form" do
