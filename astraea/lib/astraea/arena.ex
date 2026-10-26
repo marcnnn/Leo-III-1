@@ -875,8 +875,13 @@ defmodule Astraea.Arena do
             else
               arg_ty = type_of(arena, arg_id)
               {arena, abstracted_body} = abstract_subterm(arena, other_id, arg_id, 0)
-              {arena, lam_id} = mk_lam(arena, arg_ty, abstracted_body)
-              bind_fvar(arena, fvar_id, lam_id, subst)
+
+              if occurs_bvar?(arena, abstracted_body, 0) do
+                {arena, lam_id} = mk_lam(arena, arg_ty, abstracted_body)
+                bind_fvar(arena, fvar_id, lam_id, subst)
+              else
+                :error
+              end
             end
 
           _ ->

@@ -131,6 +131,7 @@ Running a full AST walk with `Tptp.Unit.from_file/2` (`resolver: Tptp.Resolver.F
 
 ## Entry 005 — Higher-Order Clausifier, LCF-Verified Given-Clause Prover & Empirical `TPTP-Smoke` / `TPTP-Dev` Evaluation (2026-10-26)
 
+* **Commits:** `c6448865`
 * **Modules Implemented & Extended:**
   * [`Astraea.Arena`](file:///Users/marcnickert/Projects/opensource/Leo-III/astraea/lib/astraea/arena.ex) — Added free-variable extraction (`free_vars/2`), capture-avoiding free-variable substitution with $\beta\eta$-normalization (`subst_fvar/3`), occurs-check (`occurs_fvar?/4`), one-way syntactic/symmetric-equality pattern matching (`match_pattern/4`), higher-order pattern/abstraction unification (`unify/4`), loose bound-variable detection (`has_loose_bvar?/3`), subterm abstraction (`abstract_subterm/4`), and double-negation elimination (`~ ~ A -> A`) inside `beta_eta_norm/2`.
   * [`Astraea.ProofChecker`](file:///Users/marcnickert/Projects/opensource/Leo-III/astraea/lib/astraea/proof_checker.ex) — Expanded the trusted LCF kernel to verify 9 primitive inference rules: `:axiom`, `:refl`, `:symm`, `:trans`, `:subst` (capture-avoiding free-variable instantiation + $\beta\eta$-normalization), `:cong` (higher-order application congruence), `:func_ext` ($\xi$-rule lambda congruence `u = v |- (^ [X]: u) = (^ [X]: v)`), `:paramod` (Leibniz equality subterm replacement + $\beta\eta$-normalization), and `:resolve` (modulo equality symmetry).
@@ -146,71 +147,109 @@ Running a full AST walk with `Tptp.Unit.from_file/2` (`resolver: Tptp.Resolver.F
 | `Astraea.Clausifier.collect_conjuncts/2` | 3 | **Gate 3 (`LCL866^1` modal equivalence factoring)** | **$n$-ary Conjunction Normalization under Double-Negation Elimination:** After `beta_eta_norm/2` eliminated double negations, a 3-way conjunction `(A & B) & C` became `~((~A | ~B) | ~C)` where the left child of `@tag_or` is `@tag_or` rather than `@tag_not`, causing binary `collect_conjuncts` to miss shared conjuncts in `(msym & meuc) <=> (mtrans & msym & meuc)`. | Updated `collect_conjuncts/2` to flatten `or_id` via `collect_disjuncts/2` and negate each disjunct, solving `LCL866^1` in **13 iterations / 127.9 ms**. | **PASS** |
 | `Astraea.Prover.try_superposition/2` | 4 | **Gate 3 (`SEU511^2` runtime check)** | **`Enum.reduce_while/3` Early-Refutation Return:** When `unit_simplify/2` inside `paramod_directed/3` derived the empty clause directly (`{:proved, st, empty_id}`), the `with` block inside `try_superposition/2` returned `{:proved, ...}` directly instead of `{:halt, {:proved, ...}}`. | Added `else {:proved, _, _} = proved -> {:halt, proved}` to `try_superposition/2`. | **PASS** |
 
-### 5.2 Tier 1 (`TPTP-Smoke`, 50 Problems) Empirical Evaluation on `armix`
-* **Reproducible Command:**
+---
+
+## Entry 006 — RQ2 Defect Catch #7 (Vacuous Higher-Order Abstraction) & Clause Condensation (2026-10-26)
+
+* **Modules Refined:**
+  * [`Astraea.Arena.match_fvar_app/4`](file:///Users/marcnickert/Projects/opensource/Leo-III/astraea/lib/astraea/arena.ex#L510-L538) — Non-vacuous higher-order abstraction guard (`Arena.occurs_bvar?(arena, abstracted_body, 0)`).
+  * [`Astraea.Prover.condense_clause/2`](file:///Users/marcnickert/Projects/opensource/Leo-III/astraea/lib/astraea/prover.ex#L298-L343) — LCF-verified `:subst` clause condensation.
+
+### 6.1 RQ2 Defect Interception #7: Vacuous Higher-Order Abstraction Explosion
+* **Discovery Context:** While profiling `LCL621^1` (a modal logic theorem in `TPTP-Smoke` with the `k4` axiom `pos:(X10 @ X13)` where `X10 : $i > $o` is a free predicate variable), we observed that saturation generated `5,978` passive clauses in 306 iterations (`2,510 ms`).
+* **Root Cause:** In [`Arena.match_fvar_app/4`](file:///Users/marcnickert/Projects/opensource/Leo-III/astraea/lib/astraea/arena.ex#L510-L538) (`F @ arg_id =?= other_id`), `abstract_subterm(arena, other_id, arg_id, 0)` replaces occurrences of `arg_id` inside `other_id` with `BVar(0)`. However, when `arg_id` did **not** occur inside `other_id`, `abstract_subterm/4` returned `other_id` unchanged (with no `BVar(0)` occurrence), synthesizing a vacuous constant function `F := ^ [Z]: other_id`. Consequently, any literal of the form `X10 @ X13` unified with **every** literal in every clause across the entire search space!
+* **Resolution & Impact:** Added `if occurs_bvar?(arena, abstracted_body, 0)` to `Arena.match_fvar_app/4` (restricting constant-predicate instantiation to the dedicated ground `Prover.match_const_pred/3` rule). On `LCL621^1`, saturation dropped from `306 iterations / 2,510 ms` to **`65–82 iterations / 1,101 ms`** (`2.28x` faster), bringing single-strategy `TPTP-Smoke` within the 2.5s budget to **`26 / 34` (`76.5%`)**.
+
+### 6.2 Clause Condensation (`Prover.condense_clause/2`)
+* When `Clausifier.to_nnf_bool_eq/5` expands a negated equivalence `~(A <=> B)` into `(A | B) & (~A | ~B)`, universally quantified subformulas shared between `A` and `B` introduce duplicate literals with distinct free variables (e.g., `SYO444^1` clauses `C4..C7` of size 6).
+* Implemented `condense_clause/2`: whenever one-way matching `Arena.match_pattern(arena, a2, a1)` between two same-polarity literals maps a clause onto a strict subset of itself, the prover emits an LCF `:subst` inference step, shrinking `SYO444^1`'s 6-literal clauses to 4 literals automatically.
+
+---
+
+## Entry 007 — WP3 Multi-Strategy OTP Portfolio, WP4 Proof DAG Compression & Final Blind `TPTP-Holdout` Evaluation (2026-10-26)
+
+* **Modules Implemented:**
+  * [`Astraea.Portfolio`](file:///Users/marcnickert/Projects/opensource/Leo-III/astraea/lib/astraea/portfolio.ex) (**WP3**) — Concurrent 4-strategy OTP portfolio coordinator over `Astraea.Prover`. Spawns monitored worker processes for four complementary strategy profiles and terminates sibling workers (`Process.exit(pid, :kill)`) the millisecond the first worker constructs an LCF-verified refutation:
+    1. `:goal_standard` — `sine_limit: 55, inline_bridges: false, scoring_mode: :goal_directed, max_clause_lits: 6, max_clause_weight: 45`
+    2. `:sine_tight_unit` — `sine_limit: 16, inline_bridges: false, scoring_mode: :unit_focused, max_clause_lits: 6, max_clause_weight: 50`
+    3. `:full_inline_weight` — `sine_limit: 40, inline_bridges: true, scoring_mode: :weight_first, max_clause_lits: 7, max_clause_weight: 55`
+    4. `:broad_breadth` — `sine_limit: 90, inline_bridges: false, scoring_mode: :breadth_first, max_clause_lits: 8, max_clause_weight: 60`
+  * [`Astraea.Compressor`](file:///Users/marcnickert/Projects/opensource/Leo-III/astraea/lib/astraea/compressor.ex) (**WP4**) — Post-saturation LCF proof DAG compressor and macro-inference miner. Composes linear `:subst -> :subst` chains (`compose_substitutions/3`) into single LCF `:subst` steps, deduplicates identical DAG nodes with child parent-ID rewiring, prunes unreachable ancestors from `⊥`, and re-verifies every compressed proof through `Astraea.ProofChecker.verify_refutation/2`.
+
+### 7.1 Complete Multi-Tier Evaluation Across `TPTP-Smoke` (50), `TPTP-Dev` (300), and Blind `TPTP-Holdout` (500) on `armix`
+
+* **Reproducible Command on `armix`:**
   ```bash
-  cd ~/Projects/opensource/Leo-III/astraea && mix run -e 'Astraea.Prover.evaluate_split(:smoke, timeout_ms: 2500) |> IO.inspect()'
+  cd ~/Projects/opensource/Leo-III/astraea && mix run -e '
+    for split <- [:smoke, :dev, :holdout] do
+      res = Astraea.Portfolio.evaluate_split(split, timeout_ms: 2500, max_concurrency: 6)
+      comp = Astraea.Compressor.summarize_corpus(res.thm_solved)
+      IO.inspect({split, Map.drop(res, [:raw_results, :thm_solved]), comp}, limit: :infinity)
+    end
+  '
   ```
-* **Aggregate Metrics (`timeout_ms: 2,500`):**
-  * **Total Problems:** `50` (`34` `Theorem`, `15` `CounterSatisfiable`/`Satisfiable`, `1` `Unknown`)
-  * **`Theorem` Problems Solved:** **`25 / 34` (`73.5%`)** at `2,500 ms` (**`26 / 34` (`76.5%`)** including `LCL621^1` at `4,000 ms`)
-  * **Gate 3 Soundness (`CSA`/`SAT` False Proofs):** **`0 / 15` (`0.0%`)**
-  * **Gate 3 LCF Proof Verification Failures:** **`0 / 25` (`100.0%` verified by `Astraea.ProofChecker.verify_refutation/2`)**
 
-| Problem | Domain | Status | Proof Steps (LCF DAG) | Saturation Iterations | Wall-Clock Time (`ms`) | Key Calculus / Clausification Features Exercised |
-| :--- | :---: | :---: | :---: | :---: | :---: | :--- |
-| `AGT033^2` | `AGT` | `Theorem` | 13 | 34 | `182.04` | SInE premise selection (`69` axioms) + binary resolution |
-| `AGT037^2` | `AGT` | `Theorem` | 16 | 33 | `162.80` | SInE premise selection (`69` axioms) + multi-clause resolution |
-| `LCL608^1` | `LCL` | `Theorem` | 7 | 2 | `123.92` | Modal combinator unfolding + unit resolution |
-| `LCL621^1` | `LCL` | `Theorem` | 21 | 306 | `2,510.00` | Modal accessibility quantifier resolution |
-| `LCL723^1` | `LCL` | `Theorem` | 29 | 23 | `128.63` | Multi-pass modal operator inlining + resolution |
-| `LCL866^1` | `LCL` | `Theorem` | 15 | 13 | `127.93` | Unfolded `mequiv` recognition + $n$-ary shared-conjunct factoring |
-| `NUM793^1` | `NUM` | `Theorem` | 19 | 11 | `120.86` | SInE selection (`193` Peano/Landau axioms) + equality resolution |
-| `SEU511^2` | `SEU` | `Theorem` | 6 | 2 | `1.12` | Set definition unfolding + KBO superposition + unit simplification |
-| `SEU559^2` | `SEU` | `Theorem` | 6 | 3 | `3.16` | Higher-order closed $\lambda$-definition inlining + resolution |
-| `SEU673^2` | `SEU` | `Theorem` | 18 | 14 | `12.28` | Selective bridge-predicate (`func`, `singleton`) lemma reasoning |
-| `SEU798^2` | `SEU` | `Theorem` | 8 | 4 | `2.35` | Higher-order set operator unfolding + resolution |
-| `SEU820^2` | `SEU` | `Theorem` | 26 | 12 | `5.97` | Unary predicate `$false` instantiation (`vacuousDall`) + eager `unit_simplify` |
-| `SEU893^5` | `SEU` | `Theorem` | 10 | 4 | `3.38` | Higher-order Leibniz equality + $\beta\eta$-normalization |
-| `SEV160^5` | `SEV` | `Theorem` | 3 | 0 | `5.96` | Direct $\beta\eta$-normalization + equality resolution |
-| `SEV393^5` | `SEV` | `Theorem` | 6 | 4 | `5.89` | Boolean quantifier splitting (`$o`) + resolution |
-| `SWV442^1` | `SWV` | `Theorem` | 6 | 6 | `21.49` | Software verification invariant resolution |
-| `SYO011^1` | `SYO` | `Theorem` | 6 | 4 | `9.19` | Leibniz equality rewriting (`! [Q]: (Q @ u => Q @ v)`) + congruence |
-| `SYO088^5` | `SYO` | `Theorem` | 20 | 11 | `2.64` | Higher-order predicate reflexivity (`P := ^ [Z]: (Z = u)`) |
-| `SYO114^5` | `SYO` | `Theorem` | 15 | 3 | `1.98` | Boolean extensionality + factoring |
-| `SYO128^5` | `SYO` | `Theorem` | 8 | 4 | `1.43` | Boolean quantifier domain splitting |
-| `SYO154^5` | `SYO` | `Theorem` | 10 | 4 | `5.37` | Negative functional extensionality (`FuncExt`) + Skolemization |
-| `SYO413^1` | `SYO` | `Theorem` | 8 | 4 | `30.96` | Propositional/Boolean equivalence factoring |
-| `SYO462^2` | `SYO` | `Theorem` | 27 | 29 | `39.77` | Multi-clause Boolean resolution + factoring |
-| `SYO475^6` | `SYO` | `Theorem` | 6 | 6 | `11.64` | Higher-order combinator/lambda normalization |
-| `SYO481^6` | `SYO` | `Theorem` | 3 | 0 | `7.78` | Immediate $\beta\eta$-reduction + reflexivity |
-| `SYO507^1` | `SYO` | `Theorem` | 3 | 0 | `0.68` | Immediate $\beta\eta$-reduction + equality resolution |
+| Benchmark Split | Total Problems | `Theorem` Pool | Single-Strategy Solved | **WP3 Portfolio Solved (`%`)** | **`CSA`/`SAT` Traps Tested** | **`CSA`/`SAT` False Proofs** | **LCF Verification Pass Rate** |
+| :--- | :---: | :---: | :---: | :---: | :---: | :---: | :---: |
+| **Tier 1 (`TPTP-Smoke`)** | `50` | `34` | `26 / 34` (`76.5%`) | **`27 / 34` (`79.41%`)** | `15` | **`0` (`0.0%`)** | **`27 / 27` (`100.0%`)** |
+| **Tier 2 (`TPTP-Dev`)** | `300` | `237` | `79 / 237` (`33.3%`) | **`82 / 237` (`34.60%`)** | `60` | **`0` (`0.0%`)** | **`82 / 82` (`100.0%`)** |
+| **Tier 3 (`TPTP-Holdout`, Blind)** | `500` | `398` | — *(Blind One-Shot)* | **`155 / 398` (`38.94%`)** | `100` | **`0` (`0.0%`)** | **`155 / 155` (`100.0%`)** |
+| **Combined Corpus Total** | **`850`** | **`669`** | — | **`264 / 669` (`39.46%`)** | **`175`** | **`0 / 175` (`0.0%`)** | **`264 / 264` (`100.0%`)** |
 
-### 5.3 Tier 2 (`TPTP-Dev`, 300 Problems) Empirical Evaluation on `armix`
-* **Reproducible Command:**
-  ```bash
-  cd ~/Projects/opensource/Leo-III/astraea && mix run -e 'Astraea.Prover.evaluate_split(:dev, timeout_ms: 2500) |> IO.inspect()'
-  ```
-* **Aggregate Metrics (`timeout_ms: 2,500`, 14-core concurrent OTP execution):**
-  * **Total Problems:** `300` (`237` `Theorem`, `60` `CounterSatisfiable`/`Satisfiable`, `3` `Unknown`)
-  * **`Theorem` Problems Solved:** **`79 / 237` (`33.3%`)** across **14 TPTP domains**
-  * **Gate 3 Soundness (`CSA`/`SAT` False Proofs):** **`0 / 60` (`0.0%`)**
-  * **Gate 3 LCF Proof Verification Failures:** **`0 / 79` (`100.0%` verified by `Astraea.ProofChecker.verify_refutation/2`)**
+> **Anti-Overfitting Validation:** On the strictly untouched 500-problem `TPTP-Holdout` split (`SHA-256: f904f43a...c7bb13`), `Astraea.Portfolio` solved **`155 / 398` (`38.94%`)** of the `Theorem` problems across **17 TPTP domains**—exceeding its `34.60%` solve rate on `TPTP-Dev` by **+4.34 percentage points**, while recording **0 false proofs across all 100 `CounterSatisfiable`/`Satisfiable` soundness traps** and **100% LCF kernel verification**.
 
-| TPTP Domain | Domain Description | Solved `Theorem` Count |
-| :--- | :--- | :---: |
-| **`SYO`** | Syntactic Higher-Order Problems (Extensionality, Leibniz, Combinators) | **20** |
-| **`SEU`** | Set Theory (Mizar / Tarski-Grothendieck Higher-Order Formulations) | **19** |
-| **`SET`** | Set Theory (Boolean Algebra & Higher-Order Set Operations) | **12** |
-| **`LCL`** | Logic Calculi (Higher-Order Modal, Intuitionistic & Temporal Logics) | **5** |
-| **`NUM`** | Number Theory (Peano / Landau Higher-Order Arithmetic) | **4** |
-| **`CSR`** | Commonsense Reasoning | **3** |
-| **`PUZ`** | Puzzles (Higher-Order Knights/Knaves & Epistemic Puzzles) | **3** |
-| **`SYN`** | Syntactic Benchmark Problems | **3** |
-| **`ALG`** | Algebra | **2** |
-| **`ITP`** | Interactive Theorem Proving Exports (Isabelle/HOL, Coq) | **2** |
-| **`PLA`** | Planning | **2** |
-| **`SEV`** | Set Theory (Elementary / Verification) | **2** |
-| **`NLP`** | Natural Language Processing | **1** |
-| **`PRO`** | Process / Protocol Verification | **1** |
-| **Total** | **14 Domains** | **79 / 237 (`33.3%`)** |
+### 7.2 WP3 Strategy Portfolio Contribution Analysis (RQ3)
+
+| Portfolio Strategy | Key Parameters | `TPTP-Smoke` Wins (`27`) | `TPTP-Dev` Wins (`82`) | `TPTP-Holdout` Wins (`155`) | Total Wins (`264`) | Share (`%`) |
+| :--- | :--- | :---: | :---: | :---: | :---: | :---: |
+| **`:goal_standard`** | `sine_limit: 55`, keep bridges, `:goal_directed` | 10 | 33 | 69 | **112** | **42.4%** |
+| **`:sine_tight_unit`** | `sine_limit: 16`, keep bridges, `:unit_focused` | 5 | 19 | 31 | **55** | **20.8%** |
+| **`:full_inline_weight`** | `sine_limit: 40`, `inline_bridges: true`, `:weight_first` | 6 | 16 | 32 | **54** | **20.5%** |
+| **`:broad_breadth`** | `sine_limit: 90`, `max_lits: 8`, `:breadth_first` | 6 | 14 | 23 | **43** | **16.3%** |
+
+* **Qualitative Highlight (`ITP175^1` in `TPTP-Smoke`):** Single-strategy `:goal_standard` solved 26/34 problems on `TPTP-Smoke`. In `Astraea.Portfolio`, the `:broad_breadth` worker (`sine_limit: 90, scoring_mode: :breadth_first, max_clause_lits: 8`) solved the interactive theorem proving export **`ITP175^1`** in `247 iterations / 1,999.68 ms` with a 6-step LCF refutation, raising `TPTP-Smoke` to **`27 / 34` (`79.41%`)**.
+
+### 7.3 Domain Breakdown on Blind `TPTP-Holdout` (`155` Solved Theorems Across 17 Domains)
+
+| TPTP Domain | Domain Description | `TPTP-Smoke` | `TPTP-Dev` | `TPTP-Holdout` (Blind) | Combined Solved |
+| :--- | :--- | :---: | :---: | :---: | :---: |
+| **`SYO`** | Syntactic Higher-Order (Leibniz, Extensionality, Combinators) | 10 | 19 | **42** | **71** |
+| **`SEU`** | Set Theory (Mizar / Tarski-Grothendieck HOL) | 6 | 21 | **37** | **64** |
+| **`SET`** | Set Theory (Higher-Order Boolean Algebra & Relations) | 0 | 13 | **19** | **32** |
+| **`NUM`** | Number Theory (Peano / Landau Higher-Order Arithmetic) | 1 | 4 | **15** | **20** |
+| **`LCL`** | Logic Calculi (Modal, Temporal & Intuitionistic HOL Embeddings) | 4 | 5 | **10** | **19** |
+| **`SEV`** | Set Theory (Elementary / Verification) | 2 | 2 | **9** | **13** |
+| **`SYN`** | Syntactic Benchmark Problems | 0 | 3 | **6** | **9** |
+| **`ITP`** | Interactive Theorem Proving Exports (Isabelle/HOL, Coq) | 1 | 3 | **4** | **8** |
+| **`AGT`** | Multi-Agent Systems | 2 | 0 | **3** | **5** |
+| **`PUZ`** | Higher-Order Epistemic & Logic Puzzles | 0 | 3 | **1** | **4** |
+| **`ALG`** | Higher-Order Algebra | 0 | 3 | **0** | **3** |
+| **`CSR`** | Commonsense Reasoning | 0 | 2 | **1** | **3** |
+| **`PLA`** | Planning | 0 | 2 | **1** | **3** |
+| **`SWV`** | Software Verification | 1 | 0 | **2** | **3** |
+| **`NLP`** | Natural Language Processing | 0 | 1 | **1** | **2** |
+| **`PHI`** | Philosophy / Metaphysics (Higher-Order Modal Ontology) | 0 | 0 | **2** | **2** |
+| **`ANA`** | Real / Functional Analysis | 0 | 0 | **1** | **1** |
+| **`GEG`** | Geography | 0 | 0 | **1** | **1** |
+| **`PRO`** | Process / Protocol Verification | 0 | 1 | **0** | **1** |
+| **Total** | **19 Distinct TPTP Domains** | **27** | **82** | **155** | **264** |
+
+### 7.4 WP4 Proof DAG Compression & Macro-Inference Pattern Census (`Astraea.Compressor`)
+
+Across all **264 verified higher-order refutations**, [`Astraea.Compressor.compress_dag/2`](file:///Users/marcnickert/Projects/opensource/Leo-III/astraea/lib/astraea/compressor.ex) fused linear `:subst -> :subst` chains and deduplicated shared inference steps while preserving 100% compatibility with the 9-rule [`Astraea.ProofChecker`](file:///Users/marcnickert/Projects/opensource/Leo-III/astraea/lib/astraea/proof_checker.ex) LCF kernel:
+
+| Corpus Split | Theorems Analyzed | Raw LCF Steps | Compressed LCF Steps | Steps Saved (`%`) | `:subst -> :subst` Fusions | Structural Dedup Merges | Mined `inst_resolve` (`:subst -> :resolve`) | Mined `eq_resolution` (`:refl -> :resolve`) | Mined `superposition` (`:subst -> :paramod`) | Mined `ext_paramod` (`:func_ext -> :paramod`) |
+| :--- | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: |
+| **`TPTP-Smoke`** | 27 | 342 | **316** | `26` (**`7.60%`**) | 19 | 10 | 77 | 1 | 0 | 1 |
+| **`TPTP-Dev`** | 82 | 1,202 | **1,111** | `91` (**`7.57%`**) | 89 | 32 | 238 | 10 | 15 | 1 |
+| **`TPTP-Holdout`** | 155 | 2,015 | **1,875** | `140` (**`6.95%`**) | 104 | 50 | 415 | 27 | 26 | 3 |
+| **Total (`264` Proofs)** | **264** | **3,559** | **3,302** | **`257` (`7.22%`)** | **212** | **92** | **730** | **38** | **41** | **5** |
+
+* **Primitive LCF Rule Distribution Across All `3,302` Compressed Steps:**
+  * `:resolve` — `1,248` (`37.8%`)
+  * `:axiom` — `1,140` (`34.5%`)
+  * `:subst` — `801` (`24.3%`)
+  * `:paramod` — `72` (`2.2%`)
+  * `:refl` — `36` (`1.1%`)
+  * `:func_ext` — `5` (`0.15%`)
+* **Macro-Inference Takeaway:** Over **91.1%** (`730 / 801`) of the remaining `:subst` steps after `:subst -> :subst` fusion feed directly into `:resolve` (`inst_resolve`) or `:paramod` (`superposition`). Contracting `inst_resolve`, `superposition`, and `eq_resolution` into derived `CompressedRule` macro-steps reduces the logical proof certificate length by an additional **809 steps (`24.5%`)**, yielding a combined two-stage DAG compression ratio of **29.95%** (`3,559` raw steps $\to$ `2,493` macro-compressed steps).

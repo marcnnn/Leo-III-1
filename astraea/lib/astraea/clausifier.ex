@@ -8,7 +8,7 @@ defmodule Astraea.Clausifier do
      higher-order constant equations), followed by multi-pass beta-eta normalization.
   2. Recognizes & rewrites Leibniz equality (`! [Q: ty > $o]: (Q @ u => Q @ v)` -> `u = v`)
      and unfolded bi-implications (`(~A | B) & (~B | A)` -> `A = B`).
-  3. Applies SInE (Sumo Inference Engine) symbol-rarity premise selection when `length(axioms) > 55`.
+  3. Applies SInE (Sumo Inference Engine) symbol-rarity premise selection when `length(axioms) > sine_limit`.
   4. Expands higher-order positive congruence, negative functional extensionality (`FuncExt`),
      and Boolean extensionality (`BoolExt`) with shared-conjunct factoring during NNF +
      content-addressed Skolemization.
@@ -39,6 +39,7 @@ defmodule Astraea.Clausifier do
   def clausify(%TptpLower{} = lowered, opts \\ []) do
     arena = lowered.arena
     sine_limit = Keyword.get(opts, :sine_limit, 55)
+    inline_bridges = Keyword.get(opts, :inline_bridges, false)
 
     # 1. Extract constant definitions `c = rhs` and inline across axioms & conjectures
     {arena, def_map, defined_names} = extract_definitions(arena, lowered.axioms)
@@ -51,7 +52,7 @@ defmodule Astraea.Clausifier do
 
     # 2. Apply SInE filter if large theory (> sine_limit axioms) and conjectures exist
     selected_axioms =
-      if length(raw_axioms) > sine_limit and lowered.conjectures != [] do
+      if is_integer(sine_limit) and length(raw_axioms) > sine_limit and lowered.conjectures != [] do
         sine_filter(arena, raw_axioms, lowered.conjectures, sine_limit)
       else
         raw_axioms
@@ -68,9 +69,10 @@ defmodule Astraea.Clausifier do
       end)
 
     bridge_def_map =
-      if o_def_bodies != [] do
+      if not inline_bridges and o_def_bodies != [] do
         Map.reject(def_map, fn {k, v} ->
           {@tag_const, _, _, sym_id, _} = Arena.get_node(arena, k)
+
           Arena.type_of(arena, k) != 0 and
             contains_forall?(arena, v) and
             MapSet.member?(syms_in_o_defs, sym_id)

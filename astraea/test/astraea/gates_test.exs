@@ -2,7 +2,7 @@ defmodule Astraea.GatesTest do
   use ExUnit.Case, async: true
   use ExUnitProperties
 
-  alias Astraea.{Arena, Native, ProofChecker, Prover, TptpCorpus, TptpLower}
+  alias Astraea.{Arena, Compressor, Native, Portfolio, ProofChecker, Prover, TptpCorpus, TptpLower}
 
   # ---------------------------------------------------------------------------
   # Gate 1: StreamData HOL & Arena Invariants
@@ -201,6 +201,52 @@ defmodule Astraea.GatesTest do
     """
 
     assert {:saturated, _} = Prover.prove_string(csa_src, timeout_ms: 500)
+  end
+
+  @tag :gate3
+  test "Gate 3: WP3 Portfolio & WP4 Compressor fuse linear :subst chains while preserving LCF verification" do
+    arena = Arena.new()
+    {arena, io} = Arena.intern_type(arena, {:arrow, :i, :o})
+    {arena, p} = Arena.mk_const(arena, "p", io)
+    {arena, a} = Arena.mk_const(arena, "a", :i)
+    {arena, x1} = Arena.mk_fvar(arena, 1, :i)
+    {arena, x2} = Arena.mk_fvar(arena, 2, :i)
+    {arena, px1} = Arena.mk_app(arena, p, x1)
+    {arena, pa} = Arena.mk_app(arena, p, a)
+
+    # Raw proof with a 2-step `:subst -> :subst` chain (1 -> 2 -> 3) plus a duplicate step
+    raw_steps = [
+      {:axiom, 1, MapSet.new([{:pos, px1}])},
+      {:axiom, 2, MapSet.new([{:neg, pa}])},
+      {:subst, 3, 1, %{1 => x2}},
+      {:subst, 4, 3, %{2 => a}},
+      {:resolve, 5, 4, 2, {:pos, pa}}
+    ]
+
+    assert :ok == ProofChecker.verify_refutation(arena, raw_steps)
+
+    assert {:ok, comp_arena, comp_steps, meta} = Compressor.compress_dag(arena, raw_steps)
+    assert :ok == ProofChecker.verify_refutation(comp_arena, comp_steps)
+    assert meta.raw_steps == 5
+    assert meta.compressed_steps == 4
+    assert meta.steps_saved == 1
+    assert meta.subst_fusions == 1
+    assert meta.macro_patterns[:inst_resolve] == 1
+
+    # Also verify WP3 Portfolio on a higher-order theorem
+    thm_src = """
+    thf(p_type, type, p: $i > $o).
+    thf(q_type, type, q: $i > $o).
+    thf(a_type, type, a: $i).
+    thf(def_q, definition, q = (^ [X: $i]: (p @ X))).
+    thf(ax_pa, axiom, p @ a).
+    thf(conj, conjecture, q @ a).
+    """
+
+    assert {:ok, lowered} = TptpLower.from_string(thm_src)
+    assert {:proved, p_steps, p_stats} = Portfolio.prove_lowered(lowered, timeout_ms: 1_000)
+    assert p_stats.winning_strategy in [:goal_standard, :sine_tight_unit, :full_inline_weight, :broad_breadth]
+    assert :ok == ProofChecker.verify_refutation(p_stats.arena, p_steps)
   end
 
   @tag :gate3

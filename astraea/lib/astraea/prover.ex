@@ -3,6 +3,7 @@ defmodule Astraea.Prover do
   Higher-Order THF0 Given-Clause Micro-Prover & OTP Portfolio Runner.
 
   Implements a discount-style saturation loop over `Astraea.Arena` terms with:
+  - Clause Condensation (`condense_clause/2` via `:subst`)
   - Eager Unit-Clause Subsumption Resolution (`unit_simplify/2` via `:subst` + `:resolve`)
   - Equality Resolution (`~(s = t)` via unification + `:refl` + `:resolve`)
   - Positive & Negative Factoring (`:subst`)
@@ -40,9 +41,10 @@ defmodule Astraea.Prover do
             units: [],
             seen_clauses: MapSet.new(),
             iterations: 0,
-            max_iterations: 400,
+            max_iterations: 450,
             max_clause_lits: 6,
             max_clause_weight: 45,
+            scoring_mode: :goal_directed,
             deadline_ms: nil
 
   @type result ::
@@ -79,23 +81,33 @@ defmodule Astraea.Prover do
 
   @spec prove_lowered(TptpLower.t(), keyword()) :: result()
   def prove_lowered(%TptpLower{} = lowered, opts \\ []) do
-    timeout_ms = Keyword.get(opts, :timeout_ms, 2_500)
-    max_iters = Keyword.get(opts, :max_iterations, 450)
     sine_limit = Keyword.get(opts, :sine_limit, 55)
+    inline_bridges = Keyword.get(opts, :inline_bridges, false)
 
-    {arena, clauses} = Clausifier.clausify(lowered, sine_limit: sine_limit)
-    prove_clauses(arena, clauses, timeout_ms: timeout_ms, max_iterations: max_iters)
+    {arena, clauses} =
+      Clausifier.clausify(lowered,
+        sine_limit: sine_limit,
+        inline_bridges: inline_bridges
+      )
+
+    prove_clauses(arena, clauses, opts)
   end
 
   @spec prove_clauses(Arena.t(), [ProofChecker.clause()], keyword()) :: result()
   def prove_clauses(%Arena{} = arena, input_clauses, opts \\ []) do
     timeout_ms = Keyword.get(opts, :timeout_ms, 2_500)
     max_iters = Keyword.get(opts, :max_iterations, 450)
+    max_lits = Keyword.get(opts, :max_clause_lits, 6)
+    max_weight = Keyword.get(opts, :max_clause_weight, 45)
+    scoring_mode = Keyword.get(opts, :scoring_mode, :goal_directed)
     deadline = System.monotonic_time(:millisecond) + timeout_ms
 
     state = %__MODULE__{
       arena: arena,
       max_iterations: max_iters,
+      max_clause_lits: max_lits,
+      max_clause_weight: max_weight,
+      scoring_mode: scoring_mode,
       deadline_ms: deadline
     }
 
@@ -174,15 +186,31 @@ defmodule Astraea.Prover do
   # ---------------------------------------------------------------------------
 
   defp init_clauses(%__MODULE__{} = state, clauses) do
-    sorted_clauses = Enum.sort_by(clauses, &MapSet.size/1)
+    # Pass 1: Register all initial clauses as `:axiom` steps in their original order
+    {state, axiom_items} =
+      Enum.reduce(clauses, {state, []}, fn clause, {st, acc} ->
+        {st, c_item} = add_step(st, {:axiom, st.next_step_id, clause}, clause, 0)
 
-    Enum.reduce_while(sorted_clauses, {:cont, state}, fn clause, {:cont, st} ->
-      {st, c_item} = add_step(st, {:axiom, st.next_step_id, clause}, clause, 0)
+        st =
+          if MapSet.size(clause) == 1 and length(st.units) < 48 do
+            %{st | units: [c_item | st.units]}
+          else
+            st
+          end
 
-      if MapSet.size(clause) == 0 do
+        {st, [c_item | acc]}
+      end)
+
+    axiom_items = Enum.reverse(axiom_items)
+
+    # Pass 2: Condense, unit-simplify, and equality-resolve initial clauses
+    Enum.reduce_while(axiom_items, {:cont, state}, fn c_item, {:cont, st} ->
+      if MapSet.size(c_item.lits) == 0 do
         {:halt, {:proved, st, c_item.id}}
       else
-        case unit_simplify(st, c_item) do
+        {st, cond_item} = condense_clause(st, c_item)
+
+        case unit_simplify(st, cond_item) do
           {:proved, st2, empty_id} ->
             {:halt, {:proved, st2, empty_id}}
 
@@ -215,6 +243,7 @@ defmodule Astraea.Prover do
     else
       {given, rest_passive} = pop_best_passive(state.passive, state.iterations)
       state = %{state | passive: rest_passive, iterations: state.iterations + 1}
+      {state, given} = condense_clause(state, given)
 
       case unit_simplify(state, given) do
         {:proved, state, empty_id} ->
@@ -229,7 +258,14 @@ defmodule Astraea.Prover do
                 finalize_proof(state, empty_id)
 
               {:cont, state, new_items} ->
-                state = %{state | active: [given | state.active]}
+                units =
+                  if MapSet.size(given.lits) == 1 and length(state.units) < 48 do
+                    [given | state.units]
+                  else
+                    state.units
+                  end
+
+                state = %{state | active: [given | state.active], units: units}
                 state = enqueue_passive(state, new_items)
                 saturation_loop(state)
             end
@@ -272,22 +308,65 @@ defmodule Astraea.Prover do
                forward_subsumed?(st.arena, st.active, item) do
             st
           else
-            units =
-              if num_lits == 1 and length(st.units) < 64 do
-                [item | st.units]
-              else
-                st.units
-              end
-
             %{
               st
               | passive: [item | st.passive],
-                units: units,
                 seen_clauses: MapSet.put(st.seen_clauses, sig)
             }
           end
       end
     end)
+  end
+
+  # Clause Condensation (`condense_clause/2`):
+  # If matching two same-polarity literals `{pol, a2}` -> `{pol, a1}` yields a substitution
+  # `subst` that maps `clause_item.lits` onto a strict subset of itself, replaces `clause_item`
+  # with the condensed clause via an LCF `:subst` step.
+  defp condense_clause(%__MODULE__{} = state, clause_item) do
+    if MapSet.size(clause_item.fvars) <= 1 or MapSet.size(clause_item.lits) <= 1 do
+      {state, clause_item}
+    else
+      lits = MapSet.to_list(clause_item.lits)
+
+      cond_subst =
+        Enum.find_value(lits, fn {pol1, a1} ->
+          Enum.find_value(lits, fn {pol2, a2} ->
+            if pol1 == pol2 and a1 != a2 do
+              case Arena.match_pattern(state.arena, a2, a1) do
+                {:ok, subst} when map_size(subst) > 0 ->
+                  {arena, cand_lits} =
+                    Enum.reduce(clause_item.lits, {state.arena, MapSet.new()}, fn {p, id},
+                                                                                  {ar, acc} ->
+                      {ar, id2} = Arena.subst_fvar(ar, id, subst)
+                      {ar, MapSet.put(acc, {p, id2})}
+                    end)
+
+                  if MapSet.size(cand_lits) < MapSet.size(clause_item.lits) and
+                       MapSet.subset?(cand_lits, clause_item.lits) do
+                    {arena, subst}
+                  else
+                    nil
+                  end
+
+                _ ->
+                  nil
+              end
+            else
+              nil
+            end
+          end)
+        end)
+
+      case cond_subst do
+        nil ->
+          {state, clause_item}
+
+        {arena, subst} ->
+          st = %{state | arena: arena}
+          {st, condensed_item} = emit_subst_step(st, clause_item, subst, clause_item.depth)
+          condense_clause(st, condensed_item)
+      end
+    end
   end
 
   # Eager Unit-Clause Subsumption Resolution (`unit_simplify/2`):
@@ -472,7 +551,8 @@ defmodule Astraea.Prover do
               {:halt, proved}
 
             {:cont, st2, eq_items} ->
-              {:cont, {:cont, st2, [sub_item | eq_items] ++ acc}}
+              {st3, fresh_sub} = freshen_clause_item(st2, sub_item)
+              {:cont, {:cont, st3, [fresh_sub | eq_items] ++ acc}}
           end
 
         _ ->
@@ -593,19 +673,13 @@ defmodule Astraea.Prover do
               if MapSet.size(resolvent) == 0 do
                 {:halt, {:proved, st, res_item.id}}
               else
-                case unit_simplify(st, res_item) do
+                case try_immediate_eq_resolution(st, res_item) do
                   {:proved, _, _} = proved ->
                     {:halt, proved}
 
-                  {:ok, st_u, simp_item} ->
-                    case try_immediate_eq_resolution(st_u, simp_item) do
-                      {:proved, _, _} = proved ->
-                        {:halt, proved}
-
-                      {:cont, st2, eq_items} ->
-                        {st3, res_fresh} = freshen_clause_item(st2, simp_item)
-                        {:cont, {:cont, st3, eq_items ++ [res_fresh | acc]}}
-                    end
+                  {:cont, st2, eq_items} ->
+                    {st3, res_fresh} = freshen_clause_item(st2, res_item)
+                    {:cont, {:cont, st3, eq_items ++ [res_fresh | acc]}}
                 end
               end
 
@@ -767,19 +841,13 @@ defmodule Astraea.Prover do
 
                 {st, para_item} = add_step(st, step, new_lits, depth)
 
-                case unit_simplify(st, para_item) do
+                case try_immediate_eq_resolution(st, para_item) do
                   {:proved, _, _} = proved ->
                     {:halt, proved}
 
-                  {:ok, st_u, simp_item} ->
-                    case try_immediate_eq_resolution(st_u, simp_item) do
-                      {:proved, _, _} = proved ->
-                        {:halt, proved}
-
-                      {:cont, st2, eq_items} ->
-                        {st3, para_fresh} = freshen_clause_item(st2, simp_item)
-                        {:cont, {:cont, st3, eq_items ++ [para_fresh | acc]}}
-                    end
+                  {:cont, st2, eq_items} ->
+                    {st3, para_fresh} = freshen_clause_item(st2, para_item)
+                    {:cont, {:cont, st3, eq_items ++ [para_fresh | acc]}}
                 end
               else
                 {:cont, {:cont, st, acc}}
@@ -909,7 +977,24 @@ defmodule Astraea.Prover do
 
     fv = clause_feature_vector(state.arena, lits)
     num_lits = MapSet.size(lits)
-    score = num_lits * 15 + weight + depth * 3
+    num_fvars = MapSet.size(fvars)
+    goal_bonus = if Enum.at(fv, 11) > 0, do: -6, else: 0
+
+    score =
+      case state.scoring_mode do
+        :weight_first ->
+          num_lits * 10 + weight * 2 + depth * 2
+
+        :breadth_first ->
+          depth * 20 + num_lits * 12 + weight
+
+        :unit_focused ->
+          unit_penalty = if num_lits == 1, do: 0, else: num_lits * 25
+          unit_penalty + weight + num_fvars * 8 + depth * 2 + goal_bonus
+
+        _ ->
+          num_lits * 15 + weight + num_fvars * 6 + depth * 3 + goal_bonus
+      end
 
     item = %{
       id: id,
@@ -1025,7 +1110,11 @@ defmodule Astraea.Prover do
 
     case ProofChecker.verify_refutation(state.arena, proof_steps) do
       :ok ->
-        {:proved, proof_steps, Map.put(stats(state), :proof_length, length(proof_steps))}
+        {:proved, proof_steps,
+         state
+         |> stats()
+         |> Map.put(:proof_length, length(proof_steps))
+         |> Map.put(:arena, state.arena)}
 
       {:error, reason} ->
         {:error, {:lcf_verification_failed, reason, proof_steps}}
