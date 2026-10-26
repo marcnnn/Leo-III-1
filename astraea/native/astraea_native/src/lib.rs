@@ -1,4 +1,4 @@
-use rustler::{Atom, Binary, Env, NifResult};
+use rustler::{Atom, Binary, NifResult};
 use std::collections::HashMap;
 
 mod atoms {
@@ -178,30 +178,26 @@ fn walk_fv(buf: &[u8], term_id: u32, fv: &mut [u32; 16]) -> Option<u32> {
 
 /// Zero-copy native Knuth-Bendix Ordering comparator over a flat 12-byte Arena binary.
 #[rustler::nif]
-fn nif_kbo_compare(env: Env, arena_bin: Binary, s_id: u32, t_id: u32) -> NifResult<Atom> {
+fn nif_kbo_compare(arena_bin: Binary, s_id: u32, t_id: u32) -> NifResult<Atom> {
     match kbo_cmp(arena_bin.as_slice(), s_id, t_id) {
         Some(KboOrd::Gt) => Ok(atoms::gt()),
         Some(KboOrd::Lt) => Ok(atoms::lt()),
         Some(KboOrd::Eq) => Ok(atoms::eq()),
         Some(KboOrd::Inc) => Ok(atoms::inc()),
-        None => Err(rustler::Error::Term(Box::new(
-            atoms::err_invalid_arena().to_term(env),
-        ))),
+        None => Err(rustler::Error::Term(Box::new(atoms::err_invalid_arena()))),
     }
 }
 
 /// Zero-copy native 16-lane Feature Vector (`FVIndex`) extractor.
 #[rustler::nif]
-fn nif_feature_vector(env: Env, arena_bin: Binary, term_id: u32) -> NifResult<Vec<u32>> {
+fn nif_feature_vector(arena_bin: Binary, term_id: u32) -> NifResult<Vec<u32>> {
     let mut fv = [0u32; 16];
     match walk_fv(arena_bin.as_slice(), term_id, &mut fv) {
         Some(depth) => {
             fv[1] = depth;
             Ok(fv.to_vec())
         }
-        None => Err(rustler::Error::Term(Box::new(
-            atoms::err_invalid_arena().to_term(env),
-        ))),
+        None => Err(rustler::Error::Term(Box::new(atoms::err_invalid_arena()))),
     }
 }
 
@@ -209,11 +205,9 @@ fn nif_feature_vector(env: Env, arena_bin: Binary, term_id: u32) -> NifResult<Ve
 /// Checks `cand_fv[0..16] <= target_fv[0..16]` across a contiguous buffer of target FVs
 /// (`64 bytes = 16 * u32-big` per target) and returns the matching target indices.
 #[rustler::nif]
-fn nif_fv_subsumes_batch(env: Env, cand_fv: Vec<u32>, targets_bin: Binary) -> NifResult<Vec<u32>> {
+fn nif_fv_subsumes_batch(cand_fv: Vec<u32>, targets_bin: Binary) -> NifResult<Vec<u32>> {
     if cand_fv.len() != 16 || targets_bin.len() % 64 != 0 {
-        return Err(rustler::Error::Term(Box::new(
-            atoms::err_invalid_fv().to_term(env),
-        )));
+        return Err(rustler::Error::Term(Box::new(atoms::err_invalid_fv())));
     }
 
     let mut cand = [0u32; 16];
@@ -236,7 +230,6 @@ fn nif_fv_subsumes_batch(env: Env, cand_fv: Vec<u32>, targets_bin: Binary) -> Ni
             ]);
         }
 
-        // Fixed 16-lane comparison loop (auto-vectorized to 4x 128-bit NEON / 2x AVX2 instructions)
         let mut subsumes = true;
         for lane in 0..16 {
             subsumes &= cand[lane] <= target[lane];
