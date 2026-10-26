@@ -111,16 +111,19 @@ defmodule Astraea.CLI do
   """
   @spec main([String.t()]) :: no_return()
   def main(argv) do
+    # The time limit includes booting the VM, as with Leo-III's JVM.
+    {vm_uptime_ms, _} = :erlang.statistics(:wall_clock)
+    started = System.monotonic_time(:millisecond) - vm_uptime_ms
     {:ok, _apps} = Application.ensure_all_started(:astraea)
-    System.halt(run(argv))
+    System.halt(run(argv, started))
   end
 
   @doc """
   Runs the command line `argv`, printing to stdout, and returns the exit code.
+  The time limit counts from `t0` (`System.monotonic_time(:millisecond)`).
   """
-  @spec run([String.t()]) :: non_neg_integer()
-  def run(argv) do
-    t0 = System.monotonic_time(:millisecond)
+  @spec run([String.t()], integer()) :: non_neg_integer()
+  def run(argv, t0 \\ System.monotonic_time(:millisecond)) do
     params = parse(argv)
 
     cond do
