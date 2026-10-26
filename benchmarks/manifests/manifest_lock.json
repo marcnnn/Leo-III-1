@@ -1,0 +1,64 @@
+{
+  "tptp_version": "v9.3.1",
+  "seed": "astraea-tptp-v9.3.1",
+  "total_thf_scanned": 5279,
+  "strict_thf0_thm_pool": 3241,
+  "strict_thf0_csa_pool": 468,
+  "domains_in_strict_thf0": {
+    "SEU": 821,
+    "SYO": 756,
+    "ITP": 458,
+    "SEV": 370,
+    "NUM": 310,
+    "LCL": 176,
+    "SET": 161,
+    "GRA": 84,
+    "CSR": 82,
+    "ALG": 80,
+    "SYN": 79,
+    "PUZ": 62,
+    "SWV": 47,
+    "SWX": 31,
+    "NLP": 29,
+    "AGT": 23,
+    "QUA": 21,
+    "PHI": 20,
+    "GEG": 18,
+    "SWW": 16,
+    "DAT": 12,
+    "NUN": 9,
+    "SCT": 8,
+    "PLA": 8,
+    "GRP": 6,
+    "KRS": 6,
+    "MSC": 5,
+    "ANA": 4,
+    "CAT": 2,
+    "SWB": 2,
+    "PRO": 1,
+    "COM": 1,
+    "SWC": 1
+  },
+  "splits": {
+    "smoke": {
+      "total": 50,
+      "thm": 35,
+      "csa": 15
+    },
+    "dev": {
+      "total": 300,
+      "thm": 240,
+      "csa": 60
+    },
+    "holdout": {
+      "total": 500,
+      "thm": 400,
+      "csa": 100
+    }
+  },
+  "sha256": {
+    "smoke": "fc88a70814aa6f1f971e447d46f272c825d91751ddbe47cf63b6c50d9db95617",
+    "dev": "e53d398a3ac8ddc5343e4704bfe31fa3dc9cb5f1a7dc2b27766d44f40eff499b",
+    "holdout": "f904f43a05abcd743475bce5977033b23354821df079eb8ef99a607342c7bb13"
+  }
+}
