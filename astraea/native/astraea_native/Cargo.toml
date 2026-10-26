@@ -1,0 +1,17 @@
+[package]
+name = "astraea_native"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+name = "astraea_native"
+path = "src/lib.rs"
+crate-type = ["cdylib"]
+
+[dependencies]
+rustler = "0.36"
+
+[profile.release]
+opt-level = 3
+lto = "thin"
+codegen-units = 1

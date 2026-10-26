@@ -21,6 +21,7 @@ defmodule Astraea.MixProject do
   defp deps do
     [
       {:tptp, "~> 0.3.0"},
+      {:rustler, "~> 0.36"},
       {:jason, "~> 1.4"},
       {:stream_data, "~> 1.1", only: [:dev, :test]},
       {:benchee, "~> 1.3", only: [:dev, :test]}
@@ -30,6 +31,7 @@ defmodule Astraea.MixProject do
   defp aliases do
     [
       "gate.1": ["test --only gate1"],
+      "gate.2": ["test --only gate2"],
       "gate.3": ["test --only gate3"]
     ]
   end
