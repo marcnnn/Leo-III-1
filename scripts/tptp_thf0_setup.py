@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
 """
-Disk-safe TPTP-v9.3.1 THF0 corpus bootstrapper, classifier, splitter, and anonymizer.
+TPTP-v9.3.1 installer, strict THF0 classifier, deterministic splitter, and anonymizer.
 
-Designed for `armix` (and HPC login nodes) so we never unpack the full 10.5 GB TPTP
-archive when only Higher-Order (THF `^`) problems and `Axioms/` (~300 MB) are needed.
+Supports both:
+  - `--full`: extract the complete TPTP-v9.3.1 library (~10.5 GB, ideal for `armix` with 1.1 TB free)
+  - default THF-slice mode: extract only `Axioms/`, `Documents/`, and `Problems/*/*^*.p` (~300 MB)
 """
 
 from __future__ import annotations
@@ -12,13 +13,11 @@ import argparse
 import csv
 import hashlib
 import json
-import os
 import re
 import subprocess
 import sys
-from collections import defaultdict
 from pathlib import Path
-from typing import Dict, Iterable, List, Optional, Set, Tuple
+from typing import Dict, List, Optional, Set, Tuple
 
 TPTP_VERSION = "v9.3.1"
 TPTP_ROOT_NAME = f"TPTP-{TPTP_VERSION}"
@@ -28,10 +27,15 @@ DEFAULT_SEED = "astraea-tptp-v9.3.1"
 
 HEADER_STATUS_RE = re.compile(r"^%\s*Status\s*:\s*([A-Za-z]+)", re.MULTILINE)
 HEADER_RATING_RE = re.compile(r"^%\s*Rating\s*:\s*([0-9.]+)", re.MULTILINE)
+HEADER_SPC_RE = re.compile(r"^%\s*SPC\s*:\s*([A-Za-z0-9_]+)", re.MULTILINE)
+HEADER_TYPE_CONNS_RE = re.compile(
+    r"\(\s*\d+\s*>;\s*(\d+)\s*\*\s*;\s*(\d+)\s*\+\s*;\s*(\d+)\s*<<\s*\)"
+)
+HEADER_CHOICE_VARS_RE = re.compile(r"\(\s*(\d+)\s*@-;\s*(\d+)\s*@\+\s*\)")
 INCLUDE_RE = re.compile(r"include\(\s*'([^']+)'(?:\s*,\s*\[[^\]]*\])?\s*\)\s*\.")
 
-# Markers of polymorphic TH1, interpreted arithmetic, modal logic specs, or choice
-TH1_POLY_RE = re.compile(r"(!>|\\?>|\$tType\s*>|>\s*\$tType)")
+# Markers of polymorphic TH1, interpreted arithmetic, modal logic specs, choice, or tuples
+TH1_POLY_RE = re.compile(r"(!>|\?\*|\?>|@@\+|@@-|@=|\$tType\s*>|>\s*\$tType)")
 ARITH_RE = re.compile(
     r"\$(int|rat|real|uminus|sum|difference|product|quotient|less|lesseq|greater|greatereq|is_int|is_rat|to_int|to_rat|to_real)\b"
 )
@@ -73,11 +77,11 @@ CSA_STATUSES = {"CounterSatisfiable", "Satisfiable"}
 
 def parse_bugged_problems(text: str) -> Set[str]:
     """Extract problem stems like SYN000^2 or LCL452+1 from BuggedProblems-*.txt."""
-    return set(re.findall(r"\b[A-Z]{3}\d{3}[\^+\-_]\d+(?:\.\d+)?\b", text))
+    return set(re.findall(r"\b[A-Z]{3}\d{3}[\^+\-_=]\d+(?:\.\d+)?\b", text))
 
 
-def stream_extract_thf(url: str, bugged_url: str, dest: Path) -> None:
-    """Stream TPTP .tgz via curl | tar, extracting ONLY Axioms/ and THF (^*.p) problems."""
+def stream_extract_tptp(url: str, bugged_url: str, dest: Path, full: bool) -> None:
+    """Stream TPTP .tgz via curl | tar into dest.parent/<TPTP_ROOT_NAME>."""
     dest.mkdir(parents=True, exist_ok=True)
     parent = dest.parent
     print(f"[1/3] Fetching bugged problems list from {bugged_url} ...")
@@ -86,18 +90,27 @@ def stream_extract_thf(url: str, bugged_url: str, dest: Path) -> None:
         check=True,
     )
 
-    print(f"[2/3] Streaming THF problems (*^*.p) + Axioms/ from {url} into {dest} ...")
-    cmd = (
-        f"curl -fsSL '{url}' | "
-        f"tar -xz -C '{parent}' --wildcards "
-        f"'{TPTP_ROOT_NAME}/Axioms/*' "
-        f"'{TPTP_ROOT_NAME}/Problems/*/*^*.p'"
-    )
+    if full:
+        print(f"[2/3] Streaming full {TPTP_ROOT_NAME} (~10.5 GB unpacked) from {url} into {dest} ...")
+        cmd = f"curl -fsSL '{url}' | tar -xz -C '{parent}'"
+    else:
+        print(f"[2/3] Streaming THF slice (*^*.p + Axioms/) from {url} into {dest} ...")
+        cmd = (
+            f"curl -fsSL '{url}' | "
+            f"tar -xz -C '{parent}' --wildcards "
+            f"'{TPTP_ROOT_NAME}/Axioms/*' "
+            f"'{TPTP_ROOT_NAME}/Problems/*/*^*.p'"
+        )
     subprocess.run(["bash", "-o", "pipefail", "-c", cmd], check=True)
     print(f"[3/3] Extraction complete at {dest}")
 
 
-def resolve_includes(problem_path: Path, tptp_root: Path, seen: Optional[Set[Path]] = None) -> Tuple[str, int, bool]:
+def resolve_includes(
+    problem_path: Path,
+    tptp_root: Path,
+    axiom_cache: Optional[Dict[Path, str]] = None,
+    seen: Optional[Set[Path]] = None,
+) -> Tuple[str, int, bool]:
     """Recursively load problem text with included Axioms. Returns (combined_text, include_count, missing)."""
     if seen is None:
         seen = set()
@@ -105,7 +118,13 @@ def resolve_includes(problem_path: Path, tptp_root: Path, seen: Optional[Set[Pat
         return ("", 0, False)
     seen.add(problem_path)
 
-    raw = problem_path.read_text(encoding="utf-8", errors="replace")
+    if axiom_cache is not None and problem_path in axiom_cache:
+        raw = axiom_cache[problem_path]
+    else:
+        raw = problem_path.read_text(encoding="utf-8", errors="replace")
+        if axiom_cache is not None and "Axioms" in problem_path.parts:
+            axiom_cache[problem_path] = raw
+
     includes = INCLUDE_RE.findall(raw)
     missing = False
     chunks: List[str] = []
@@ -116,7 +135,7 @@ def resolve_includes(problem_path: Path, tptp_root: Path, seen: Optional[Set[Pat
         if found is None:
             missing = True
             continue
-        sub_text, _, sub_missing = resolve_includes(found, tptp_root, seen)
+        sub_text, _, sub_missing = resolve_includes(found, tptp_root, axiom_cache, seen)
         missing = missing or sub_missing
         chunks.append(sub_text)
 
@@ -127,7 +146,8 @@ def resolve_includes(problem_path: Path, tptp_root: Path, seen: Optional[Set[Pat
 def strip_comments(text: str) -> str:
     lines = []
     for line in text.splitlines():
-        # Remove % line comments outside single-quoted strings
+        if line.startswith("%"):
+            continue
         in_quote = False
         escaped = False
         out = []
@@ -153,24 +173,43 @@ def strip_comments(text: str) -> str:
     return "\n".join(lines)
 
 
-def classify_problem(problem_path: Path, tptp_root: Path, bugged: Set[str]) -> Dict[str, object]:
+def classify_problem(
+    problem_path: Path,
+    tptp_root: Path,
+    bugged: Set[str],
+    axiom_cache: Dict[Path, str],
+) -> Dict[str, object]:
     stem = problem_path.stem  # e.g. SYO001^1
     domain = stem[:3]
     raw_head = problem_path.read_text(encoding="utf-8", errors="replace")
 
     status_m = HEADER_STATUS_RE.search(raw_head)
     rating_m = HEADER_RATING_RE.search(raw_head)
+    spc_m = HEADER_SPC_RE.search(raw_head)
+    tc_m = HEADER_TYPE_CONNS_RE.search(raw_head)
+    ch_m = HEADER_CHOICE_VARS_RE.search(raw_head)
+
     status = status_m.group(1) if status_m else "Unknown"
     rating = float(rating_m.group(1)) if rating_m else -1.0
+    spc = spc_m.group(1) if spc_m else ""
 
-    full_text, inc_count, missing_inc = resolve_includes(problem_path, tptp_root)
+    has_ext_type_conns = (
+        any(int(tc_m.group(i)) > 0 for i in (1, 2, 3)) if tc_m else False
+    )
+    header_has_choice = (
+        (int(ch_m.group(1)) + int(ch_m.group(2)) > 0) if ch_m else False
+    )
+
+    full_text, inc_count, missing_inc = resolve_includes(problem_path, tptp_root, axiom_cache)
     logic_body = strip_comments(full_text)
 
     is_bugged = stem in bugged
-    has_th1 = bool(TH1_POLY_RE.search(logic_body))
-    has_arith = bool(ARITH_RE.search(logic_body))
+    spc_is_th1 = spc.startswith("TH1_")
+    spc_is_ari = spc.endswith("_ARI")
+    has_th1 = spc_is_th1 or bool(TH1_POLY_RE.search(logic_body))
+    has_arith = spc_is_ari or bool(ARITH_RE.search(logic_body))
     has_modal = bool(MODAL_LOGIC_RE.search(logic_body))
-    has_choice = bool(CHOICE_RE.search(logic_body))
+    has_choice = header_has_choice or bool(CHOICE_RE.search(logic_body))
     has_let_ite = bool(LET_ITE_RE.search(logic_body))
     axiom_count = len(re.findall(r",\s*(?:axiom|hypothesis|definition)\s*,", logic_body))
 
@@ -181,11 +220,13 @@ def classify_problem(problem_path: Path, tptp_root: Path, bugged: Set[str]) -> D
         and not has_arith
         and not has_modal
         and not has_choice
+        and not has_ext_type_conns
     )
 
     return {
         "problem": stem,
         "domain": domain,
+        "spc": spc,
         "rel_path": str(problem_path.relative_to(tptp_root)),
         "status": status,
         "rating": rating,
@@ -194,6 +235,7 @@ def classify_problem(problem_path: Path, tptp_root: Path, bugged: Set[str]) -> D
         "strict_thf0": strict_thf0,
         "has_let_ite": has_let_ite,
         "has_choice": has_choice,
+        "has_ext_types": has_ext_type_conns,
         "has_th1": has_th1,
         "has_arith": has_arith,
         "has_modal": has_modal,
@@ -209,11 +251,11 @@ def deterministic_key(seed: str, problem: str) -> str:
 def build_manifests(records: List[Dict[str, object]], out_dir: Path, seed: str) -> Dict[str, int]:
     out_dir.mkdir(parents=True, exist_ok=True)
 
-    # Write full catalog CSV
     csv_path = out_dir / "thf_catalog.csv"
     fieldnames = [
         "problem",
         "domain",
+        "spc",
         "rel_path",
         "status",
         "rating",
@@ -222,6 +264,7 @@ def build_manifests(records: List[Dict[str, object]], out_dir: Path, seed: str) 
         "strict_thf0",
         "has_let_ite",
         "has_choice",
+        "has_ext_types",
         "has_th1",
         "has_arith",
         "has_modal",
@@ -258,7 +301,7 @@ def build_manifests(records: List[Dict[str, object]], out_dir: Path, seed: str) 
     rem_thm = [r for r in eligible_thm if str(r["problem"]) not in smoke_thm_ids]
     rem_csa = [r for r in eligible_csa if str(r["problem"]) not in smoke_csa_ids]
 
-    # Dev: 240 THM + 60 CSA; Holdout: up to 400 THM + 100 CSA (disjoint)
+    # Dev: 240 THM + 60 CSA; Holdout: up to 400 THM + 100 CSA (strictly disjoint)
     dev_thm = rem_thm[:240]
     dev_csa = rem_csa[:60]
     holdout_thm = rem_thm[240:640]
@@ -277,19 +320,30 @@ def build_manifests(records: List[Dict[str, object]], out_dir: Path, seed: str) 
         p.write_text(txt, encoding="utf-8")
         lock_hashes[name] = hashlib.sha256(txt.encode("utf-8")).hexdigest()
 
+    # Domain distribution summary
+    domain_counts: Dict[str, int] = {}
+    for r in eligible_thm + eligible_csa:
+        dom = str(r["domain"])
+        domain_counts[dom] = domain_counts.get(dom, 0) + 1
+
     summary = {
         "tptp_version": TPTP_VERSION,
         "seed": seed,
         "total_thf_scanned": len(records),
         "strict_thf0_thm_pool": len(eligible_thm),
         "strict_thf0_csa_pool": len(eligible_csa),
-        "splits": {k: len(v) for k, v in splits.items()},
+        "domains_in_strict_thf0": dict(sorted(domain_counts.items(), key=lambda kv: -kv[1])),
+        "splits": {
+            "smoke": {"total": len(splits["smoke"]), "thm": len(smoke_thm), "csa": len(smoke_csa)},
+            "dev": {"total": len(splits["dev"]), "thm": len(dev_thm), "csa": len(dev_csa)},
+            "holdout": {"total": len(splits["holdout"]), "thm": len(holdout_thm), "csa": len(holdout_csa)},
+        },
         "sha256": lock_hashes,
     }
     (out_dir / "manifest_lock.json").write_text(
-        json.dumps(summary, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+        json.dumps(summary, indent=2) + "\n", encoding="utf-8"
     )
-    return summary["splits"]
+    return {k: len(v) for k, v in splits.items()}
 
 
 def anonymize_problem(problem_path: Path, tptp_root: Path, seed: str) -> str:
@@ -304,7 +358,6 @@ def anonymize_problem(problem_path: Path, tptp_root: Path, seed: str) -> str:
     var_map: Dict[str, str] = {}
     sym_map: Dict[str, str] = {}
 
-    # Collect tokens and assign deterministic salted names
     raw_tokens = set(IDENT_TOKEN_RE.findall(body))
     ordered = sorted(
         raw_tokens,
@@ -334,18 +387,23 @@ def main(argv: Optional[List[str]] = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     sub = parser.add_subparsers(dest="cmd", required=True)
 
-    p_boot = sub.add_parser("bootstrap", help="Stream-extract THF slice and generate split manifests")
+    p_boot = sub.add_parser("bootstrap", help="Download/extract TPTP-v9.3.1 and build split manifests")
     p_boot.add_argument(
         "--dest",
         type=Path,
-        default=Path.home() / ".cache" / "tptp" / TPTP_ROOT_NAME,
-        help="Destination directory for TPTP-v9.3.1 THF slice",
+        default=Path.home() / ".local" / "share" / "tptp" / TPTP_ROOT_NAME,
+        help="Destination directory for TPTP-v9.3.1",
     )
     p_boot.add_argument(
         "--manifests",
         type=Path,
         required=True,
         help="Output directory for smoke/dev/holdout manifests and lockfile",
+    )
+    p_boot.add_argument(
+        "--full",
+        action="store_true",
+        help="Extract the complete TPTP-v9.3.1 archive (~10.5 GB) instead of only THF + Axioms",
     )
     p_boot.add_argument("--seed", default=DEFAULT_SEED)
     p_boot.add_argument("--skip-download", action="store_true")
@@ -355,7 +413,7 @@ def main(argv: Optional[List[str]] = None) -> int:
     p_anon.add_argument(
         "--tptp-root",
         type=Path,
-        default=Path.home() / ".cache" / "tptp" / TPTP_ROOT_NAME,
+        default=Path.home() / ".local" / "share" / "tptp" / TPTP_ROOT_NAME,
     )
     p_anon.add_argument("--seed", default="run-001")
 
@@ -364,7 +422,7 @@ def main(argv: Optional[List[str]] = None) -> int:
     if args.cmd == "bootstrap":
         dest: Path = args.dest.expanduser().resolve()
         if not args.skip_download:
-            stream_extract_thf(TPTP_TGZ_URL, TPTP_BUGGED_URL, dest)
+            stream_extract_tptp(TPTP_TGZ_URL, TPTP_BUGGED_URL, dest, full=args.full)
 
         bugged_file = dest / f"BuggedProblems-{TPTP_VERSION}.txt"
         bugged = (
@@ -376,7 +434,8 @@ def main(argv: Optional[List[str]] = None) -> int:
         problems_dir = dest / "Problems"
         thf_files = sorted(problems_dir.glob("*/*^*.p"))
         print(f"Scanning {len(thf_files)} THF problem files ...")
-        records = [classify_problem(p, dest, bugged) for p in thf_files]
+        axiom_cache: Dict[Path, str] = {}
+        records = [classify_problem(p, dest, bugged, axiom_cache) for p in thf_files]
         counts = build_manifests(records, args.manifests.expanduser().resolve(), args.seed)
         print(f"Manifests written to {args.manifests}: {counts}")
         return 0
