@@ -1,0 +1,113 @@
+#!/bin/bash
+# Packages Astraea as a StarExec (CASC) solver archive, modeled on package_starexec.
+#
+# The archive contains a self-contained Mix release (ERTS included, no Erlang or
+# Elixir needed on the cluster) and the StarExec run scripts:
+#   astraea/                       the release; astraea/bin/astraea is the Leo-III compatible CLI
+#   bin/starexec_run_default       astraea $1 -t $STAREXEC_WALLCLOCK_LIMIT -p
+#   bin/starexec_run_<prover>      ... with --atp <prover>=../externals/<prover> (one per -e)
+#   bin/starexec_run_all           ... with all external provers
+#   externals/<prover>             the external prover executables (-e)
+#
+# A release contains native code (ERTS, the Rustler NIF, MuonTrap's port binary), so
+# build it on the platform of the cluster (StarExec: x86_64 Linux) with an Erlang/OTP
+# that does not need a newer glibc than the cluster nodes.
+
+usage="$(basename "$0") [-h] [-r dir] [-d dir] [-o filename] [-e prover] -- package Astraea to a StarExec archive
+
+where:
+    -h  show this help text
+    -r  use an existing release directory (default: build one with 'MIX_ENV=prod mix release')
+    -d  set the output directory where the archive will be created (default: .)
+    -o  set the output file name, without extension (default: 'astraea_starexec')
+    -e  include specified executables of external provers (default: none); the file
+        name must be a prover name known to Astraea (e.g. eprover, vampire, cvc5)"
+
+set -e
+
+script_dir=$(cd "$(dirname "$0")" && pwd -P)
+astraea_dir=$(cd "$script_dir/../astraea" && pwd -P)
+outdir=$(pwd -P)
+outfile="astraea_starexec"
+release=""
+externals=()
+
+while getopts ':hr:o:d:e:' option; do
+  case "$option" in
+    h) echo "$usage"
+       exit
+       ;;
+    r) release=$(cd "$OPTARG" && pwd -P)
+       ;;
+    d) outdir=$(cd "$OPTARG" && pwd -P)
+       ;;
+    o) outfile="$OPTARG"
+       ;;
+    e) externals+=("$(cd "$(dirname "$OPTARG")" && pwd -P)/$(basename "$OPTARG")")
+       ;;
+    :) printf "missing argument for -%s\n" "$OPTARG" >&2
+       echo "$usage" >&2
+       exit 1
+       ;;
+   \?) printf "illegal option: -%s\n" "$OPTARG" >&2
+       echo "$usage" >&2
+       exit 1
+       ;;
+  esac
+done
+
+if [ -z "$release" ]; then
+  (cd "$astraea_dir" && MIX_ENV=prod mix deps.get --only prod && MIX_ENV=prod mix release --overwrite)
+  release="$astraea_dir/_build/prod/rel/astraea"
+fi
+
+if [ ! -x "$release/bin/astraea" ] || [ ! -x "$release/bin/astraea_release" ]; then
+  printf "ERROR: no Astraea release found at '%s'.\n" "$release" >&2
+  echo "$usage" >&2
+  exit 1
+fi
+if [ ! -w "$outdir" ]; then
+  printf "ERROR: Output directory '%s' is not writable. Check that it actually exists and is writable.\n" "$outdir" >&2
+  exit 1
+fi
+for prover in "${externals[@]}"; do
+  if [ ! -x "$prover" ]; then
+    printf "ERROR: external prover '%s' is not an executable file.\n" "$prover" >&2
+    exit 1
+  fi
+done
+
+tmpdir=$(mktemp -d)
+trap 'rm -rf "$tmpdir"' EXIT
+mkdir -p "$tmpdir/bin" "$tmpdir/externals"
+cp -R "$release" "$tmpdir/astraea"
+git -C "$script_dir" rev-parse HEAD > "$tmpdir/starexec_description.txt"
+
+# StarExec starts the run scripts in bin/ with the benchmark as $1. HOME may be unset
+# on the cluster, which the release scripts need for nothing but erl's defaults.
+run_script() {
+  cat <<EOF
+#!/bin/bash
+export HOME="\${HOME:-/tmp}"
+exec ../astraea/bin/astraea "\$1" -t "\$STAREXEC_WALLCLOCK_LIMIT" -p $1
+EOF
+}
+
+run_script "" > "$tmpdir/bin/starexec_run_default"
+
+allext=""
+for prover in "${externals[@]}"; do
+  name=$(basename "$prover")
+  cp "$prover" "$tmpdir/externals/$name"
+  extarg="--atp $name=../externals/$name"
+  allext="$allext $extarg"
+  run_script "$extarg" > "$tmpdir/bin/starexec_run_$name"
+done
+if [ -n "$allext" ]; then
+  run_script "$allext" > "$tmpdir/bin/starexec_run_all"
+fi
+chmod +x "$tmpdir"/bin/*
+
+rm -f "$outdir/$outfile.tar.gz"
+tar -czf "$outdir/$outfile.tar.gz" -C "$tmpdir" astraea bin externals starexec_description.txt
+echo "Created $outdir/$outfile.tar.gz"
