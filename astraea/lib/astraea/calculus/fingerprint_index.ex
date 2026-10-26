@@ -189,7 +189,7 @@ defmodule Astraea.Calculus.FingerprintIndex do
   @doc """
   For each query fingerprint returns the payloads of all live rows compatible with
   it under `mode`. Options: `:backend` (`:auto | :elixir | :nx`) and
-  `:nx_min_rows` (default 4096) for `:auto`.
+  `:nx_min_rows` (default 1024) for `:auto`.
   """
   @spec query(t(), [fingerprint()], mode(), keyword()) :: [[term()]]
   def query(%__MODULE__{} = index, queries, mode, opts \\ []) do
@@ -203,7 +203,7 @@ defmodule Astraea.Calculus.FingerprintIndex do
     case Keyword.get(opts, :backend, :auto) do
       :auto ->
         if nx_available?() and queries != [] and
-             index.size >= Keyword.get(opts, :nx_min_rows, 4096),
+             index.size >= Keyword.get(opts, :nx_min_rows, 1024),
            do: :nx,
            else: :elixir
 
@@ -239,7 +239,7 @@ defmodule Astraea.Calculus.FingerprintIndex do
       Enum.reduce(0..(width - 1), Nx.broadcast(Nx.tensor(1, type: :u8), {q, n}), fn pos, acc ->
         qv = queries |> Nx.slice([0, pos], [q, 1])
         tv = targets |> Nx.slice([pos, 0], [1, n])
-        idx = Nx.add(Nx.multiply(Nx.min(qv, 4), 5), Nx.min(tv, 4))
+        idx = Nx.add(Nx.multiply(Nx.clip(qv, 0, 4), 5), Nx.clip(tv, 0, 4))
         rigid_ok = Nx.logical_or(Nx.equal(qv, tv), Nx.not_equal(idx, 24))
         Nx.logical_and(acc, Nx.logical_and(Nx.take(table, idx), rigid_ok))
       end)
@@ -275,7 +275,7 @@ defmodule Astraea.Calculus.FingerprintIndex do
 
     defp mask_rows(bin, cap) do
       for <<row::binary-size(cap) <- bin>> do
-        for {1, slot} <- Enum.with_index(:binary.bin_to_list(row)), do: slot
+        for {slot, 1} <- :binary.matches(row, <<1>>), do: slot
       end
     end
 

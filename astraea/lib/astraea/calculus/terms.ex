@@ -129,6 +129,23 @@ defmodule Astraea.Calculus.Terms do
     end
   end
 
+  @doc "Returns true iff `sub` occurs in `term_id` (outside of binders that capture it)."
+  @spec subterm?(Arena.t(), Arena.term_id(), Arena.term_id()) :: boolean()
+  def subterm?(%Arena{} = _arena, term_id, term_id), do: true
+
+  def subterm?(%Arena{} = arena, term_id, sub) do
+    case Arena.get_node(arena, term_id) do
+      {tag, _, _, l, r} when tag in [@tag_app, @tag_eq, @tag_or] ->
+        subterm?(arena, l, sub) or subterm?(arena, r, sub)
+
+      {@tag_not, _, _, a, _} ->
+        subterm?(arena, a, sub)
+
+      _ ->
+        false
+    end
+  end
+
   # ---------------------------------------------------------------------------
   # Types
   # ---------------------------------------------------------------------------

@@ -514,13 +514,17 @@ defmodule Astraea.Prover do
   # Extensionality, Choice, followed by search-time clausification.
   #
   # Strategy options (read from `state.opts`):
-  #   :unify_depth (5), :unifier_count (4), :unify_steps (64) - pre-unification bounds
+  #   :unify_depth (2), :unifier_count (2), :unify_steps (24) - pre-unification bounds
   #   :prim_subst (1, level 0-3), :prim_subst_depth (2) - primitive substitution
   #   :ext_inferences (true) - BoolExt / FuncExt on given clauses
   #   :choice (true) - Hilbert choice instances
   #   :ordered (false), :literal_selection (:none | :neg_max) - see `Calculus.Ordering`
   #   :fingerprints (true), :fingerprint_backend (:auto) - partner retrieval
   #   :paramod_flex (false) - also paramodulate into flex-headed subterms
+  #   :flex_resolution (:ground | :all) - a flex-headed literal atom with arguments
+  #     (never a pattern at the top level) is resolved and factored only against
+  #     ground atoms or atoms containing one of its arguments under `:ground`, since
+  #     by imitation it unifies with any atom
   # ---------------------------------------------------------------------------
 
   @eq_res_unifiers 2
@@ -571,9 +575,9 @@ defmodule Astraea.Prover do
     bounds =
       Keyword.merge(
         [
-          max_depth: calculus_opt(state, :unify_depth, 5),
-          max_unifiers: calculus_opt(state, :unifier_count, 4),
-          max_steps: calculus_opt(state, :unify_steps, 64)
+          max_depth: calculus_opt(state, :unify_depth, 2),
+          max_unifiers: calculus_opt(state, :unifier_count, 2),
+          max_steps: calculus_opt(state, :unify_steps, 24)
         ],
         opts
       )
@@ -715,6 +719,8 @@ defmodule Astraea.Prover do
           atoms_compatible?(state, a1, a2),
           do: {a1, a2}
 
+    {state, pairs} = flex_filter(state, pairs, & &1)
+
     each_inference(state, pairs, fn st, {a1, a2} ->
       {st, substs} = atom_unifiers(st, a1, a2)
 
@@ -795,21 +801,33 @@ defmodule Astraea.Prover do
   end
 
   defp resolve_clause_pair(%__MODULE__{} = state, c1, c2) do
-    {state, c2_disjoint} = ensure_disjoint_fvars(state, c1, c2)
+    # Fingerprints are invariant under renaming: test before freshening `c2`.
+    if resolvable_pairs(state, c1, c2) == [] do
+      {:cont, state, []}
+    else
+      {state, c2_disjoint} = ensure_disjoint_fvars(state, c1, c2)
+
+      {state, lit_pairs} =
+        flex_filter(state, resolvable_pairs(state, c1, c2_disjoint), fn {_, a1, _, a2} ->
+          {a1, a2}
+        end)
+
+      resolve_lit_pairs(state, lit_pairs)
+    end
+  end
+
+  defp resolvable_pairs(%__MODULE__{} = state, c1, c2) do
     ord = ordering(state)
 
-    lit_pairs =
-      for {pol1, a1} <- Ordering.eligible(state.arena, c1.lits, ord),
-          {pol2, a2} <- Ordering.eligible(state.arena, c2_disjoint.lits, ord),
-          pol1 != pol2,
-          atoms_compatible?(state, a1, a2) do
-        if pol1 == :pos do
-          {c1, a1, c2_disjoint, a2}
-        else
-          {c2_disjoint, a2, c1, a1}
-        end
-      end
+    for {pol1, a1} <- Ordering.eligible(state.arena, c1.lits, ord),
+        {pol2, a2} <- Ordering.eligible(state.arena, c2.lits, ord),
+        pol1 != pol2,
+        atoms_compatible?(state, a1, a2) do
+      if pol1 == :pos, do: {c1, a1, c2, a2}, else: {c2, a2, c1, a1}
+    end
+  end
 
+  defp resolve_lit_pairs(%__MODULE__{} = state, lit_pairs) do
     each_inference(state, lit_pairs, fn st, {pos_c, pos_atom, neg_c, neg_atom} ->
       {st, substs} = unify_literals(st, pos_atom, neg_atom)
       each_inference(st, substs, &resolve_with(&1, pos_c, pos_atom, neg_c, neg_atom, &2))
@@ -923,6 +941,7 @@ defmodule Astraea.Prover do
       else
         {state, target_disjoint} = ensure_disjoint_fvars(state, eq_clause, target_clause)
         target_eligible = Ordering.eligible(state.arena, target_disjoint.lits, ord)
+        state = cutoff(state, skipped_flex_targets(state, target_eligible))
 
         candidates =
           for {eq_id, from_term, to_term} <- sides,
@@ -1016,6 +1035,21 @@ defmodule Astraea.Prover do
     state.arena
     |> collect_subterms(term_id, MapSet.new())
     |> Enum.filter(&(flex? or not Terms.flex?(state.arena, &1)))
+  end
+
+  # Flex-headed paramodulation targets left out without `:paramod_flex` (search cutoffs).
+  defp skipped_flex_targets(%__MODULE__{} = state, lits) do
+    if calculus_opt(state, :paramod_flex, false),
+      do: 0,
+      else:
+        Enum.sum(
+          for {_pol, a} <- lits,
+              do:
+                Enum.count(
+                  collect_subterms(state.arena, a, MapSet.new()),
+                  &Terms.flex?(state.arena, &1)
+                )
+        )
   end
 
   defp collect_subterms(%Arena{} = arena, term_id, acc) do
@@ -1235,6 +1269,35 @@ defmodule Astraea.Prover do
 
     from = state |> query_ids(state.fp_index.sides, subterms) |> List.flatten() |> MapSet.new()
     {state, into, from}
+  end
+
+  # `:flex_resolution` policy; skipped pairs are counted as search cutoffs.
+  defp flex_filter(%__MODULE__{} = state, pairs, atoms_of) do
+    {kept, skipped} =
+      Enum.split_with(pairs, fn pair ->
+        {a1, a2} = atoms_of.(pair)
+        flex_policy?(state, a1, a2)
+      end)
+
+    {cutoff(state, length(skipped)), kept}
+  end
+
+  defp flex_policy?(%__MODULE__{} = state, a1, a2) do
+    calculus_opt(state, :flex_resolution, :ground) == :all or
+      (flex_ok?(state.arena, a1, a2) and flex_ok?(state.arena, a2, a1))
+  end
+
+  # `F @ args` may meet `other` if `other` is ground, contains one of the `args` (the
+  # non-vacuous abstraction case of Entry 006) or has a head of the type of `F` applied
+  # to as many arguments (first-order decomposition `F := h`).
+  defp flex_ok?(arena, atom, other) do
+    {head, args} = Terms.spine(arena, atom)
+    {other_head, other_args} = Terms.spine(arena, other)
+
+    args == [] or not Terms.fvar?(arena, head) or not Terms.has_fvar?(arena, other) or
+      Enum.any?(args, &Terms.subterm?(arena, other, &1)) or
+      (length(other_args) == length(args) and
+         Arena.type_of(arena, other_head) == Arena.type_of(arena, head))
   end
 
   # Pairwise fingerprint pre-filter for literal atoms (modulo equation symmetry).
@@ -1519,7 +1582,8 @@ defmodule Astraea.Prover do
       passive_clauses: length(state.passive),
       total_steps: state.next_step_id - 1,
       arena_nodes: map_size(state.arena.nodes),
-      unification_cutoffs: state.unification_cutoffs
+      unification_cutoffs: state.unification_cutoffs,
+      step_counts: Enum.frequencies_by(Map.values(state.steps), &elem(&1, 0))
     }
 
     if state.cooperate == [],

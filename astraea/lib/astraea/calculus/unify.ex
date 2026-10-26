@@ -34,7 +34,7 @@ defmodule Astraea.Calculus.Unify do
   alias Astraea.Arena
   alias Astraea.Calculus.Terms
 
-  @default_opts [max_depth: 5, max_unifiers: 4, max_steps: 64]
+  @default_opts [max_depth: 2, max_unifiers: 2, max_steps: 24]
 
   @type pair :: {Arena.term_id(), Arena.term_id()}
   @type result :: {Arena.t(), non_neg_integer(), [Arena.subst()], non_neg_integer()}
@@ -143,7 +143,9 @@ defmodule Astraea.Calculus.Unify do
       Arena.type_of(arena, s) != Arena.type_of(arena, t) ->
         {ctx, :fail}
 
-      Terms.arrow_domain(arena, Arena.type_of(arena, s)) != nil ->
+      # Two rigid eta-short terms of arrow type decompose like their eta-expansions.
+      Terms.arrow_domain(arena, Arena.type_of(arena, s)) != nil and
+          not (rigid?(arena, s) and rigid?(arena, t)) ->
         {arena, s1} = Terms.eta_body(arena, s)
         {arena, t1} = Terms.eta_body(arena, t)
         exhaust(%{ctx | arena: arena}, push(conf, [{s1, t1, k + 1}]))
@@ -152,6 +154,8 @@ defmodule Astraea.Calculus.Unify do
         dispatch(ctx, {s, t, k}, Terms.view(arena, s), Terms.view(arena, t), conf)
     end
   end
+
+  defp rigid?(arena, t), do: match?({:rigid, _, _}, Terms.view(arena, t))
 
   defp dispatch(ctx, {_s, _t, k}, {:rigid, h, cs}, {:rigid, h, ds}, conf)
        when length(cs) == length(ds) do
@@ -400,16 +404,43 @@ defmodule Astraea.Calculus.Unify do
       {f, as} = Terms.spine(arena, s)
       {g, bs} = Terms.spine(arena, t)
 
-      {ctx, bindings} =
+      {ctx, bindings, pairs} =
         with {:ok, ia} <- pattern_indices(arena, as, k),
              {:ok, ib} <- pattern_indices(arena, bs, k) do
-          pattern_flex_flex(ctx, {f, ia}, {g, ib})
+          {ctx, bindings} = pattern_flex_flex(ctx, {f, ia}, {g, ib})
+          {ctx, bindings, [{s0, t0, k}]}
         else
-          :error -> trivial_flex_flex(cut(ctx), f, g)
+          :error -> non_pattern_flex_flex(cut(ctx), {f, as}, {g, bs}, {s0, t0, k})
         end
 
       conf = Enum.reduce(bindings, conf, fn {var, b}, cf -> rebind(cf, var, b) end)
-      exhaust(ctx, %{conf | todo: [{s0, t0, k} | conf.todo]})
+      exhaust(ctx, %{conf | todo: pairs ++ conf.todo})
+    end
+  end
+
+  # Outside the pattern fragment: decompose `F as = G bs` into `F := G` and `as = bs`
+  # (a unifier, not a most general one) unless two arguments clash rigidly, else bind
+  # both heads to the same fresh constant function.
+  defp non_pattern_flex_flex(ctx, {f, as}, {g, bs}, {_s, _t, k} = pair) do
+    arena = ctx.arena
+
+    decomposable? =
+      Arena.type_of(arena, f) == Arena.type_of(arena, g) and length(as) == length(bs) and
+        not Enum.any?(Enum.zip(as, bs), fn {a, b} -> clash?(arena, a, b) end)
+
+    if decomposable? do
+      bindings = if f == g, do: [], else: [{var_id(arena, f), g}]
+      {ctx, bindings, Enum.zip_with(as, bs, &{&1, &2, k})}
+    else
+      {ctx, bindings} = trivial_flex_flex(ctx, f, g)
+      {ctx, bindings, [pair]}
+    end
+  end
+
+  defp clash?(arena, a, b) do
+    case {Terms.view(arena, a), Terms.view(arena, b)} do
+      {{:rigid, h1, _}, {:rigid, h2, _}} -> h1 != h2
+      _ -> false
     end
   end
 
