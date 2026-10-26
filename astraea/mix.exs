@@ -25,7 +25,8 @@ defmodule Astraea.MixProject do
       {:muontrap, "~> 2.0"},
       {:jason, "~> 1.4"},
       {:stream_data, "~> 1.1", only: [:dev, :test]},
-      {:benchee, "~> 1.3"}
+      {:benchee, "~> 1.3"},
+      {:nx, "~> 1.0"}
     ]
 
     nx_simd_path = Path.expand("../../../nx_simd", __DIR__)

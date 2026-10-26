@@ -1,33 +1,18 @@
 defmodule Astraea.NxSimdIndex do
   @moduledoc """
-  Vectorized 16-lane Feature-Vector (`FVIndex`) subsumption and quantized `int8`
-  PGO clause-utility scoring powered by `NxSimd.Compiler` and `NxFixed.WidthCheck`.
-
-  Uses a Structure-of-Arrays (SoA) `{16, N}` layout for the clause feature table so
-  `NxSimd.Codegen` fuses all 16 feature comparisons into a single `#pragma omp simd`
-  unit-stride vector loop with zero intermediate scratch buffer allocation (`arena_size == 0`).
+  Gate 4 helpers around the Structure-of-Arrays feature-vector kernel of
+  `Astraea.Engine.Kernels` (the prover itself uses `Astraea.Engine.FVIndex`):
+  packing `{16, N}` `:u16` tables and compiling the kernel with `NxSimd.Compiler`
+  (`-O3 -march=native` C++, integer widths checked by `NxFixed.WidthCheck`).
   """
+
+  alias Astraea.Engine.Kernels
 
   @doc """
-  Pure `Nx` `defn`-compatible Structure-of-Arrays 16-lane subsumption kernel:
-  Given `cand` of shape `{16}` (`:u16`) and `targets_soa` of shape `{16, n}` (`:u16`),
-  returns a `:u8` mask of shape `{n}` where `1` means `forall lane in 0..15: cand[lane] <= targets_soa[lane, idx]`.
+  `:u8` mask of shape `{n}`: `1` where `cand[lane] <= targets_soa[lane, idx]` for
+  every lane, i.e. `Kernels.subsumed/2`.
   """
-  def fv_subsumes_soa_kernel(cand, targets_soa) do
-    {16, n} = Nx.shape(targets_soa)
-
-    Enum.reduce(
-      1..15,
-      Nx.less_equal(Nx.slice(cand, [0], [1]), Nx.slice(targets_soa, [0, 0], [1, n])),
-      fn lane, acc ->
-        lane_cmp =
-          Nx.less_equal(Nx.slice(cand, [lane], [1]), Nx.slice(targets_soa, [lane, 0], [1, n]))
-
-        Nx.logical_and(acc, lane_cmp)
-      end
-    )
-    |> Nx.reshape({n})
-  end
+  def fv_subsumes_soa_kernel(cand, targets_soa), do: Kernels.subsumed(cand, targets_soa)
 
   @doc """
   Packs a list of 16-lane feature vectors (`[[u16]]` of length `N`) into a
@@ -38,7 +23,6 @@ defmodule Astraea.NxSimdIndex do
     n = length(target_fvs)
     cand_tensor = Nx.tensor(cand_fv, type: :u16)
 
-    # Row-major {N, 16} transposed to contiguous {16, N} Structure-of-Arrays
     soa_tensor =
       target_fvs
       |> Nx.tensor(type: :u16)
@@ -49,19 +33,13 @@ defmodule Astraea.NxSimdIndex do
   end
 
   @doc """
-  Compiles `fv_subsumes_soa_kernel/2` via `NxSimd.Compiler` (checking integer widths
-  with `NxFixed.WidthCheck` and emitting `-O3 -march=native -fopenmp-simd` C++20).
-  Returns `{compiled_runner_fn, generated_cpp_source}`.
+  Compiles the kernel for the shapes of the given tensors with `NxSimd.Compiler`.
+  Returns `{compiled_runner_fn, generated_cpp_source}`; requires NxSimd.
   """
   def compile_soa_subsumption(cand_tensor, soa_tensor, opts \\ []) do
-    expr = Nx.Defn.debug_expr(&fv_subsumes_soa_kernel/2).(cand_tensor, soa_tensor)
-    cpp_source = NxSimd.Compiler.source(expr, opts)
-
-    runner =
-      Nx.Defn.compile(&fv_subsumes_soa_kernel/2, [cand_tensor, soa_tensor],
-        compiler: NxSimd.Compiler
-      )
-
+    expr = Nx.Defn.debug_expr(&Kernels.subsumed/2).(cand_tensor, soa_tensor)
+    cpp_source = apply(NxSimd.Compiler, :source, [expr, opts])
+    runner = Kernels.compile_kernel(:subsumed, [Nx.shape(cand_tensor), Nx.shape(soa_tensor)])
     {runner, cpp_source}
   end
 end

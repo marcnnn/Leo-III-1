@@ -5,16 +5,26 @@ defmodule Astraea.Prover do
   Implements a discount-style saturation loop over `Astraea.Arena` terms with:
   - Clause Condensation (`condense_clause/2` via `:subst`)
   - Eager Unit-Clause Subsumption Resolution (`unit_simplify/2` via `:subst` + `:resolve`)
+  - Demodulation with KBO-ordered unit equations, forward and backward
+    (`Astraea.Engine.Demodulator`, via `:subst` + `:paramod`)
   - Equality Resolution (`~(s = t)` via unification + `:refl` + `:resolve`)
   - Positive & Negative Factoring (`:subst`)
   - Positive Functional Extensionality (`:func_ext` xi-rule)
   - Binary Resolution with higher-order pattern/abstraction unification (`:subst` + `:resolve`)
   - KBO-oriented Superposition / Paramodulation (`:subst` + `:paramod`)
   - Higher-Order Predicate Reflexivity Instantiation (`P := ^ [Z]: (Z = u)`)
-  - Feature-Vector (`FVIndex`) forward subsumption
+  - Forward and backward multiset subsumption (`Astraea.Engine.Subsumption`) behind
+    feature-vector indexes of the active and passive sets (`Astraea.Engine.FVIndex`)
+
+  The passive set is an `Astraea.Engine.PassiveQueue` with Leo-III style weighted
+  round-robin selection. No clause is dropped unless a limit option asks for it, so
+  with the defaults the loop is refutationally complete relative to its inference
+  rules; `stats/1` reports `:discarded_clauses` and `:complete` accordingly.
 
   Every refutation (`SZS status Theorem`) constructs a minimal DAG of primitive inference
   steps and passes it through `Astraea.ProofChecker.verify_refutation/2` before returning.
+  Redundancy elimination only removes clauses from the search state, never steps, so
+  deleted clauses remain available as proof ancestors.
 
   With `:cooperate`, the loop periodically hands its current clause set to external
   provers (Leo-III style cooperation, see `Astraea.External`). An external refutation
@@ -24,10 +34,15 @@ defmodule Astraea.Prover do
   """
 
   alias Astraea.{Arena, Clausifier, External, ProofChecker, TptpCorpus, TptpLower}
+  alias Astraea.Engine.{Demodulator, FVIndex, HeadIndex, PassiveQueue, Subsumption}
   alias Astraea.External.Reconstruct
 
   # Below this remaining budget an external call cannot finish in time.
   @min_external_ms 300
+
+  # Rewrite steps per clause simplification; KBO-decreasing rewriting terminates,
+  # this only bounds the cost of long chains.
+  @max_rewrites 64
 
   # Node tags (u8) matching `Astraea.Arena`
   @tag_const 1
@@ -47,14 +62,30 @@ defmodule Astraea.Prover do
             next_step_id: 1,
             next_fvar_id: 100_000,
             active: [],
-            passive: [],
-            units: [],
+            active_by_id: %{},
+            active_index: nil,
+            passive: nil,
+            passive_index: nil,
+            units: %{},
+            unit_count: 0,
+            rules: %{},
             seen_clauses: MapSet.new(),
             iterations: 0,
-            max_iterations: 450,
-            max_clause_lits: 6,
-            max_clause_weight: 45,
+            max_iterations: :infinity,
+            max_clause_lits: :infinity,
+            max_clause_weight: :infinity,
+            max_units: :infinity,
+            backward_subsumption: true,
+            demodulation: true,
             scoring_mode: :goal_directed,
+            sine_filtered: false,
+            discarded_clauses: 0,
+            # Unifier searches cut off by a depth limit (counted by the calculus).
+            unification_cutoffs: 0,
+            forward_subsumed: 0,
+            backward_subsumed: 0,
+            rewrites: 0,
+            backward_rewritten: 0,
             deadline_ms: nil,
             opts: [],
             cooperate: [],
@@ -107,12 +138,35 @@ defmodule Astraea.Prover do
         inline_bridges: inline_bridges
       )
 
-    prove_clauses(arena, clauses, opts)
+    prove_clauses(
+      arena,
+      clauses,
+      Keyword.put(opts, :sine_filtered, sine_filtered?(lowered, sine_limit))
+    )
+  end
+
+  # Mirrors the SInE trigger in `Clausifier.clausify/2`. It counts definitions the
+  # clausifier inlines before filtering, so it may report a filter that kept every
+  # axiom: `:complete` errs on the safe side.
+  defp sine_filtered?(%TptpLower{} = lowered, sine_limit) do
+    is_integer(sine_limit) and length(lowered.axioms) > sine_limit and lowered.conjectures != []
   end
 
   @doc """
-  Saturates `input_clauses`. Besides the strategy options (`:timeout_ms`,
-  `:max_iterations`, `:max_clause_lits`, `:max_clause_weight`, `:scoring_mode`):
+  Saturates `input_clauses`. Strategy options:
+    * `:timeout_ms` - wall-clock budget (default 2500)
+    * `:scoring_mode` - clause score for the passive queue (default `:goal_directed`)
+    * `:pick_ratio` - passive selection schedule, `{priority, weight}` pairs over
+      `:score`, `:age`, `:weight`, `:depth` (default `[score: 3, age: 1]`)
+    * `:backward_subsumption`, `:demodulation` - redundancy elimination (default `true`)
+    * `:index_backend` - `Astraea.Engine.FVIndex` backend (default `:auto`)
+  Limits, all `:infinity` by default; a clause dropped by `:max_clause_lits` or
+  `:max_clause_weight` counts as discarded and makes the run incomplete:
+    * `:max_iterations` - given-clause iterations
+    * `:max_clause_lits`, `:max_clause_weight` - generated clauses above both limits
+      (weight only for clauses with more than two literals) are discarded
+    * `:max_units` - unit clauses kept for unit simplification (no effect on completeness)
+  External cooperation:
     * `:cooperate` - external provers to call during search, as names or
       `{name, opts}` (options of `Astraea.External.run/3`, plus `:spec`, `:format`)
     * `:cooperate_interval` - iterations between external calls (default 40)
@@ -123,23 +177,28 @@ defmodule Astraea.Prover do
     * `:seed` - `%{steps:, ids:, next_step_id:, next_fvar_id:}`: the input clauses
       were already derived as steps `ids` of `steps`, so they are not registered as
       axioms and a refutation includes their derivations
+    * `:sine_filtered` - the input omits axioms (set by `prove_lowered/2`)
   """
   @spec prove_clauses(Arena.t(), [ProofChecker.clause()], keyword()) ::
           result() | {:proved_external, map()}
   def prove_clauses(%Arena{} = arena, input_clauses, opts \\ []) do
     timeout_ms = Keyword.get(opts, :timeout_ms, 2_500)
-    max_iters = Keyword.get(opts, :max_iterations, 450)
-    max_lits = Keyword.get(opts, :max_clause_lits, 6)
-    max_weight = Keyword.get(opts, :max_clause_weight, 45)
-    scoring_mode = Keyword.get(opts, :scoring_mode, :goal_directed)
     deadline = System.monotonic_time(:millisecond) + timeout_ms
+    index_opts = [backend: Keyword.get(opts, :index_backend, :auto)]
 
     state = %__MODULE__{
       arena: arena,
-      max_iterations: max_iters,
-      max_clause_lits: max_lits,
-      max_clause_weight: max_weight,
-      scoring_mode: scoring_mode,
+      active_index: FVIndex.new(index_opts),
+      passive: PassiveQueue.new(Keyword.get(opts, :pick_ratio, score: 3, age: 1)),
+      passive_index: FVIndex.new(index_opts),
+      max_iterations: Keyword.get(opts, :max_iterations, :infinity),
+      max_clause_lits: Keyword.get(opts, :max_clause_lits, :infinity),
+      max_clause_weight: Keyword.get(opts, :max_clause_weight, :infinity),
+      max_units: Keyword.get(opts, :max_units, :infinity),
+      backward_subsumption: Keyword.get(opts, :backward_subsumption, true),
+      demodulation: Keyword.get(opts, :demodulation, true),
+      scoring_mode: Keyword.get(opts, :scoring_mode, :goal_directed),
+      sine_filtered: Keyword.get(opts, :sine_filtered, false),
       deadline_ms: deadline,
       opts: opts,
       cooperate: opts |> Keyword.get(:cooperate, []) |> Enum.map(&normalize_external/1),
@@ -203,7 +262,8 @@ defmodule Astraea.Prover do
       end)
 
     thm_solved =
-      for {entry, {:proved, steps, st}, ms} <- results, is_map(entry) and entry.status == "Theorem" do
+      for {entry, {:proved, steps, st}, ms} <- results,
+          is_map(entry) and entry.status == "Theorem" do
         {entry.problem, entry.domain, length(steps), st.iterations, ms}
       end
 
@@ -214,7 +274,8 @@ defmodule Astraea.Prover do
       end
 
     lcf_failures =
-      for {entry, {:error, {:lcf_verification_failed, reason, _}}, _ms} <- results, is_map(entry) do
+      for {entry, {:error, {:lcf_verification_failed, reason, _}}, _ms} <- results,
+          is_map(entry) do
         {entry.problem, reason}
       end
 
@@ -248,14 +309,7 @@ defmodule Astraea.Prover do
             id -> {st, clause_item(st, id, clause, 0)}
           end
 
-        st =
-          if MapSet.size(clause) == 1 and length(st.units) < 48 do
-            %{st | units: [c_item | st.units]}
-          else
-            st
-          end
-
-        {st, [c_item | acc]}
+        {add_unit(st, c_item), [c_item | acc]}
       end)
 
     axiom_items = Enum.reverse(axiom_items)
@@ -285,101 +339,305 @@ defmodule Astraea.Prover do
     end)
   end
 
-  defp saturation_loop(%__MODULE__{passive: []} = state) do
-    finish(state, {:saturated, stats(state)})
-  end
-
   defp saturation_loop(%__MODULE__{iterations: iters, max_iterations: max_iters} = state)
-       when iters >= max_iters do
+       when is_integer(max_iters) and iters >= max_iters do
     finish(state, {:resource_out, stats(state)})
   end
 
   defp saturation_loop(%__MODULE__{} = state) do
-    if System.monotonic_time(:millisecond) >= state.deadline_ms do
-      finish(state, {:resource_out, stats(state)})
-    else
-      case cooperate(state) do
-        {:done, result, state} -> finish(state, result)
-        {:cont, state} -> given_clause_step(state)
-      end
-    end
-  end
+    cond do
+      PassiveQueue.empty?(state.passive) ->
+        finish(state, {:saturated, stats(state)})
 
-  defp given_clause_step(%__MODULE__{} = state) do
-    {given, rest_passive} = pop_best_passive(state.passive, state.iterations)
-    state = %{state | passive: rest_passive, iterations: state.iterations + 1}
-    {state, given} = condense_clause(state, given)
+      System.monotonic_time(:millisecond) >= state.deadline_ms ->
+        finish(state, {:resource_out, stats(state)})
 
-    case unit_simplify(state, given) do
-      {:proved, state, empty_id} ->
-        finish(state, finalize_proof(state, empty_id))
-
-      {:ok, state, given} ->
-        if forward_subsumed?(state.arena, state.active, given) do
-          saturation_loop(state)
-        else
-          case generate_inferences(state, given) do
-            {:proved, state, empty_id} ->
-              finish(state, finalize_proof(state, empty_id))
-
-            {:cont, state, new_items} ->
-              units =
-                if MapSet.size(given.lits) == 1 and length(state.units) < 48 do
-                  [given | state.units]
-                else
-                  state.units
-                end
-
-              state = %{state | active: [given | state.active], units: units}
-              state = enqueue_passive(state, new_items)
-              saturation_loop(state)
-          end
+      true ->
+        case cooperate(state) do
+          {:done, result, state} -> finish(state, result)
+          {:cont, state} -> given_clause_step(state)
         end
     end
   end
 
-  defp pop_best_passive([single], _iter), do: {single, []}
+  # One iteration of the given-clause loop (Leo-III `SeqLoop`): select, simplify
+  # (condensation, unit simplification, demodulation), drop if redundant, else
+  # simplify the processed set with it (backward subsumption and demodulation),
+  # generate inferences and activate it.
+  defp given_clause_step(%__MODULE__{} = state) do
+    {given, passive} = PassiveQueue.pop(state.passive)
 
-  defp pop_best_passive(passive, iter) do
-    target =
-      if rem(iter, 4) == 3 do
-        Enum.min_by(passive, & &1.id)
-      else
-        Enum.min_by(passive, & &1.score)
-      end
+    state = %{
+      state
+      | passive: passive,
+        passive_index: FVIndex.delete(state.passive_index, [given.id]),
+        iterations: state.iterations + 1
+    }
 
-    {target, List.delete(passive, target)}
+    {state, given} = condense_clause(state, given)
+
+    case simplify(state, given) do
+      {:proved, state, empty_id} ->
+        finish(state, finalize_proof(state, empty_id))
+
+      {:ok, state, given} ->
+        cond do
+          tautology_clause?(state.arena, given.lits) ->
+            saturation_loop(state)
+
+          forward_subsumed?(state, given) ->
+            saturation_loop(%{state | forward_subsumed: state.forward_subsumed + 1})
+
+          true ->
+            state = state |> backward_subsume(given) |> backward_demodulate(given)
+
+            case generate_inferences(state, given) do
+              {:proved, state, empty_id} ->
+                finish(state, finalize_proof(state, empty_id))
+
+              {:cont, state, new_items} ->
+                state
+                |> activate(given)
+                |> enqueue_passive(new_items)
+                |> saturation_loop()
+            end
+        end
+    end
+  end
+
+  defp activate(%__MODULE__{} = state, item) do
+    state = %{
+      state
+      | active: [item | state.active],
+        active_by_id: Map.put(state.active_by_id, item.id, item),
+        active_index:
+          FVIndex.insert(state.active_index, item.id, Subsumption.subsumption_fv(item))
+    }
+
+    state = add_unit(state, item)
+
+    if state.demodulation,
+      do: %{
+        state
+        | rules:
+            Demodulator.add_rules(state.rules, state.arena, Demodulator.rules(state.arena, item))
+      },
+      else: state
+  end
+
+  defp add_unit(%__MODULE__{} = state, item) do
+    if MapSet.size(item.lits) == 1 and below?(state.unit_count, state.max_units) do
+      [{pol, atom}] = MapSet.to_list(item.lits)
+
+      %{
+        state
+        | units: HeadIndex.put(state.units, state.arena, pol, atom, item),
+          unit_count: state.unit_count + 1
+      }
+    else
+      state
+    end
+  end
+
+  defp below?(_n, :infinity), do: true
+  defp below?(n, limit), do: n < limit
+
+  defp exceeds?(_n, :infinity), do: false
+  defp exceeds?(n, limit), do: n > limit
+
+  # Removes processed clauses (e.g. backward-subsumed or rewritten ones) from the
+  # search state; their steps stay, so they can still be proof ancestors.
+  defp remove_active(%__MODULE__{} = state, []), do: state
+
+  defp remove_active(%__MODULE__{} = state, ids) do
+    gone = MapSet.new(ids)
+    units = HeadIndex.reject(state.units, gone)
+
+    %{
+      state
+      | active: Enum.reject(state.active, &MapSet.member?(gone, &1.id)),
+        active_by_id: Map.drop(state.active_by_id, ids),
+        active_index: FVIndex.delete(state.active_index, ids),
+        units: units,
+        unit_count: length(HeadIndex.values(units)),
+        rules: HeadIndex.reject(state.rules, gone)
+    }
   end
 
   defp enqueue_passive(%__MODULE__{} = state, items) do
-    Enum.reduce(items, state, fn item, st ->
-      num_lits = MapSet.size(item.lits)
+    {state, fresh} =
+      Enum.reduce(items, {state, []}, fn item, {st, acc} ->
+        num_lits = MapSet.size(item.lits)
 
-      cond do
-        num_lits > st.max_clause_lits ->
+        cond do
+          exceeds?(num_lits, st.max_clause_lits) or
+              (exceeds?(item.weight, st.max_clause_weight) and num_lits > 2) ->
+            {%{st | discarded_clauses: st.discarded_clauses + 1}, acc}
+
+          tautology_clause?(st.arena, item.lits) ->
+            {st, acc}
+
+          true ->
+            sig = canonical_clause_sig(st.arena, item.lits)
+
+            if MapSet.member?(st.seen_clauses, sig),
+              do: {st, acc},
+              else: {%{st | seen_clauses: MapSet.put(st.seen_clauses, sig)}, [item | acc]}
+        end
+      end)
+
+    fresh = Enum.reverse(fresh)
+
+    subsumers =
+      FVIndex.subsumers_batch(state.active_index, Enum.map(fresh, &Subsumption.subsumption_fv/1))
+
+    Enum.zip_reduce(fresh, subsumers, state, fn item, candidate_ids, st ->
+      if subsumed_by_any?(st, candidate_ids, item) do
+        %{st | forward_subsumed: st.forward_subsumed + 1}
+      else
+        %{
           st
-
-        item.weight > st.max_clause_weight and num_lits > 2 ->
-          st
-
-        tautology_clause?(st.arena, item.lits) ->
-          st
-
-        true ->
-          sig = canonical_clause_sig(st.arena, item.lits)
-
-          if MapSet.member?(st.seen_clauses, sig) or
-               forward_subsumed?(st.arena, st.active, item) do
-            st
-          else
-            %{
-              st
-              | passive: [item | st.passive],
-                seen_clauses: MapSet.put(st.seen_clauses, sig)
-            }
-          end
+          | passive: PassiveQueue.insert(st.passive, item),
+            passive_index:
+              FVIndex.insert(st.passive_index, item.id, Subsumption.subsumption_fv(item))
+        }
       end
     end)
+  end
+
+  # ---------------------------------------------------------------------------
+  # Redundancy Elimination (Subsumption & Demodulation)
+  # ---------------------------------------------------------------------------
+
+  defp forward_subsumed?(%__MODULE__{} = state, item) do
+    subsumed_by_any?(
+      state,
+      FVIndex.subsumers(state.active_index, Subsumption.subsumption_fv(item)),
+      item
+    )
+  end
+
+  defp subsumed_by_any?(%__MODULE__{} = state, candidate_ids, item) do
+    Enum.any?(candidate_ids, fn id ->
+      Subsumption.subsumes?(state.arena, Map.fetch!(state.active_by_id, id), item)
+    end)
+  end
+
+  # Leo-III `SubsumptionControl.testBackwardSubsumptionFVI`, on both clause sets.
+  defp backward_subsume(%__MODULE__{backward_subsumption: false} = state, _given), do: state
+
+  defp backward_subsume(%__MODULE__{} = state, given) do
+    fv = Subsumption.subsumption_fv(given)
+
+    active_ids =
+      for id <- FVIndex.subsumed(state.active_index, fv),
+          Subsumption.subsumes?(state.arena, given, Map.fetch!(state.active_by_id, id)),
+          do: id
+
+    passive_ids =
+      for id <- FVIndex.subsumed(state.passive_index, fv),
+          item = state.passive.items[id],
+          Subsumption.subsumes?(state.arena, given, item),
+          do: id
+
+    state = remove_active(state, active_ids)
+
+    %{
+      state
+      | passive: PassiveQueue.delete(state.passive, passive_ids),
+        passive_index: FVIndex.delete(state.passive_index, passive_ids),
+        backward_subsumed: state.backward_subsumed + length(active_ids) + length(passive_ids)
+    }
+  end
+
+  # Forward simplification to a fixpoint: unit simplification and demodulation.
+  defp simplify(%__MODULE__{} = state, item, fuel \\ @max_rewrites) do
+    with {:ok, state, item} <- unit_simplify(state, item) do
+      case demodulate(state, item, fuel) do
+        {state, ^item, _fuel} -> {:ok, state, item}
+        {state, rewritten, 0} -> {:ok, state, rewritten}
+        {state, rewritten, fuel} -> simplify(state, rewritten, fuel)
+      end
+    end
+  end
+
+  # Rewrites `item` with the rules in `rules` (default: all) until no redex is left
+  # or `fuel` steps were taken. Each step is a `:subst` instance of the unit
+  # equation followed by a `:paramod` replacing the redex in one literal.
+  defp demodulate(state, item, fuel, rules \\ nil)
+
+  defp demodulate(%__MODULE__{} = state, item, 0, _rules), do: {state, item, 0}
+
+  defp demodulate(%__MODULE__{} = state, item, fuel, rules) do
+    case Demodulator.find_redex(state.arena, rules || state.rules, item) do
+      {:none, arena} ->
+        {%{state | arena: arena}, item, fuel}
+
+      {:ok, arena, redex} ->
+        state = %{state | arena: arena}
+
+        {state, rule_inst, eq_inst} =
+          apply_subst_if_needed(state, redex.rule.item, redex.subst, redex.rule.eq)
+
+        {pol, atom} = lit = redex.lit
+        {arena, replaced} = ProofChecker.replace_subterm(state.arena, atom, redex.from, redex.to)
+        {arena, new_atom} = Arena.beta_eta_norm(arena, replaced)
+        lits = item.lits |> MapSet.delete(lit) |> MapSet.put({pol, new_atom})
+        state = %{state | arena: arena, rewrites: state.rewrites + 1}
+
+        step =
+          {:paramod, state.next_step_id, rule_inst.id, item.id, eq_inst, lit, {pol, new_atom}}
+
+        {state, rewritten} = add_step(state, step, lits, item.depth)
+        demodulate(state, rewritten, fuel - 1, rules)
+    end
+  end
+
+  # Leo-III `SimplificationControl.rewritable`: active clauses the new rules of
+  # `given` can rewrite leave the active set; their normal forms re-enter the
+  # passive set. Candidates are prefiltered with each rule's left-hand side as a
+  # feature-vector query (a redex instance is a subterm of the clause).
+  defp backward_demodulate(%__MODULE__{demodulation: false} = state, _given), do: state
+
+  defp backward_demodulate(%__MODULE__{} = state, given) do
+    case Demodulator.rules(state.arena, given) do
+      [] ->
+        state
+
+      rules ->
+        index = Demodulator.add_rules(HeadIndex.new(), state.arena, rules)
+        queries = Enum.map(rules, &redex_query_fv(state.arena, &1.lhs))
+
+        candidates =
+          state.active_index
+          |> FVIndex.subsumed_batch(queries)
+          |> Enum.concat()
+          |> Enum.uniq()
+          |> Enum.map(&Map.fetch!(state.active_by_id, &1))
+
+        {state, rewritten} =
+          Enum.reduce(candidates, {state, []}, fn item, {st, acc} ->
+            case demodulate(st, item, @max_rewrites, index) do
+              {st, ^item, _} -> {st, acc}
+              {st, new_item, _} -> {st, [{item.id, new_item} | acc]}
+            end
+          end)
+
+        state
+        |> remove_active(Enum.map(rewritten, &elem(&1, 0)))
+        |> Map.update!(:backward_rewritten, &(&1 + length(rewritten)))
+        |> enqueue_passive(Enum.map(rewritten, &elem(&1, 1)))
+    end
+  end
+
+  # Lanes of a term that bound those of any clause containing an instance of it:
+  # one literal, no free-variable or negative-literal lane (see `Subsumption`).
+  defp redex_query_fv(%Arena{} = arena, term) do
+    arena
+    |> Arena.feature_vector(term)
+    |> List.replace_at(0, 1)
+    |> List.replace_at(4, 0)
+    |> FVIndex.fv()
   end
 
   # Clause Condensation (`condense_clause/2`):
@@ -436,22 +694,23 @@ defmodule Astraea.Prover do
   # Eager Unit-Clause Subsumption Resolution (`unit_simplify/2`):
   # Strips any literal `{pol, target_atom}` from `clause_item` that is matched by an
   # opposite-polarity 1-literal unit clause in `state.units` via `:subst` + `:resolve`.
-  defp unit_simplify(%__MODULE__{units: []} = state, clause_item),
+  defp unit_simplify(%__MODULE__{unit_count: 0} = state, clause_item),
     do: {:ok, state, clause_item}
 
   defp unit_simplify(%__MODULE__{} = state, clause_item) do
     match_res =
       Enum.find_value(clause_item.lits, fn {pol, target_atom} ->
-        Enum.find_value(state.units, fn unit_c ->
+        state.units
+        |> HeadIndex.lookup(state.arena, opposite(pol), target_atom)
+        |> Enum.find_value(fn unit_c ->
           [{unit_pol, unit_atom}] = MapSet.to_list(unit_c.lits)
 
-          if unit_pol != pol and unit_c.id != clause_item.id do
-            case Arena.match_pattern(state.arena, unit_atom, target_atom) do
-              {:ok, subst} -> {pol, target_atom, unit_c, unit_pol, unit_atom, subst}
-              :error -> nil
-            end
+          with true <- unit_c.id != clause_item.id,
+               {:ok, subst} <- Arena.match_pattern(state.arena, unit_atom, target_atom),
+               true <- Demodulator.idempotent?(state.arena, subst) do
+            {pol, target_atom, unit_c, unit_pol, unit_atom, subst}
           else
-            nil
+            _ -> nil
           end
         end)
       end)
@@ -1013,7 +1272,7 @@ defmodule Astraea.Prover do
     else
       {arena, next_fv, subst} =
         Enum.reduce(clause_item.fvars, {state.arena, state.next_fvar_id, %{}}, fn {old_id, ty_id},
-                                                                                   {ar, nf, sub} ->
+                                                                                  {ar, nf, sub} ->
           {ar, new_fv} = Arena.mk_fvar(ar, nf, ty_id)
           {ar, nf + 1, Map.put(sub, old_id, new_fv)}
         end)
@@ -1107,14 +1366,8 @@ defmodule Astraea.Prover do
     end
   end
 
-  defp forward_subsumed?(%Arena{} = _arena, active_list, cand) do
-    Enum.any?(active_list, fn act ->
-      MapSet.size(act.lits) <= MapSet.size(cand.lits) and
-        Arena.fv_subsumes?(act.fv, cand.fv) and
-        MapSet.size(act.fvars) == 0 and
-        MapSet.subset?(act.lits, cand.lits)
-    end)
-  end
+  defp opposite(:pos), do: :neg
+  defp opposite(:neg), do: :pos
 
   defp tautology_clause?(%Arena{} = arena, lits) do
     Enum.any?(lits, fn
@@ -1127,44 +1380,58 @@ defmodule Astraea.Prover do
     end)
   end
 
+  # Variant signature: literals sorted by their variable-blind shape, then encoded
+  # with variables numbered by first occurrence. Equal signatures imply variants
+  # (the converse may fail when literals tie on shape, which only misses duplicates).
   defp canonical_clause_sig(%Arena{} = arena, lits) do
     lits
-    |> Enum.map(fn {pol, id} ->
-      {pol, mask_fvars_bytes(arena, id)}
+    |> Enum.sort_by(fn {pol, id} -> {pol, sig_bytes(arena, id, nil) |> elem(0)} end)
+    |> Enum.map_reduce(%{}, fn {pol, id}, vars ->
+      {bytes, vars} = sig_bytes(arena, id, vars)
+      {{pol, bytes}, vars}
     end)
-    |> Enum.sort()
+    |> elem(0)
   end
 
-  defp mask_fvars_bytes(%Arena{} = arena, term_id) do
+  # With `vars == nil` all variables look alike; with a map they are numbered.
+  defp sig_bytes(%Arena{} = arena, term_id, vars) do
     {tag, _flags, ty_id, left, right} = Arena.get_node(arena, term_id)
 
     case tag do
+      @tag_fvar when vars == nil ->
+        {<<@tag_fvar, ty_id::16>>, vars}
+
       @tag_fvar ->
-        <<@tag_fvar, ty_id::16>>
+        n = Map.get(vars, left, map_size(vars))
+        {<<@tag_fvar, ty_id::16, n::32>>, Map.put_new(vars, left, n)}
 
       @tag_const ->
-        <<@tag_const, ty_id::16, left::32>>
+        {<<@tag_const, ty_id::16, left::32>>, vars}
 
       @tag_bvar ->
-        <<@tag_bvar, ty_id::16, left::16>>
+        {<<@tag_bvar, ty_id::16, left::16>>, vars}
 
       @tag_skolem ->
-        <<@tag_skolem, ty_id::16, left::32>>
+        {<<@tag_skolem, ty_id::16, left::32>>, vars}
 
       @tag_comb ->
-        <<@tag_comb, ty_id::16, left::16>>
+        {<<@tag_comb, ty_id::16, left::16>>, vars}
 
       @tag_not ->
-        <<@tag_not, mask_fvars_bytes(arena, left)::binary>>
+        {inner, vars} = sig_bytes(arena, left, vars)
+        {<<@tag_not, inner::binary>>, vars}
 
       t when t in [@tag_lam, @tag_forall] ->
-        <<t, left::16, mask_fvars_bytes(arena, right)::binary>>
+        {body, vars} = sig_bytes(arena, right, vars)
+        {<<t, left::16, body::binary>>, vars}
 
       t when t in [@tag_app, @tag_eq, @tag_or] ->
-        <<t, mask_fvars_bytes(arena, left)::binary, mask_fvars_bytes(arena, right)::binary>>
+        {l, vars} = sig_bytes(arena, left, vars)
+        {r, vars} = sig_bytes(arena, right, vars)
+        {<<t, l::binary, r::binary>>, vars}
 
       _ ->
-        <<tag, left::32>>
+        {<<tag, left::32>>, vars}
     end
   end
 
@@ -1220,12 +1487,21 @@ defmodule Astraea.Prover do
   defp step_parents({:resolve, _id, p1, p2, _lit}), do: [p1, p2]
 
   defp stats(%__MODULE__{} = state) do
+    cutoffs = Map.get(state, :unification_cutoffs, 0)
+
     base = %{
       iterations: state.iterations,
       active_clauses: length(state.active),
-      passive_clauses: length(state.passive),
+      passive_clauses: PassiveQueue.size(state.passive),
       total_steps: state.next_step_id - 1,
-      arena_nodes: map_size(state.arena.nodes)
+      arena_nodes: map_size(state.arena.nodes),
+      discarded_clauses: state.discarded_clauses,
+      forward_subsumed: state.forward_subsumed,
+      backward_subsumed: state.backward_subsumed,
+      rewrites: state.rewrites,
+      backward_rewritten: state.backward_rewritten,
+      index_backend: state.active_index.backend,
+      complete: state.discarded_clauses == 0 and not state.sine_filtered and cutoffs == 0
     }
 
     if state.cooperate == [],
@@ -1280,8 +1556,8 @@ defmodule Astraea.Prover do
 
   defp coop_snapshot(%__MODULE__{} = state) do
     passive_budget = max(state.coop_max_clauses - length(state.active), 0)
-    best_passive = state.passive |> Enum.sort_by(& &1.score) |> Enum.take(passive_budget)
-    Enum.uniq_by(state.units ++ state.active ++ best_passive, & &1.id)
+    best_passive = PassiveQueue.take_best(state.passive, passive_budget)
+    Enum.uniq_by(HeadIndex.values(state.units) ++ state.active ++ best_passive, & &1.id)
   end
 
   defp dispatch_external(%__MODULE__{} = state, name, ext_opts, items, clauses, remaining) do

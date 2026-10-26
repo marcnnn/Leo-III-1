@@ -75,7 +75,7 @@ defmodule Astraea.Compressor do
           macro_patterns: %{atom() => non_neg_integer()}
         }
   def analyze_proof(steps) when is_list(steps) do
-     %{
+    %{
       proof_length: length(steps),
       rule_histogram: compute_rule_histogram(steps),
       macro_patterns: mine_macro_patterns(steps)

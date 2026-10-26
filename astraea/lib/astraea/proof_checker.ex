@@ -174,7 +174,8 @@ defmodule Astraea.ProofChecker do
          true <- MapSet.member?(eq_clause, {:pos, eq_atom_id}),
          true <- MapSet.member?(target_clause, target_lit),
          {@tag_eq, _, _, lhs, rhs} <- Arena.get_node(arena, eq_atom_id),
-         {arena, true} <- valid_paramod_rewrite?(arena, target_atom_id, expected_atom_id, lhs, rhs) do
+         {arena, true} <-
+           valid_paramod_rewrite?(arena, target_atom_id, expected_atom_id, lhs, rhs) do
       new_clause =
         MapSet.union(
           MapSet.delete(eq_clause, {:pos, eq_atom_id}),

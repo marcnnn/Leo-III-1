@@ -137,7 +137,13 @@ defmodule Astraea.Arena do
   @doc """
   Encodes a single 12-byte arena node: `<<tag::8, flags::8, type_id::16, left::32, right::32>>`.
   """
-  @spec encode_node(non_neg_integer(), non_neg_integer(), type_id(), non_neg_integer(), non_neg_integer()) ::
+  @spec encode_node(
+          non_neg_integer(),
+          non_neg_integer(),
+          type_id(),
+          non_neg_integer(),
+          non_neg_integer()
+        ) ::
           <<_::96>>
   def encode_node(tag, flags, type_id, left, right) do
     <<tag::8, flags::8, type_id::16-big, left::32-big, right::32-big>>
@@ -152,7 +158,14 @@ defmodule Astraea.Arena do
   @doc """
   Hash-conses a 12-byte node into the arena, returning `{arena, term_id}` in O(1).
   """
-  @spec intern_node(t(), non_neg_integer(), non_neg_integer(), type_id(), non_neg_integer(), non_neg_integer()) ::
+  @spec intern_node(
+          t(),
+          non_neg_integer(),
+          non_neg_integer(),
+          type_id(),
+          non_neg_integer(),
+          non_neg_integer()
+        ) ::
           {t(), term_id()}
   def intern_node(%__MODULE__{} = arena, tag, flags, type_id, left, right) do
     packed = encode_node(tag, flags, type_id, left, right)
@@ -1337,10 +1350,12 @@ defmodule Astraea.Arena do
           canonical_bytes(arena, right)::binary>>
 
       @tag_eq ->
-        <<@tag_eq::8, canonical_bytes(arena, left)::binary, canonical_bytes(arena, right)::binary>>
+        <<@tag_eq::8, canonical_bytes(arena, left)::binary,
+          canonical_bytes(arena, right)::binary>>
 
       @tag_or ->
-        <<@tag_or::8, canonical_bytes(arena, left)::binary, canonical_bytes(arena, right)::binary>>
+        <<@tag_or::8, canonical_bytes(arena, left)::binary,
+          canonical_bytes(arena, right)::binary>>
 
       @tag_not ->
         <<@tag_not::8, canonical_bytes(arena, left)::binary>>
@@ -1349,10 +1364,17 @@ defmodule Astraea.Arena do
 
   defp canonical_type_bytes(%__MODULE__{} = arena, ty_id) do
     case Map.fetch!(arena.type_table, ty_id) do
-      :o -> <<0>>
-      :i -> <<1>>
-      {:base, name} -> <<2, byte_size(name)::16-big, name::binary>>
-      {:arrow, d, c} -> <<3, canonical_type_bytes(arena, d)::binary, canonical_type_bytes(arena, c)::binary>>
+      :o ->
+        <<0>>
+
+      :i ->
+        <<1>>
+
+      {:base, name} ->
+        <<2, byte_size(name)::16-big, name::binary>>
+
+      {:arrow, d, c} ->
+        <<3, canonical_type_bytes(arena, d)::binary, canonical_type_bytes(arena, c)::binary>>
     end
   end
 
