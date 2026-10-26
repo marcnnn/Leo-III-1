@@ -54,8 +54,9 @@ defmodule Astraea.Portfolio do
 
   alias Astraea.External.Reconstruct
 
-  # Above this many axioms the ContradictoryAxioms check is skipped (answer: Theorem).
-  @max_cax_axioms 1_024
+  # The ContradictoryAxioms check clausifies all axioms; when that takes longer the
+  # answer is Theorem.
+  @cax_check_ms 1_000
 
   @model_tags [:counter_satisfiable, :satisfiable]
   @external_tags [:proved_external | @model_tags]
@@ -281,20 +282,39 @@ defmodule Astraea.Portfolio do
   # alone (up to variable renaming), which the clausifier derives without SInE.
   defp refutation_status(%TptpLower{conjectures: []}, _steps, _stats), do: :unsatisfiable
 
-  defp refutation_status(%TptpLower{} = lowered, steps, %{arena: arena})
-       when length(lowered.axioms) <= @max_cax_axioms do
-    {ax_arena, ax_clauses} =
-      Clausifier.clausify(%{lowered | conjectures: []}, sine_limit: nil)
+  defp refutation_status(%TptpLower{} = lowered, steps, %{arena: arena}) do
+    parent = self()
+    ref = make_ref()
 
-    keys = MapSet.new(ax_clauses, &Tstp.clause_key(ax_arena, &1))
+    {pid, mon_ref} =
+      spawn_monitor(fn ->
+        {ax_arena, ax_clauses} =
+          Clausifier.clausify(%{lowered | conjectures: []}, sine_limit: nil)
 
-    axioms_only? =
-      Enum.all?(steps, fn
-        {:axiom, _id, clause} -> MapSet.member?(keys, Tstp.clause_key(arena, clause))
-        _step -> true
+        keys = MapSet.new(ax_clauses, &Tstp.clause_key(ax_arena, &1))
+
+        axioms_only? =
+          Enum.all?(steps, fn
+            {:axiom, _id, clause} -> MapSet.member?(keys, Tstp.clause_key(arena, clause))
+            _step -> true
+          end)
+
+        send(parent, {ref, axioms_only?})
       end)
 
-    if axioms_only?, do: :contradictory_axioms, else: :theorem
+    receive do
+      {^ref, axioms_only?} ->
+        Process.demonitor(mon_ref, [:flush])
+        if axioms_only?, do: :contradictory_axioms, else: :theorem
+
+      {:DOWN, ^mon_ref, :process, ^pid, _reason} ->
+        :theorem
+    after
+      @cax_check_ms ->
+        Process.exit(pid, :kill)
+        Process.demonitor(mon_ref, [:flush])
+        :theorem
+    end
   end
 
   defp refutation_status(_lowered, _steps, _stats), do: :theorem
