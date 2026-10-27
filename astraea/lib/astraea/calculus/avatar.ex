@@ -118,48 +118,53 @@ defmodule Astraea.Calculus.Avatar do
   end
 
   defp do_prop_resolve(clauses, next_id, steps_acc) do
-    # Priority 1: Unit resolution
-    unit_candidates =
-      Enum.filter(clauses, fn {_id, lits} -> MapSet.size(lits) == 1 end)
-
-    unit_resolution_result =
-      Enum.find_value(unit_candidates, fn {u_id, u_lits} ->
-        [{u_pol, u_atom}] = MapSet.to_list(u_lits)
-        opp_lit = {flip_pol(u_pol), u_atom}
-
-        Enum.find_value(clauses, fn {c_id, c_lits} ->
-          if c_id != u_id and MapSet.member?(c_lits, opp_lit) do
-            resolvent = MapSet.delete(c_lits, opp_lit)
-
-            {pos_id, neg_id} =
-              if u_pol == :pos, do: {u_id, c_id}, else: {c_id, u_id}
-
-            step = {:resolve, next_id, pos_id, neg_id, {:pos, u_atom}}
-            {u_atom, resolvent, step}
-          else
-            nil
-          end
-        end)
-      end)
-
-    case unit_resolution_result do
-      {_atom, resolvent, step} ->
-        if MapSet.size(resolvent) == 0 do
-          {:ok, Enum.reverse([step | steps_acc]), next_id}
-        else
-          if Enum.any?(clauses, fn {_id, lits} -> lits == resolvent end) do
-            general_prop_resolve(clauses, next_id, steps_acc)
-          else
-            do_prop_resolve(
-              Map.put(clauses, next_id, resolvent),
-              next_id + 1,
-              [step | steps_acc]
-            )
-          end
-        end
+    case Enum.find(clauses, fn {_id, lits} -> MapSet.size(lits) == 0 end) do
+      {empty_id, _} ->
+        {:ok, Enum.reverse(steps_acc), empty_id}
 
       nil ->
-        general_prop_resolve(clauses, next_id, steps_acc)
+        unit_candidates =
+          Enum.filter(clauses, fn {_id, lits} -> MapSet.size(lits) == 1 end)
+
+        unit_resolution_result =
+          Enum.find_value(unit_candidates, fn {u_id, u_lits} ->
+            [{u_pol, u_atom}] = MapSet.to_list(u_lits)
+            opp_lit = {flip_pol(u_pol), u_atom}
+
+            Enum.find_value(clauses, fn {c_id, c_lits} ->
+              if c_id != u_id and MapSet.member?(c_lits, opp_lit) do
+                resolvent = MapSet.delete(c_lits, opp_lit)
+
+                if MapSet.size(resolvent) == 0 or not Enum.any?(clauses, fn {_id, l} -> l == resolvent end) do
+                  {pos_id, neg_id} =
+                    if u_pol == :pos, do: {u_id, c_id}, else: {c_id, u_id}
+
+                  step = {:resolve, next_id, pos_id, neg_id, {:pos, u_atom}}
+                  {resolvent, step}
+                else
+                  nil
+                end
+              else
+                nil
+              end
+            end)
+          end)
+
+        case unit_resolution_result do
+          {resolvent, step} ->
+            if MapSet.size(resolvent) == 0 do
+              {:ok, Enum.reverse([step | steps_acc]), next_id}
+            else
+              do_prop_resolve(
+                Map.put(clauses, next_id, resolvent),
+                next_id + 1,
+                [step | steps_acc]
+              )
+            end
+
+          nil ->
+            general_prop_resolve(clauses, next_id, steps_acc)
+        end
     end
   end
 
@@ -195,7 +200,7 @@ defmodule Astraea.Calculus.Avatar do
 
         pairs = for p <- pos_clauses, n <- neg_clauses, do: {p, n}
 
-        {new_clauses, new_steps, next_id, finished} =
+        {new_clauses, new_steps, next_id_acc, finished} =
           Enum.reduce_while(
             pairs,
             {clauses, steps_acc, next_id, nil},
@@ -221,7 +226,7 @@ defmodule Astraea.Calculus.Avatar do
           )
 
         if finished == :done do
-          {:ok, Enum.reverse(new_steps), next_id}
+          {:ok, Enum.reverse(new_steps), next_id_acc}
         else
           remaining =
             new_clauses
@@ -230,7 +235,7 @@ defmodule Astraea.Calculus.Avatar do
             end)
             |> Map.new()
 
-          do_prop_resolve(remaining, next_id, new_steps)
+          do_prop_resolve(remaining, next_id_acc, new_steps)
         end
     end
   end

@@ -260,9 +260,14 @@ defmodule Astraea.Prover do
           {state, nil}
 
         seed ->
+          steps_map =
+            if is_map(seed.steps),
+              do: seed.steps,
+              else: Map.new(seed.steps, fn s -> {elem(s, 1), s} end)
+
           {%{
              state
-             | steps: seed.steps,
+             | steps: steps_map,
                next_step_id: seed.next_step_id,
                next_fvar_id: max(state.next_fvar_id, seed.next_fvar_id)
            }, seed.ids}

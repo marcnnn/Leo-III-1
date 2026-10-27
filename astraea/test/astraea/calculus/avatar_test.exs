@@ -85,8 +85,8 @@ defmodule Astraea.Calculus.AvatarTest do
     clauses_map = %{1 => c1, 2 => c2, 3 => c3}
 
     assert {:ok, steps, empty_id} = Avatar.resolve_propositional_unsat(clauses_map, 4)
-    assert empty_id == 5
-    assert length(steps) == 2
+    assert empty_id == 6
+    assert length(steps) == 3
 
     all_steps = [
       {:axiom, 1, c1},
