@@ -517,7 +517,7 @@ defmodule Astraea.Portfolio do
   defp pick_better_non_proof(prev, _candidate), do: prev
 
   @doc """
-  Evaluates a TPTP split (`:smoke`, `:dev`, or `:holdout`) using the multi-strategy
+  Evaluates a TPTP split (`:smoke`, `:dev`, `:holdout`, or `:extended`) using the multi-strategy
   portfolio, enforcing Gate 3 (0 `CSA` false proofs, 100% LCF proof verification)
   and aggregating strategy win counts and proof compression telemetry.
 
@@ -530,8 +530,8 @@ defmodule Astraea.Portfolio do
   With `schedule: true` problems are run through `Astraea.Schedule.prove_file/2`
   (the CLI's time-sliced schedule) instead of a single portfolio race.
   """
-  @spec evaluate_split(:smoke | :dev | :holdout, keyword()) :: map()
-  def evaluate_split(split, opts \\ []) when split in [:smoke, :dev, :holdout] do
+  @spec evaluate_split(TptpCorpus.split(), keyword()) :: map()
+  def evaluate_split(split, opts \\ []) when split in [:smoke, :dev, :holdout, :extended] do
     tptp_root = Keyword.get(opts, :tptp_root, TptpCorpus.default_tptp_root())
     timeout_ms = Keyword.get(opts, :timeout_ms, 2_500)
     default_conc = max(1, div(System.schedulers_online(), 2))
