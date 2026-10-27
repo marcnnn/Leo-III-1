@@ -94,6 +94,7 @@ defmodule Astraea.Calculus.Avatar do
       grow_component(new_vars, new_lits, unconnected)
     end
   end
+
   # ---------------------------------------------------------------------------
   # Propositional Refutation Reconstruction
   # ---------------------------------------------------------------------------
@@ -126,44 +127,69 @@ defmodule Astraea.Calculus.Avatar do
         unit_candidates =
           Enum.filter(clauses, fn {_id, lits} -> MapSet.size(lits) == 1 end)
 
-        unit_resolution_result =
+        # 1. First priority: any two complementary unit clauses resolve directly to empty clause
+        empty_unit_result =
           Enum.find_value(unit_candidates, fn {u_id, u_lits} ->
             [{u_pol, u_atom}] = MapSet.to_list(u_lits)
             opp_lit = {flip_pol(u_pol), u_atom}
 
-            Enum.find_value(clauses, fn {c_id, c_lits} ->
+            Enum.find_value(unit_candidates, fn {c_id, c_lits} ->
               if c_id != u_id and MapSet.member?(c_lits, opp_lit) do
-                resolvent = MapSet.delete(c_lits, opp_lit)
-
-                if MapSet.size(resolvent) == 0 or not Enum.any?(clauses, fn {_id, l} -> l == resolvent end) do
-                  {pos_id, neg_id} =
-                    if u_pol == :pos, do: {u_id, c_id}, else: {c_id, u_id}
-
-                  step = {:resolve, next_id, pos_id, neg_id, {:pos, u_atom}}
-                  {resolvent, step}
-                else
-                  nil
-                end
+                {pos_id, neg_id} = if u_pol == :pos, do: {u_id, c_id}, else: {c_id, u_id}
+                step = {:resolve, next_id, pos_id, neg_id, {:pos, u_atom}}
+                {MapSet.new(), step}
               else
                 nil
               end
             end)
           end)
 
-        case unit_resolution_result do
-          {resolvent, step} ->
-            if MapSet.size(resolvent) == 0 do
-              {:ok, Enum.reverse([step | steps_acc]), next_id}
-            else
-              do_prop_resolve(
-                Map.put(clauses, next_id, resolvent),
-                next_id + 1,
-                [step | steps_acc]
-              )
-            end
+        case empty_unit_result do
+          {_empty_set, step} ->
+            {:ok, Enum.reverse([step | steps_acc]), next_id}
 
           nil ->
-            general_prop_resolve(clauses, next_id, steps_acc)
+            # 2. General unit propagation
+            unit_resolution_result =
+              Enum.find_value(unit_candidates, fn {u_id, u_lits} ->
+                [{u_pol, u_atom}] = MapSet.to_list(u_lits)
+                opp_lit = {flip_pol(u_pol), u_atom}
+
+                Enum.find_value(clauses, fn {c_id, c_lits} ->
+                  if c_id != u_id and MapSet.member?(c_lits, opp_lit) do
+                    resolvent = MapSet.delete(c_lits, opp_lit)
+
+                    if MapSet.size(resolvent) == 0 or
+                         not Enum.any?(clauses, fn {_id, l} -> l == resolvent end) do
+                      {pos_id, neg_id} =
+                        if u_pol == :pos, do: {u_id, c_id}, else: {c_id, u_id}
+
+                      step = {:resolve, next_id, pos_id, neg_id, {:pos, u_atom}}
+                      {resolvent, step}
+                    else
+                      nil
+                    end
+                  else
+                    nil
+                  end
+                end)
+              end)
+
+            case unit_resolution_result do
+              {resolvent, step} ->
+                if MapSet.size(resolvent) == 0 do
+                  {:ok, Enum.reverse([step | steps_acc]), next_id}
+                else
+                  do_prop_resolve(
+                    Map.put(clauses, next_id, resolvent),
+                    next_id + 1,
+                    [step | steps_acc]
+                  )
+                end
+
+              nil ->
+                general_prop_resolve(clauses, next_id, steps_acc)
+            end
         end
     end
   end

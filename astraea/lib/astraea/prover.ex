@@ -805,7 +805,21 @@ defmodule Astraea.Prover do
             %{st | steps: Map.put(st.steps, id, step), next_step_id: max(st.next_step_id, id + 1)}
           end)
 
-        {:ok, state, final_empty_id}
+        all_steps = extract_proof_dag(state.steps, final_empty_id)
+
+        case ProofChecker.derive_steps(state.arena, all_steps) do
+          {:ok, _arena, derived} ->
+            case Map.get(derived, final_empty_id) do
+              empty_clause when is_struct(empty_clause, MapSet) and map_size(empty_clause.map) == 0 ->
+                {:ok, state, final_empty_id}
+
+              _other ->
+                :error
+            end
+
+          {:error, _} ->
+            :error
+        end
 
       :error ->
         :error
@@ -984,7 +998,7 @@ defmodule Astraea.Prover do
             {ar, eq} = Arena.mk_eq(ar, p, truth_const)
             step = {:cnf, state.next_step_id, redex.rule.item.id, {rule_pol, p}, :lift_bool}
             {st, lifted} =
-              add_step(%{state | arena: ar}, step, MapSet.new([{:pos, eq}]), redex.rule.item.depth)
+              add_step(%{state | arena: ar}, step, MapSet.new([{:pos, eq}]), redex.rule.item.depth, redex.rule.item.guards)
 
             {st, lifted, eq}
           end
@@ -1698,7 +1712,7 @@ defmodule Astraea.Prover do
         {arena, true_const} = Arena.mk_const(st.arena, "$true", :o)
         {arena, eq} = Arena.mk_eq(arena, eq_atom_inst, true_const)
         step = {:cnf, st.next_step_id, eq_inst.id, {:pos, eq_atom_inst}, :lift_bool}
-        {st, lifted} = add_step(%{st | arena: arena}, step, MapSet.new([{:pos, eq}]), eq_clause.depth)
+        {st, lifted} = add_step(%{st | arena: arena}, step, MapSet.new([{:pos, eq}]), eq_clause.depth, eq_inst.guards)
         {st, lifted, eq}
       else
         {st, eq_inst, eq_atom_inst}
