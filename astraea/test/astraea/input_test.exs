@@ -242,6 +242,9 @@ defmodule Astraea.InputTest do
       bogus = [{:axiom, 1, MapSet.new([{:neg, less21}])}, {:arith_eval, 2, 1, MapSet.new()}]
       assert {:error, {:invalid_arith_eval, 2, 1}} = ProofChecker.verify_refutation(arena, bogus)
 
+      assert {_, %{2 => %MapSet{}}} = Astraea.Tstp.replay(arena, refutation)
+      assert ProofChecker.step_parents({:arith_eval, 2, 1, MapSet.new()}) == [1]
+
       assert {_, :tautology} = Arith.simplify_clause(arena, MapSet.new([{:pos, less12}]))
       assert {_, :unchanged} = Arith.simplify_clause(arena, MapSet.new([{:pos, p3}]))
     end
@@ -265,6 +268,25 @@ defmodule Astraea.InputTest do
       assert lowered.const_types["$choice"] == choice_ty
       assert lowered.const_types["$description"] == choice_ty
       assert [:choice, :description, :thf] -- lowered.fragments == []
+    end
+
+    test "a problem using @+ is proved and rendered as a TSTP derivation" do
+      src = """
+      thf(p, type, p: $i > $o).
+      thf(a, type, a: $i).
+      thf(ax, axiom, p @ a).
+      thf(c, conjecture, p @ (@+[X: $i]: (p @ X))).
+      """
+
+      lowered = lower!(src)
+      assert {:proved, steps, stats} = Astraea.Portfolio.prove_lowered(lowered, timeout_ms: 3_000)
+      assert :ok == ProofChecker.verify_refutation(stats.arena, steps)
+      assert Enum.any?(steps, &match?({:choice, _, _, _}, &1))
+
+      tstp = Astraea.Tstp.derivation(lowered, steps, stats, problem: "choice.p")
+      assert {:ok, derivation, []} = Tptp.Derivation.from_string(IO.iodata_to_binary(tstp))
+      assert Tptp.Derivation.acyclic?(derivation)
+      assert IO.iodata_to_binary(tstp) =~ "axiom_of_choice"
     end
 
     test "$let is expanded by substitution" do
