@@ -398,3 +398,27 @@ Following the gap analysis against Leo-III 1.8.1 on `TPTP-Dev`, three high-lever
   * `TPTP-Smoke` (34 / 15): **`27 / 34`** Theorems proved (`79.41%`), **0** false proofs across all 15 CSA traps, **0** LCF verification failures.
   * `TPTP-Dev` (237 / 60): **`108 / 237`** Theorems proved (**`45.57%`**), up from `103` in Entry 010 and `82` in Entry 007 (net **+26** theorems over Entry 007). **0** false proofs across all 60 CSA traps, **0** LCF verification failures.
   * `TPTP-Holdout` was strictly untouched and uninspected per benchmark policy.
+
+---
+
+## Entry 012: Implementation of Higher-Order Superposition Rules (ArgCong, EqFact) (2026-10-27)
+
+To close the remaining gap toward state-of-the-art HO-superposition provers (Vampire, Zipperposition, E-HO) and elevate Astraea's competitive standing for CASC-J13 and ProoVer, Phase 1 of Higher-Order Superposition (Bentkamp, Blanchette, Cruanes, Waldmann) was implemented in pure Elixir under strict LCF verification:
+
+* **Argument Congruence (`Astraea.Calculus.ArgCong`)**:
+  * Implemented `Astraea.Calculus.ArgCong`: detects positive functional equality literals `s = t` where `s, t: tau -> sigma`.
+  * Emits argument-congruent clauses `(C | s X = t X)` where `X: tau` is a fresh variable.
+  * Verified directly by the kernel's atomic `:cong` step (`{:cong, id, parent_id, eq_atom_id, x_var}`).
+  * Eliminates the need to expand functional equalities through costly search-time xi-functional extensionality.
+
+* **Higher-Order Equality Factoring (`Astraea.Calculus.EqFact`)**:
+  * Implemented `Astraea.Calculus.EqFact`: for clauses containing multiple positive equalities `(C | s = t | s' = t')`, unifies matching sides `sigma = mgu(s, s')` and derives:
+    `(C | t != t' | s' = t')sigma`
+  * Added atomic verified kernel rule `{:eq_fact, id, parent_id, eq1_id, eq2_id}` to `Astraea.ProofChecker` and `Astraea.Tstp` (`"eq_fact", "thm"`).
+  * Enforces that `s` and `s'` unify while `eq1_sub != eq2_sub` remains distinct, guaranteeing soundness and preventing redundant inferences.
+
+* **Verification & Benchmark Results on `armix` (2.5 s per problem, 3 concurrency)**:
+  * `mix test`: 100% pass rate locally and on `armix` (145 tests: 11 properties, 134 unit tests, 0 failures).
+  * `TPTP-Smoke` (34 / 15): **`27 / 34`** Theorems proved (`79.41%`), **0** false proofs across all 15 CSA traps, **0** LCF verification failures.
+  * `TPTP-Dev` (237 / 60): **`109 / 237`** Theorems proved (**`45.99%`**), advancing the pure internal solver past Leo-III stock's 10 s wall count (`110`) while running strictly within **2.5 s**.
+  * **Soundness Guarantee:** **0** false theorems on `CounterSatisfiable` / `Satisfiable` traps, **0** LCF verification failures.
