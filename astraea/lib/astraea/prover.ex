@@ -37,7 +37,8 @@ defmodule Astraea.Prover do
   alias Astraea.Engine.{Demodulator, Fragment, FVIndex, HeadIndex, PassiveQueue, Subsumption}
   alias Astraea.External.Reconstruct
   alias Astraea.Input.Arith
-  alias Astraea.Calculus.{ArgCong, Choice, Cnf, EqFact, FingerprintIndex, FuncSpec, Ordering, PrimSubst, SpecialInstances, Terms, Unify}
+  alias Astraea.Calculus.{ArgCong, Avatar, Choice, Cnf, EqFact, FingerprintIndex, FuncSpec, Ordering, PrimSubst, SpecialInstances, Terms, Unify}
+  alias Astraea.Engine.CdclSat
 
   # Below this remaining budget an external call cannot finish in time.
   @min_external_ms 300
@@ -105,7 +106,13 @@ defmodule Astraea.Prover do
             unification_cutoffs: 0,
             fp_index: nil,
             choice_done: MapSet.new(),
-            choice_axioms: %{}
+            choice_axioms: %{},
+            avatar: false,
+            sat_solver: nil,
+            sat_atom_map: %{},
+            sat_clauses: %{},
+            next_sat_var: 1,
+            avatar_splits: 0
 
   @type result ::
           {:proved, [ProofChecker.step()], map()}
@@ -242,7 +249,9 @@ defmodule Astraea.Prover do
       opts: opts,
       cooperate: opts |> Keyword.get(:cooperate, []) |> Enum.map(&normalize_external/1),
       coop_interval: Keyword.get(opts, :cooperate_interval, 40),
-      coop_max_clauses: Keyword.get(opts, :cooperate_max_clauses, 400)
+      coop_max_clauses: Keyword.get(opts, :cooperate_max_clauses, 400),
+      avatar: Keyword.get(opts, :avatar, false),
+      sat_solver: if(Keyword.get(opts, :avatar, false), do: CdclSat.new(), else: nil)
     }
 
     {state, seed_ids} =
@@ -464,6 +473,9 @@ defmodule Astraea.Prover do
       {:proved, state, empty_id} ->
         finish(state, finalize_proof(state, empty_id))
 
+      {:dropped, state} ->
+        saturation_loop(state)
+
       {:ok, state, given} ->
         cond do
           tautology_clause?(state.arena, given.lits) ->
@@ -637,6 +649,9 @@ defmodule Astraea.Prover do
       {:proved, st, empty_id} ->
         {:proved, st, empty_id}
 
+      {:dropped, st} ->
+        {:dropped, st}
+
       {:ok, st, item} ->
         if st.demodulation and map_size(st.rules) > 0 do
           case demodulate(st, item, 4) do
@@ -654,43 +669,197 @@ defmodule Astraea.Prover do
     end
   end
 
+  # ---------------------------------------------------------------------------
+  # AVATAR Clause Splitting & Propositional Refutation
+  # ---------------------------------------------------------------------------
+
+  defp maybe_avatar_split(%__MODULE__{avatar: false} = state, item), do: {state, [item]}
+
+  defp maybe_avatar_split(%__MODULE__{avatar: true} = state, item) do
+    num_lits = MapSet.size(item.lits)
+
+    if num_lits >= 2 and num_lits <= 8 and Avatar.splittable?(state.arena, item.lits) do
+      comps = Avatar.components(state.arena, item.lits)
+
+      if length(comps) >= 2 do
+        do_avatar_split(state, item, comps)
+      else
+        {state, [item]}
+      end
+    else
+      {state, [item]}
+    end
+  end
+
+  defp do_avatar_split(%__MODULE__{} = state, item, comps) do
+    # 1. Allocate a fresh SAT variable and Arena guard atom for each component
+    {comp_data, state} =
+      Enum.map_reduce(comps, state, fn comp_lits, st ->
+        var_id = st.next_sat_var
+        st = %{st | next_sat_var: var_id + 1}
+        {arena, guard_atom} = Arena.mk_const(st.arena, "$avatar_g_" <> Integer.to_string(var_id), Arena.ty_o())
+        st = %{st | arena: arena, sat_atom_map: Map.put(st.sat_atom_map, var_id, guard_atom)}
+        {{var_id, guard_atom, comp_lits}, st}
+      end)
+
+    guard_atoms = Enum.map(comp_data, fn {_v, a, _c} -> a end)
+    sat_vars = Enum.map(comp_data, fn {v, _a, _c} -> v end)
+
+    # 2. Record the avatar split step: parent -> (g1 | g2 | ...)
+    split_id = state.next_step_id
+    split_step = {:avatar_split, split_id, item.id, guard_atoms}
+
+    state = %{
+      state
+      | steps: Map.put(state.steps, split_id, split_step),
+        next_step_id: split_id + 1,
+        sat_clauses: Map.put(state.sat_clauses, sat_vars, split_id),
+        avatar_splits: state.avatar_splits + 1
+    }
+
+    # 3. Add split clause to SAT solver
+    {:ok, sat_solver} = CdclSat.add_clause(state.sat_solver, sat_vars)
+    state = %{state | sat_solver: sat_solver}
+
+    # 4. For each component, record {:avatar_comp, ...} and create guarded clause_item
+    {comp_items, state} =
+      Enum.map_reduce(comp_data, state, fn {var_id, guard_atom, comp_lits}, st ->
+        comp_id = st.next_step_id
+        comp_step = {:avatar_comp, comp_id, item.id, guard_atom, comp_lits}
+        guards = MapSet.put(item.guards, var_id)
+        comp_item = clause_item(st, comp_id, comp_lits, item.depth + 1, guards)
+
+        st = %{
+          st
+          | steps: Map.put(st.steps, comp_id, comp_step),
+            next_step_id: comp_id + 1
+        }
+
+        {comp_item, st}
+      end)
+
+    {state, comp_items}
+  end
+
+  defp handle_empty_clause(%__MODULE__{} = state, item) do
+    if MapSet.size(item.guards) == 0 do
+      {:proved, %{state | refuted: item.id}, item.id}
+    else
+      conflict_vars = Enum.map(item.guards, &(-&1))
+      state = %{state | sat_clauses: Map.put(state.sat_clauses, conflict_vars, item.id)}
+
+      case CdclSat.add_clause(state.sat_solver, conflict_vars) do
+        {:unsat, sat_solver} ->
+          state = %{state | sat_solver: sat_solver}
+
+          case reconstruct_avatar_refutation(state) do
+            {:ok, state, final_empty_id} ->
+              {:proved, %{state | refuted: final_empty_id}, final_empty_id}
+
+            :error ->
+              {:cont, state, []}
+          end
+
+        {:ok, sat_solver} ->
+          {:cont, %{state | sat_solver: sat_solver}, []}
+      end
+    end
+  end
+
+  defp reconstruct_avatar_refutation(%__MODULE__{} = state) do
+    clauses_map =
+      Map.new(state.sat_clauses, fn {sat_clause, step_id} ->
+        clause_set =
+          MapSet.new(sat_clause, fn lit ->
+            var = abs(lit)
+            atom_id = Map.fetch!(state.sat_atom_map, var)
+            if lit > 0, do: {:pos, atom_id}, else: {:neg, atom_id}
+          end)
+
+        {step_id, clause_set}
+      end)
+
+    case Avatar.resolve_propositional_unsat(clauses_map, state.next_step_id) do
+      {:ok, prop_steps, final_empty_id} ->
+        state =
+          Enum.reduce(prop_steps, state, fn step, st ->
+            id = elem(step, 1)
+            %{st | steps: Map.put(st.steps, id, step), next_step_id: max(st.next_step_id, id + 1)}
+          end)
+
+        {:ok, state, final_empty_id}
+
+      :error ->
+        :error
+    end
+  end
+
+  defp guards_falsified?(nil, _guards), do: false
+
+  defp guards_falsified?(%CdclSat{} = solver, guards) do
+    Enum.any?(guards, fn var ->
+      Map.get(solver.values, var) == -1 and Map.get(solver.trail_levels, var) == 0
+    end)
+  end
+
   defp enqueue_passive(%__MODULE__{} = state, items) do
+    {state, items} =
+      if state.avatar do
+        Enum.reduce(items, {state, []}, fn it, {st, acc} ->
+          {st2, split_items} = maybe_avatar_split(st, it)
+          {st2, acc ++ split_items}
+        end)
+      else
+        {state, items}
+      end
+
     {state, fresh} =
       Enum.reduce_while(items, {state, []}, fn item, {st, acc} ->
         if st.refuted do
           {:halt, {st, acc}}
         else
-          {st, item} = arith_simplify(st, item)
-          {st, item} = eval_simplify(st, item)
+          if st.avatar and guards_falsified?(st.sat_solver, item.guards) do
+            {:cont, {st, acc}}
+          else
+            {st, item} = arith_simplify(st, item)
+            {st, item} = eval_simplify(st, item)
 
-          case simplify_forward(st, item) do
-            {:proved, st2, empty_id} ->
-              {:halt, {%{st2 | refuted: empty_id}, acc}}
+            case simplify_forward(st, item) do
+              {:proved, st2, empty_id} ->
+                {:halt, {%{st2 | refuted: empty_id}, acc}}
 
-            {:dropped, st2} ->
-              {:cont, {st2, acc}}
+              {:dropped, st2} ->
+                {:cont, {st2, acc}}
 
-            {:ok, st2, item} ->
-              num_lits = MapSet.size(item.lits)
+              {:ok, st2, item} ->
+                num_lits = MapSet.size(item.lits)
 
-              cond do
-                num_lits == 0 ->
-                  {:halt, {%{st2 | refuted: item.id}, acc}}
+                cond do
+                  num_lits == 0 ->
+                    case handle_empty_clause(st2, item) do
+                      {:proved, st3, empty_id} ->
+                        {:halt, {%{st3 | refuted: empty_id}, acc}}
 
-                exceeds?(num_lits, st2.max_clause_lits) or
-                    (exceeds?(item.weight, st2.max_clause_weight) and num_lits > 2) ->
-                  {:cont, {%{st2 | discarded_clauses: st2.discarded_clauses + 1}, acc}}
+                      {:cont, st3, _} ->
+                        {:cont, {st3, acc}}
+                    end
 
-                tautology_clause?(st2.arena, item.lits) ->
-                  {:cont, {st2, acc}}
+                  exceeds?(num_lits, st2.max_clause_lits) or
+                      (exceeds?(item.weight, st2.max_clause_weight) and num_lits > 2) ->
+                    {:cont, {%{st2 | discarded_clauses: st2.discarded_clauses + 1}, acc}}
 
-                true ->
-                  sig = canonical_clause_sig(st2.arena, item.lits)
+                  tautology_clause?(st2.arena, item.lits) ->
+                    {:cont, {st2, acc}}
 
-                  if MapSet.member?(st2.seen_clauses, sig),
-                    do: {:cont, {st2, acc}},
-                    else: {:cont, {%{st2 | seen_clauses: MapSet.put(st2.seen_clauses, sig)}, [item | acc]}}
-              end
+                  true ->
+                    sig = canonical_clause_sig(st2.arena, item.lits)
+                    sig_key = if MapSet.size(item.guards) > 0, do: {sig, item.guards}, else: sig
+
+                    if MapSet.member?(st2.seen_clauses, sig_key),
+                      do: {:cont, {st2, acc}},
+                      else: {:cont, {%{st2 | seen_clauses: MapSet.put(st2.seen_clauses, sig_key)}, [item | acc]}}
+                end
+            end
           end
         end
       end)
@@ -813,12 +982,13 @@ defmodule Astraea.Prover do
         step =
           {:paramod, state.next_step_id, rule_inst.id, item.id, eq_inst, lit, {pol, new_atom}}
 
-        {state, rewritten} = add_step(state, step, lits, item.depth)
+        guards = MapSet.union(item.guards, redex.rule.item.guards)
+        {state, rewritten} = add_step(state, step, lits, item.depth, guards)
         {state, rewritten} = eliminate_truth_literals(state, rewritten)
 
         cond do
           MapSet.size(rewritten.lits) == 0 ->
-            {:proved, %{state | refuted: state.refuted || rewritten.id}, rewritten.id}
+            handle_empty_clause(state, rewritten)
 
           tautology_clause?(state.arena, rewritten.lits) ->
             {state, rewritten, 0}
@@ -839,7 +1009,7 @@ defmodule Astraea.Prover do
     if false_lit do
       step = {:cnf, state.next_step_id, item.id, false_lit, :truth}
       new_lits = MapSet.delete(item.lits, false_lit)
-      {state, next_item} = add_step(state, step, new_lits, item.depth)
+      {state, next_item} = add_step(state, step, new_lits, item.depth, item.guards)
       eliminate_truth_literals(state, next_item)
     else
       {state, item}
@@ -989,17 +1159,22 @@ defmodule Astraea.Prover do
               )
 
             depth = max(clause_item.depth, unit_c.depth)
+            guards = MapSet.union(clause_item.guards, unit_c.guards)
 
             {st, res_item} =
               add_step(
                 st,
                 {:resolve, st.next_step_id, pos_inst.id, neg_inst.id, {:pos, resolve_atom}},
                 resolvent,
-                depth
+                depth,
+                guards
               )
 
             if MapSet.size(resolvent) == 0 do
-              {:proved, st, res_item.id}
+              case handle_empty_clause(st, res_item) do
+                {:proved, st2, empty_id} -> {:proved, st2, empty_id}
+                {:cont, st2, _} -> {:dropped, st2}
+              end
             else
               unit_simplify(st, res_item)
             end
@@ -1128,14 +1303,21 @@ defmodule Astraea.Prover do
   end
 
   defp replay_cnf(%__MODULE__{} = state, item, :atomic) do
-    if MapSet.size(item.lits) == 0, do: {:proved, state, item.id}, else: {:cont, state, [item]}
+    if MapSet.size(item.lits) == 0 do
+      case handle_empty_clause(state, item) do
+        {:proved, st, id} -> {:proved, st, id}
+        {:cont, st, _} -> {:cont, st, []}
+      end
+    else
+      {:cont, state, [item]}
+    end
   end
 
   defp replay_cnf(%__MODULE__{} = state, _item, :tautology), do: {:cont, state, []}
 
   defp replay_cnf(%__MODULE__{} = state, item, {:expand, lit, branches}) do
     each_inference(state, branches, fn st, {rule, lits, sub} ->
-      {st, child} = add_step(st, {:cnf, st.next_step_id, item.id, lit, rule}, lits, item.depth)
+      {st, child} = add_step(st, {:cnf, st.next_step_id, item.id, lit, rule}, lits, item.depth, item.guards)
       replay_cnf(st, child, sub)
     end)
   end
@@ -1156,7 +1338,7 @@ defmodule Astraea.Prover do
       {arena, new_eq} = Arena.mk_eq(arena, norm_l, norm_r)
       st = %{state | arena: arena}
       step = {:func_ext, st.next_step_id, clause_item.id, fvar_id, var_ty}
-      {st, ext_item} = add_step(st, step, MapSet.new([{:pos, new_eq}]), clause_item.depth + 1)
+      {st, ext_item} = add_step(st, step, MapSet.new([{:pos, new_eq}]), clause_item.depth + 1, clause_item.guards)
       {:cont, st, [ext_item]}
     else
       _ -> {:cont, state, []}
@@ -1194,11 +1376,12 @@ defmodule Astraea.Prover do
           st,
           {:resolve, st.next_step_id, refl_item.id, parent_item.id, {:pos, eq_uu}},
           resolvent,
-          clause_item.depth + 1
+          clause_item.depth + 1,
+          parent_item.guards
         )
 
       if MapSet.size(resolvent) == 0 do
-        {:proved, st, res_item.id}
+        handle_empty_clause(st, res_item)
       else
         case try_immediate_eq_resolution(st, res_item) do
           {:proved, _, _} = proved -> proved
@@ -1353,16 +1536,19 @@ defmodule Astraea.Prover do
             MapSet.delete(neg_inst.lits, neg_lit)
           )
 
+        guards = MapSet.union(pos_inst.guards, neg_inst.guards)
+
         {st, res_item} =
           add_step(
             st,
             {:resolve, st.next_step_id, pos_inst.id, neg_inst.id, {:pos, resolve_atom}},
             resolvent,
-            depth
+            depth,
+            guards
           )
 
         if MapSet.size(resolvent) == 0 do
-          {:proved, st, res_item.id}
+          handle_empty_clause(st, res_item)
         else
           case try_immediate_eq_resolution(st, res_item) do
             {:proved, _, _} = proved ->
@@ -1507,12 +1693,13 @@ defmodule Astraea.Prover do
         {:paramod, st.next_step_id, eq_parent_inst.id, target_inst.id, eq_atom_for_paramod,
          {pol, target_atom_inst}, {pol, rewritten_atom}}
 
-      {st, para_item} = add_step(st, step, new_lits, depth)
+      guards = MapSet.union(eq_parent_inst.guards, target_inst.guards)
+      {st, para_item} = add_step(st, step, new_lits, depth, guards)
       {st, para_item} = eliminate_truth_literals(st, para_item)
 
       cond do
         MapSet.size(para_item.lits) == 0 ->
-          {:proved, st, para_item.id}
+          handle_empty_clause(st, para_item)
 
         tautology_clause?(st.arena, para_item.lits) ->
           {:cont, st, []}
@@ -1767,7 +1954,7 @@ defmodule Astraea.Prover do
 
         st = %{st | arena: arena, next_fvar_id: next_fvar + 1}
         step = {:cong, st.next_step_id, given.id, eq_id, x_var}
-        {st, item} = add_step(st, step, new_lits, given.depth + 1)
+        {st, item} = add_step(st, step, new_lits, given.depth + 1, given.guards)
         {st2, fresh_item} = freshen_clause_item(st, item)
         {:cont, st2, [fresh_item]}
       end)
@@ -1803,7 +1990,7 @@ defmodule Astraea.Prover do
                 |> MapSet.put({:neg, neg_eq})
 
               step = {:eq_fact, s.next_step_id, sub_item.id, eq1_sub, eq2_sub}
-              {s, fact_item} = add_step(s, step, new_lits, sub_item.depth + 1)
+              {s, fact_item} = add_step(s, step, new_lits, sub_item.depth + 1, sub_item.guards)
 
               case try_immediate_eq_resolution(s, fact_item) do
                 {:proved, _, _} = proved ->
@@ -2071,7 +2258,7 @@ defmodule Astraea.Prover do
 
     state = %{state | arena: arena}
     step = {:subst, state.next_step_id, parent_item.id, subst_map}
-    add_step(state, step, new_lits, depth)
+    add_step(state, step, new_lits, depth, parent_item.guards)
   end
 
   defp ensure_disjoint_fvars(%__MODULE__{} = state, c1, c2) do
@@ -2098,9 +2285,9 @@ defmodule Astraea.Prover do
     end
   end
 
-  defp add_step(%__MODULE__{} = state, step, lits, depth) do
+  defp add_step(%__MODULE__{} = state, step, lits, depth, guards \\ MapSet.new()) do
     id = state.next_step_id
-    item = clause_item(state, id, lits, depth)
+    item = clause_item(state, id, lits, depth, guards)
 
     state = %{
       state
@@ -2111,7 +2298,7 @@ defmodule Astraea.Prover do
     {state, item}
   end
 
-  defp clause_item(%__MODULE__{} = state, id, lits, depth) do
+  defp clause_item(%__MODULE__{} = state, id, lits, depth, guards \\ MapSet.new()) do
     fvars =
       Enum.reduce(lits, MapSet.new(), fn {_pol, atom_id}, acc ->
         MapSet.union(acc, Arena.free_vars(state.arena, atom_id))
@@ -2150,6 +2337,7 @@ defmodule Astraea.Prover do
     %{
       id: id,
       lits: lits,
+      guards: guards,
       fvars: fvars,
       fvar_ids: fvar_ids,
       weight: weight,
@@ -2334,7 +2522,8 @@ defmodule Astraea.Prover do
       index_backend: state.active_index.backend,
       unification_cutoffs: state.unification_cutoffs,
       complete: reasons == [],
-      incomplete_reasons: reasons
+      incomplete_reasons: reasons,
+      avatar_splits: state.avatar_splits
     }
 
     if state.cooperate == [],

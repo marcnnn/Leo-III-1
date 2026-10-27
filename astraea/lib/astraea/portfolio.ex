@@ -90,7 +90,8 @@ defmodule Astraea.Portfolio do
          inline_bridges: false,
          scoring_mode: :unit_focused,
          max_clause_lits: 7,
-         max_clause_weight: 55
+         max_clause_weight: 55,
+         avatar: true
        ]},
       {:full_inline_weight,
        [
@@ -109,7 +110,8 @@ defmodule Astraea.Portfolio do
          max_clause_lits: 10,
          max_clause_weight: 75,
          special_instances: true,
-         funcspec: true
+         funcspec: true,
+         avatar: true
        ]}
     ]
   end

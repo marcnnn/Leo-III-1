@@ -69,4 +69,63 @@ defmodule Astraea.Calculus.AvatarTest do
     assert ground_comp == MapSet.new([{:pos, rc}])
     assert open_comp == MapSet.new([{:pos, pxy}, {:neg, qyz}])
   end
+  test "resolve_propositional_unsat reconstructs valid resolution DAG ending in empty clause", %{arena: arena} do
+    alias Astraea.ProofChecker
+
+    {arena, g1} = Arena.mk_const(arena, "g1", :o)
+    {arena, g2} = Arena.mk_const(arena, "g2", :o)
+
+    # Clause 1 (split): g1 | g2
+    c1 = MapSet.new([{:pos, g1}, {:pos, g2}])
+    # Clause 2 (branch 1 conflict): ~g1
+    c2 = MapSet.new([{:neg, g1}])
+    # Clause 3 (branch 2 conflict): ~g2
+    c3 = MapSet.new([{:neg, g2}])
+
+    clauses_map = %{1 => c1, 2 => c2, 3 => c3}
+
+    assert {:ok, steps, empty_id} = Avatar.resolve_propositional_unsat(clauses_map, 4)
+    assert empty_id == 5
+    assert length(steps) == 2
+
+    all_steps = [
+      {:axiom, 1, c1},
+      {:axiom, 2, c2},
+      {:axiom, 3, c3}
+    ] ++ steps
+
+    assert :ok == ProofChecker.verify_refutation(arena, all_steps)
+  end
+
+  test "ProofChecker verifies avatar_split and avatar_comp end-to-end", %{arena: arena} do
+    alias Astraea.ProofChecker
+
+    {arena, p} = Arena.mk_const(arena, "p", :o)
+    {arena, q} = Arena.mk_const(arena, "q", :o)
+    {arena, g1} = Arena.mk_const(arena, "$avatar_g_1", :o)
+    {arena, g2} = Arena.mk_const(arena, "$avatar_g_2", :o)
+
+    # Axiom 1: p | q
+    # Axiom 2: ~p
+    # Axiom 3: ~q
+    steps = [
+      {:axiom, 1, MapSet.new([{:pos, p}, {:pos, q}])},
+      {:axiom, 2, MapSet.new([{:neg, p}])},
+      {:axiom, 3, MapSet.new([{:neg, q}])},
+      # AVATAR split of Axiom 1
+      {:avatar_split, 4, 1, [g1, g2]},
+      {:avatar_comp, 5, 1, g1, MapSet.new([{:pos, p}])},
+      {:avatar_comp, 6, 1, g2, MapSet.new([{:pos, q}])},
+      # Branch 1: resolve (p | ~g1) with ~p on p -> ~g1
+      {:resolve, 7, 5, 2, {:pos, p}},
+      # Branch 2: resolve (q | ~g2) with ~q on q -> ~g2
+      {:resolve, 8, 6, 3, {:pos, q}},
+      # SAT resolution: resolve (g1 | g2) with ~g1 on g1 -> g2
+      {:resolve, 9, 4, 7, {:pos, g1}},
+      # SAT resolution: resolve g2 with ~g2 on g2 -> empty clause
+      {:resolve, 10, 9, 8, {:pos, g2}}
+    ]
+
+    assert :ok == ProofChecker.verify_refutation(arena, steps)
+  end
 end

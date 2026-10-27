@@ -160,6 +160,14 @@ defmodule Astraea.Tstp do
     end)
   end
 
+  defp conclusion(arena, _derived, {:avatar_split, _id, _p, guards}) do
+    {arena, MapSet.new(Enum.map(guards, &{:pos, &1}))}
+  end
+
+  defp conclusion(arena, _derived, {:avatar_comp, _id, _p, guard, comp_lits}) do
+    {arena, MapSet.put(comp_lits, {:neg, guard})}
+  end
+
   defp conclusion(arena, _derived, {:axiom, _id, clause}), do: {arena, clause}
 
   defp conclusion(arena, _derived, {:refl, _id, term}) do
@@ -314,6 +322,8 @@ defp rule({:cong, _, _, _, _}), do: {"arg_cong", "thm"}
   defp rule({:func_ext, _, _, _, _}), do: {"func_ext", "thm"}
   defp rule({:paramod, _, _, _, _, _, _}), do: {"paramod", "thm"}
   defp rule({:resolve, _, _, _, _}), do: {"resolution", "thm"}
+  defp rule({:avatar_split, _, _, _}), do: {"avatar_split", "thm"}
+  defp rule({:avatar_comp, _, _, _, _}), do: {"avatar_component", "thm"}
   defp rule({:arith_eval, _, _, _}), do: {"evaluate", "thm"}
   defp rule({:eval, _, _, _}), do: {"eval", "thm"}
   defp rule({:cnf, _, _, _, :skolem}), do: {"skolemize", "esa"}

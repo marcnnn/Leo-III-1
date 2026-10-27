@@ -82,6 +82,8 @@ defmodule Astraea.ProofChecker do
           | {:arith_eval, non_neg_integer(), non_neg_integer(), clause()}
           | {:eval, non_neg_integer(), non_neg_integer(), clause()}
           | {:eq_fact, non_neg_integer(), non_neg_integer(), Arena.term_id(), Arena.term_id()}
+          | {:avatar_split, non_neg_integer(), non_neg_integer(), [Arena.term_id()]}
+          | {:avatar_comp, non_neg_integer(), non_neg_integer(), Arena.term_id(), clause()}
 
   @type cnf_rule ::
           :not
@@ -331,6 +333,51 @@ defmodule Astraea.ProofChecker do
     end
   end
 
+  defp check_step(%Arena{} = arena, derived, {:avatar_split, id, parent_id, guard_atoms})
+       when is_list(guard_atoms) do
+    with {:ok, _parent} <- fetch_clause(derived, parent_id),
+         true <- length(guard_atoms) >= 2,
+         true <- Enum.all?(guard_atoms, &valid_guard_atom?(arena, &1)) do
+      split_clause = MapSet.new(guard_atoms, &{:pos, &1})
+      {:ok, arena, id, split_clause}
+    else
+      _ -> {:error, {:invalid_avatar_split, id, parent_id}}
+    end
+  end
+
+  defp check_step(%Arena{} = arena, derived, {:avatar_comp, id, parent_id, guard_atom, comp_lits}) do
+    with {:ok, parent} <- fetch_clause(derived, parent_id),
+         true <- MapSet.subset?(comp_lits, parent),
+         true <- MapSet.size(comp_lits) > 0,
+         true <- valid_guard_atom?(arena, guard_atom),
+         remainder = MapSet.difference(parent, comp_lits),
+         true <- disjoint_free_vars?(arena, comp_lits, remainder) do
+      comp_clause = MapSet.put(comp_lits, {:neg, guard_atom})
+      {:ok, arena, id, comp_clause}
+    else
+      _ -> {:error, {:invalid_avatar_comp, id, parent_id}}
+    end
+  end
+
+  defp valid_guard_atom?(%Arena{} = arena, atom_id) do
+    Arena.type_of(arena, atom_id) == Arena.ty_o() and
+      MapSet.size(Arena.free_vars(arena, atom_id)) == 0
+  end
+
+  defp disjoint_free_vars?(%Arena{} = arena, comp_lits, remainder) do
+    comp_fvs =
+      Enum.reduce(comp_lits, MapSet.new(), fn {_pol, atom_id}, acc ->
+        MapSet.union(acc, Arena.free_vars(arena, atom_id))
+      end)
+
+    rem_fvs =
+      Enum.reduce(remainder, MapSet.new(), fn {_pol, atom_id}, acc ->
+        MapSet.union(acc, Arena.free_vars(arena, atom_id))
+      end)
+
+    MapSet.disjoint?(comp_fvs, rem_fvs)
+  end
+
   @doc """
   Checks if any side of equation 1 matches any side of equation 2 modulo symmetry.
   Returns `{common, remainder1, remainder2}` or `nil`.
@@ -365,6 +412,8 @@ defmodule Astraea.ProofChecker do
   def step_parents({:func_ext, _id, p, _fv, _ty}), do: [p]
   def step_parents({:paramod, _id, p1, p2, _eq, _tl, _rl}), do: [p1, p2]
   def step_parents({:resolve, _id, p1, p2, _lit}), do: [p1, p2]
+  def step_parents({:avatar_split, _id, p, _guards}), do: [p]
+  def step_parents({:avatar_comp, _id, p, _guard, _comp_lits}), do: [p]
 
   @doc """
   Renames the premise ids of a calculus step (`:cnf`, `:choice`, `:arith_eval`, `:eval`) through `remap`.
@@ -383,6 +432,12 @@ defmodule Astraea.ProofChecker do
 
   def rewire_parents({:eq_fact, id, p, eq1, eq2}, remap),
     do: {:eq_fact, id, Map.get(remap, p, p), eq1, eq2}
+
+  def rewire_parents({:avatar_split, id, p, guards}, remap),
+    do: {:avatar_split, id, Map.get(remap, p, p), guards}
+
+  def rewire_parents({:avatar_comp, id, p, guard, comp_lits}, remap),
+    do: {:avatar_comp, id, Map.get(remap, p, p), guard, comp_lits}
 
   @doc """
   One-step clausal expansion of a non-atomic literal under `rule` (the `:cnf` kernel
