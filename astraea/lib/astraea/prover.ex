@@ -85,6 +85,7 @@ defmodule Astraea.Prover do
             backward_subsumed: 0,
             rewrites: 0,
             backward_rewritten: 0,
+            wide_equations: false,
             deadline_ms: nil,
             opts: [],
             cooperate: [],
@@ -427,7 +428,7 @@ defmodule Astraea.Prover do
           FVIndex.insert(state.active_index, item.id, Subsumption.subsumption_fv(item))
     }
 
-    state = state |> add_unit(item) |> fingerprint_activate(item)
+    state = state |> add_unit(item) |> fingerprint_activate(item) |> note_wide_equation(item)
 
     if state.demodulation,
       do: %{
@@ -436,6 +437,17 @@ defmodule Astraea.Prover do
             Demodulator.add_rules(state.rules, state.arena, Demodulator.rules(state.arena, item))
       },
       else: state
+  end
+
+  # `paramod_directed/3` only paramodulates from clauses of at most two literals.
+  defp note_wide_equation(%__MODULE__{} = state, item) do
+    wide? =
+      MapSet.size(item.lits) > 2 and
+        Enum.any?(item.lits, fn {pol, atom} ->
+          pol == :pos and match?({@tag_eq, _, _, _, _}, Arena.get_node(state.arena, atom))
+        end)
+
+    if wide?, do: %{state | wide_equations: true}, else: state
   end
 
   defp add_unit(%__MODULE__{} = state, item) do
@@ -1866,11 +1878,19 @@ defmodule Astraea.Prover do
 
   # Why a saturated run does not show satisfiability (empty: it does, relative to
   # the calculus). A finite `:max_clause_lits` also makes paramodulation skip
-  # partners silently, so it counts even when nothing was discarded at enqueue.
+  # partners silently, so it counts even when nothing was discarded at enqueue;
+  # so does an active equation in a clause of more than two literals. Subsumption,
+  # condensation, unit simplification and tautology deletion only remove clauses an
+  # instance of a kept clause covers, which every lifted inference of this calculus
+  # preserves (blocked flex inferences count as unification cutoffs). Demodulation
+  # relies on the ordered-superposition redundancy criterion this calculus does not
+  # guarantee, so a rewrite makes the run incomplete.
   defp incomplete_reasons(%__MODULE__{} = state) do
     [
       discarded: state.discarded_clauses > 0,
       clause_lits_limit: state.max_clause_lits != :infinity,
+      wide_equations: state.wide_equations,
+      demodulation: state.rewrites > 0,
       sine: state.sine_filtered,
       partial_input: Keyword.has_key?(state.opts, :seed),
       unification_cutoffs: state.unification_cutoffs > 0

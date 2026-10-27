@@ -291,6 +291,7 @@ defmodule Astraea.EngineTest do
   test "demodulation yields a kernel-verified refutation" do
     assert {:proved, steps, stats} = Prover.prove_string(@rewrite_src)
     assert stats.rewrites > 0
+    assert :demodulation in stats.incomplete_reasons
     assert :ok == ProofChecker.verify_refutation(stats.arena, steps)
   end
 
