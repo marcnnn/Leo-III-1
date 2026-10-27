@@ -1,14 +1,18 @@
-# Usage: mix run eval.exs smoke|dev|extended
+# Usage: mix run eval.exs smoke|dev|extended [concurrency]
 alias Astraea.{Portfolio, TptpCorpus}
-[split] = System.argv()
-split = String.to_existing_atom(split)
+args = System.argv()
+split = String.to_existing_atom(Enum.at(args, 0, "smoke"))
+conc = case Enum.at(args, 1) do
+  nil -> 3
+  s -> String.to_integer(s)
+end
 root = TptpCorpus.default_tptp_root()
 entries = TptpCorpus.load_split_entries(split)
 results =
   entries
   |> Task.async_stream(fn e ->
     {e, Portfolio.prove_file(Path.join(root, e.rel_path), tptp_root: root, timeout_ms: 2_500)}
-  end, max_concurrency: 2, timeout: 30_000, on_timeout: :kill_task)
+  end, max_concurrency: conc, timeout: 30_000, on_timeout: :kill_task)
   |> Enum.zip(entries)
   |> Enum.map(fn {{:ok, r}, _} -> r; {{:exit, _}, e} -> {e, :timeout} end)
 thm = ["Theorem", "ContradictoryAxioms"]

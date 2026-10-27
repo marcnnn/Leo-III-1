@@ -336,3 +336,29 @@ Five parallel agents (worktrees from `b63f03e0`, disjoint file ownership) ported
 * At 2.5 s Leo-III loses 0.3-0.6 s to JVM startup and 0.6-1.0 s to parsing and warm-up (no solve under 1.45 s); without that overhead stock Leo-III would reach about 78. The Leo-III and Astraea baseline runs above were measured while other agents loaded `armix`.
 * **Gap closure:** of the 58 problems Leo-III solved and the Entry 008 Astraea did not, the merged head now solves 17 internally and 24 with racers; 34 remain open. By the features of Leo-III's proofs: unit rewriting 6 / 27 closed, choice 0 / 8 (Leo-III's `ChoiceControl` detects user-axiomatized choice functions in plain THF0, Astraea's rule only fires on `$choice`), Boolean extensionality 3 / 6, pre-unification beyond patterns 2 / 6, functional extensionality 2 / 5, special instances 2 / 5, primitive substitution 1 / 2.
 * **Next targets:** choice-function detection, demodulation effectiveness on the 21 open rewriting problems, and a 10 s run of the merged head for a like-for-like comparison with Leo-III's 110 / 131.
+
+---
+
+## Entry 010: User-Defined Choice Axiom Detection & Gap Evaluation on armix (2026-10-27)
+
+Following the gap analysis in Entry 009 and `Notes/leo3_baseline.md`, Leo-III solved 8 choice-heavy problems that Astraea previously missed because Astraea's choice rule only recognized the built-in `$choice` operator (`@+`), whereas Leo-III's `ChoiceControl.detectChoiceClause` detects user-axiomatized choice functions in plain THF0.
+
+* **Calculus & Search Integration** (`Astraea.Calculus.Choice`, `Astraea.Prover`):
+  * Implemented `Astraea.Calculus.Choice.detect_axiom/2`: detects 2-literal choice axioms `~(P @ X) | P @ (F @ P)` where `P: T > $o` and `X: T` are distinct free variables, and `F: (T > $o) > T` is a function operator.
+  * **Passive Set Protection:** Following Leo-III's strategy, detected choice-axiom clauses are registered in `state.choice_axioms` and withheld from entering the general passive set during initial clause processing, preventing combinatorial explosion in general saturation.
+  * **On-Demand Instantiation:** When choice applications `F @ P` appear in active clauses, `try_choice/2` instantiates the axiom on `P` with a fresh witness variable via an LCF-checked `:subst` step (`emit_subst_step/4`).
+  * Verified by unit tests in `Astraea.CalculusTest`: 119 total tests pass.
+
+* **Choice Gap Benchmark on `armix`** (`scripts/test_choice_gap.exs`, 2.5 s timeout):
+  Evaluated on the 8 target choice gap problems identified from Leo-III's refutations:
+  * `SYO530^1`: **PROVED** (16 steps, 34 ms portfolio / 5 ms schedule)
+  * `SYO537^1`: **PROVED** (16 steps, 5 ms portfolio / 5 ms schedule)
+  * `SYO539^1`: **PROVED** (38 steps, 9 ms portfolio / 9 ms schedule)
+  * `SYO540^1`: **PROVED** (37 steps, 7 ms portfolio / 8 ms schedule)
+  * `CAT038^2`, `LCL735^5`, `LCL736^5`, `SYO295^5`: remain open (require `funcspec` / function synthesis or special instances).
+  * Choice gap closure: **4 / 8** closed directly by axiomatic choice detection.
+
+* **Evaluation on `armix` (2.5 s wall per problem, 3 concurrency):**
+  * `TPTP-Smoke` (34 / 15): `27 / 34` Theorems proved (0 false proofs on CSA traps, 0 LCF verification failures).
+  * `TPTP-Dev` (237 / 60): **`103 / 237`** Theorems proved (up from `97` in Entry 009, net **+6** solved theorems; 0 false proofs on CSA traps, 0 LCF verification failures).
+  * Internal portfolio solver alone now crosses 100 theorems on `TPTP-Dev` at 2.5 s (103 vs Leo-III stock 63).
