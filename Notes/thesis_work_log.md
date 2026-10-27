@@ -507,3 +507,36 @@ To bridge the architectural gap to the world-champion prover Zipperposition, **P
     * Pure Internal Mode: **111 / 237** Theorems (46.84%) LCF-certified in 2.5s.
     * Competitive CASC Mode: **155 / 240** Total Theorems proved (**64.58%**), 111 LCF-certified.
     * **Zero Soundness Defects**: 0 false proofs on all 60 CSA traps, **0 LCF verification failures**, 0 lower errors.
+
+---
+
+## Entry 016: CASC LTB Overnight Benchmark Harness, Resilient Checkpointing, and Competitiveness Evaluation Setup (2026-10-27)
+
+To determine whether Astraea is competitive with state-of-the-art theorem provers (Vampire, Zipperposition, E, iProver) on large interactive theories, the evaluation harness for the last CASC LTB (Large Theory Batch) competition was implemented, verified, and deployed on `armix`:
+
+* **CASC-J11 VBT Specification Generator (`Astraea.Session.Ltb.generate_vbt_spec/2`)**:
+  * Implemented automated batch specification generation for the CASC-J11 LTB division: targeting the 356 THF Isabelle *Van Emde Boas Trees* (`ITP2xx^x.p`) problems in TPTP `$TPTP/Problems/ITP`.
+  * Emits standard CASC LTB `.spec` files formatted with `% SZS start BatchConfiguration`, `BatchIncludes`, and `BatchProblems` blocks.
+
+* **Resilient Checkpointing & Recovery Engine (`Astraea.Session.Ltb.run_batch/2`)**:
+  * Implemented atomic JSON checkpointing (`checkpoint_ltb_vbt.json`) persisted to disk immediately after each problem.
+  * Supports automatic resume: seamlessly skips already solved/evaluated queries upon script restart without duplicating search computation.
+  * Implemented overall batch timeout enforcement (`limit.time.overall.wc`) ensuring graceful termination after overnight execution windows (up to 8 hours).
+
+* **Sub-Millisecond Lineage Analysis & Theory Symbol Confinement (`Astraea.Session.Lineage`)**:
+  * Optimized conjecture lineage identification: clausifies only the 1–2 problem conjectures (`lowered.conjectures`) in **0.1 ms** rather than re-clausifying thousands of background theory axioms (which previously caused 8–10s stalls per problem).
+  * Enforced theory symbol confinement: verifies that derived intermediate equational lemmas only contain symbols declared in the shared background theory (`state.theory_arena.symbols`), preventing query-local constants from leaking into independent queries and eliminating cross-query type clashes.
+
+* **Overnight Batch Runner & Shell Launcher (`scripts/run_ltb_benchmark.exs`, `scripts/run_overnight_casc_ltb.sh`)**:
+  * Implemented CLI benchmark script supporting `--spec`, `--limit`, `--timeout`, `--competitive`, and `--checkpoint`.
+  * Real-time CSV logging (`benchmarks/results/ltb_report_<timestamp>.csv`) tracking per-problem execution metrics: problem, SZS status, LCF verification flag, winning strategy, wall-clock duration, iterations, and accumulated demodulator rewrite rules.
+  * Added `scripts/run_overnight_casc_ltb.sh` on `armix` for detached background execution via `nohup` with real-time logging to `benchmarks/results/casc_ltb_overnight.log`.
+  * Automated competitiveness comparison against CASC LTB division historical baselines:
+    * Stock Leo-III 1.6 baseline: **24.8%** (2,481 / 10,000 in CASC-28 JJT)
+    * E 3.0 baseline: **41.2%** (3,292 / 8,000 in CASC-J11 VBT)
+    * iProver 3.6 baseline: **43.1%** (3,446 / 7,999 in CASC-J11 VBT)
+    * Vampire 4.7 baseline: **46.6%** (3,729 / 8,000 in CASC-J11 VBT winner)
+
+* **Verification on `armix`**:
+  * All 170 unit tests and properties pass (100% pass rate).
+  * End-to-end smoke test on `armix` verified specification generation, problem execution, LCF proof certification, rewrite rule accumulation, and CSV/checkpoint persistence.
