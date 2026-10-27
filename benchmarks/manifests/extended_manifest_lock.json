@@ -1,0 +1,18 @@
+{
+  "tptp_version": "v9.3.1",
+  "seed": "astraea-tptp-v9.3.1-extended",
+  "source": "thf_catalog.csv rows with strict_thf0 == False (disjoint from smoke/dev/holdout)",
+  "total": 150,
+  "thm": 142,
+  "csa": 8,
+  "fragments": {
+    "has_th1": 127,
+    "has_arith": 45,
+    "has_choice": 39,
+    "has_modal": 21,
+    "has_let_ite": 0
+  },
+  "sha256": {
+    "extended": "b2b92726844e43e2fc1fc8103bc0d0046b4b49276e72fc8b8b7082aa14474f5e"
+  }
+}

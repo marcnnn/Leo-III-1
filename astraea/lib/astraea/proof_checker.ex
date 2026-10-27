@@ -22,6 +22,9 @@ defmodule Astraea.ProofChecker do
     one-step expansion `expand_literal/3` (see below)
   - `{:choice, id, pred_id, fvar_id}` — Hilbert choice instance
     `~(P @ X) | P @ ($choice @ P)` for a closed `P: T > $o`
+  - `{:arith_eval, id, parent_id, clause}` — ground arithmetic evaluation; `clause` must
+    equal `Astraea.Input.Arith.eval_clause/2` of the parent, which the kernel recomputes
+    (soundness argument in `Astraea.Input.Arith`)
 
   Soundness of the `:cnf` rules (each conclusion is entailed by its premise in
   extensional Henkin semantics, or, for `:skolem`, in every expansion of a model that
@@ -74,6 +77,7 @@ defmodule Astraea.ProofChecker do
              {:pos | :neg, Arena.term_id()}}
           | {:cnf, non_neg_integer(), non_neg_integer(), literal(), cnf_rule()}
           | {:choice, non_neg_integer(), Arena.term_id(), non_neg_integer()}
+          | {:arith_eval, non_neg_integer(), non_neg_integer(), clause()}
 
   @type cnf_rule ::
           :not
@@ -269,12 +273,22 @@ defmodule Astraea.ProofChecker do
     end
   end
 
+  defp check_step(%Arena{} = arena, derived, {:arith_eval, id, parent_id, claimed}) do
+    with {:ok, parent} <- fetch_clause(derived, parent_id),
+         {arena, ^claimed} <- Astraea.Input.Arith.eval_clause(arena, parent) do
+      {:ok, arena, id, claimed}
+    else
+      _ -> {:error, {:invalid_arith_eval, id, parent_id}}
+    end
+  end
+
   @doc """
   Premise step ids of `step` (for proof extraction and compression).
   """
   @spec step_parents(step()) :: [non_neg_integer()]
   def step_parents({:cnf, _id, p, _lit, _rule}), do: [p]
   def step_parents({:choice, _id, _pred, _fv}), do: []
+  def step_parents({:arith_eval, _id, p, _clause}), do: [p]
   def step_parents({:axiom, _id, _c}), do: []
   def step_parents({:refl, _id, _t}), do: []
   def step_parents({:symm, _id, p}), do: [p]
@@ -286,13 +300,16 @@ defmodule Astraea.ProofChecker do
   def step_parents({:resolve, _id, p1, p2, _lit}), do: [p1, p2]
 
   @doc """
-  Renames the premise ids of a calculus step (`:cnf`, `:choice`) through `remap`.
+  Renames the premise ids of a calculus step (`:cnf`, `:choice`, `:arith_eval`) through `remap`.
   """
   @spec rewire_parents(step(), %{non_neg_integer() => non_neg_integer()}) :: step()
   def rewire_parents({:cnf, id, p, lit, rule}, remap),
     do: {:cnf, id, Map.get(remap, p, p), lit, rule}
 
   def rewire_parents({:choice, _id, _pred, _fv} = step, _remap), do: step
+
+  def rewire_parents({:arith_eval, id, p, clause}, remap),
+    do: {:arith_eval, id, Map.get(remap, p, p), clause}
 
   @doc """
   One-step clausal expansion of a non-atomic literal under `rule` (the `:cnf` kernel
