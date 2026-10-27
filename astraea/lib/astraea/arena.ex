@@ -600,7 +600,11 @@ defmodule Astraea.Arena do
 
   def subst_fvar(%__MODULE__{} = arena, term_id, subst) do
     {arena, raw} = do_subst_fvar(arena, term_id, subst, 0)
-    beta_eta_norm(arena, raw)
+    if raw == term_id do
+      {arena, term_id}
+    else
+      beta_eta_norm(arena, raw)
+    end
   end
 
   defp do_subst_fvar(%__MODULE__{} = arena, term_id, subst, depth) do
@@ -623,29 +627,29 @@ defmodule Astraea.Arena do
         @tag_app ->
           {arena, l2} = do_subst_fvar(arena, left, subst, depth)
           {arena, r2} = do_subst_fvar(arena, right, subst, depth)
-          mk_app(arena, l2, r2)
+          if l2 == left and r2 == right, do: {arena, term_id}, else: mk_app(arena, l2, r2)
 
         @tag_lam ->
           {arena, b2} = do_subst_fvar(arena, right, subst, depth + 1)
-          mk_lam(arena, left, b2)
+          if b2 == right, do: {arena, term_id}, else: mk_lam(arena, left, b2)
 
         @tag_forall ->
           {arena, b2} = do_subst_fvar(arena, right, subst, depth + 1)
-          mk_forall(arena, left, b2)
+          if b2 == right, do: {arena, term_id}, else: mk_forall(arena, left, b2)
 
         @tag_eq ->
           {arena, l2} = do_subst_fvar(arena, left, subst, depth)
           {arena, r2} = do_subst_fvar(arena, right, subst, depth)
-          mk_eq(arena, l2, r2)
+          if l2 == left and r2 == right, do: {arena, term_id}, else: mk_eq(arena, l2, r2)
 
         @tag_or ->
           {arena, l2} = do_subst_fvar(arena, left, subst, depth)
           {arena, r2} = do_subst_fvar(arena, right, subst, depth)
-          mk_or(arena, l2, r2)
+          if l2 == left and r2 == right, do: {arena, term_id}, else: mk_or(arena, l2, r2)
 
         @tag_not ->
           {arena, l2} = do_subst_fvar(arena, left, subst, depth)
-          mk_not(arena, l2)
+          if l2 == left, do: {arena, term_id}, else: mk_not(arena, l2)
 
         _ ->
           {arena, term_id}

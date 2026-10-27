@@ -132,26 +132,65 @@ defmodule Astraea.Calculus.Unify do
     do: close_flex_flex(ctx, pair, %{conf | flex_flex: rest})
 
   defp step(ctx, {s0, t0, k}, conf) do
-    {arena, s} = Terms.instantiate(ctx.arena, s0, conf.subst)
-    {arena, t} = Terms.instantiate(arena, t0, conf.subst)
-    ctx = %{ctx | arena: arena}
-
     cond do
-      s == t ->
+      s0 == t0 ->
         exhaust(ctx, conf)
 
-      Arena.type_of(arena, s) != Arena.type_of(arena, t) ->
+      Arena.type_of(ctx.arena, s0) != Arena.type_of(ctx.arena, t0) ->
         {ctx, :fail}
 
-      # Two rigid eta-short terms of arrow type decompose like their eta-expansions.
-      Terms.arrow_domain(arena, Arena.type_of(arena, s)) != nil and
-          not (rigid?(arena, s) and rigid?(arena, t)) ->
-        {arena, s1} = Terms.eta_body(arena, s)
-        {arena, t1} = Terms.eta_body(arena, t)
-        exhaust(%{ctx | arena: arena}, push(conf, [{s1, t1, k + 1}]))
-
       true ->
-        dispatch(ctx, {s, t, k}, Terms.view(arena, s), Terms.view(arena, t), conf)
+        {arena, s} = deref_head(ctx.arena, s0, conf.subst)
+        {arena, t} = deref_head(arena, t0, conf.subst)
+        ctx = %{ctx | arena: arena}
+
+        cond do
+          s == t ->
+            exhaust(ctx, conf)
+
+          Arena.type_of(arena, s) != Arena.type_of(arena, t) ->
+            {ctx, :fail}
+
+          # Two rigid eta-short terms of arrow type decompose like their eta-expansions.
+          Terms.arrow_domain(arena, Arena.type_of(arena, s)) != nil and
+              not (rigid?(arena, s) and rigid?(arena, t)) ->
+            {arena, s1} = Terms.eta_body(arena, s)
+            {arena, t1} = Terms.eta_body(arena, t)
+            exhaust(%{ctx | arena: arena}, push(conf, [{s1, t1, k + 1}]))
+
+          true ->
+            dispatch(ctx, {s, t, k}, Terms.view(arena, s), Terms.view(arena, t), conf)
+        end
+    end
+  end
+
+  defp deref_head(arena, term_id, subst) do
+    if map_size(subst) == 0 or not Terms.has_fvar?(arena, term_id) do
+      {arena, term_id}
+    else
+      case Terms.view(arena, term_id) do
+        {:flex, f, args} ->
+          var = var_id(arena, f)
+
+          case Map.fetch(subst, var) do
+            {:ok, rep} ->
+              {arena, app} =
+                if args == [] do
+                  {arena, rep}
+                else
+                  {arena, ap} = Terms.mk_apps(arena, rep, args)
+                  Arena.beta_eta_norm(arena, ap)
+                end
+
+              deref_head(arena, app, subst)
+
+            :error ->
+              {arena, term_id}
+          end
+
+        _ ->
+          {arena, term_id}
+      end
     end
   end
 
@@ -166,8 +205,8 @@ defmodule Astraea.Calculus.Unify do
   defp dispatch(ctx, _pair, {:rigid, _, _}, {:rigid, _, _}, _conf), do: {ctx, :fail}
 
   defp dispatch(ctx, {s, t, k} = pair, {:flex, f, as}, {:flex, g, bs}, conf) do
-    with :postpone <- try_bind(ctx, f, as, t, k),
-         :postpone <- try_bind(ctx, g, bs, s, k) do
+    with :postpone <- try_bind(ctx, f, as, t, k, conf.subst),
+         :postpone <- try_bind(ctx, g, bs, s, k, conf.subst) do
       exhaust(ctx, %{conf | flex_flex: [pair | conf.flex_flex]})
     else
       result -> continue_bind(ctx, result, conf)
@@ -178,7 +217,7 @@ defmodule Astraea.Calculus.Unify do
     do: dispatch(ctx, {t, s, k}, fv, rv, conf)
 
   defp dispatch(ctx, {_s, t, k} = pair, {:flex, f, as}, {:rigid, _, _}, conf) do
-    case try_bind(ctx, f, as, t, k) do
+    case try_bind(ctx, f, as, t, k, conf.subst) do
       :postpone -> exhaust(ctx, %{conf | flex_rigid: conf.flex_rigid ++ [pair]})
       result -> continue_bind(ctx, result, conf)
     end
@@ -204,12 +243,15 @@ defmodule Astraea.Calculus.Unify do
   defp push(conf, pairs), do: %{conf | todo: pairs ++ conf.todo}
 
   # Pattern fast path (Leo-III `BindRule` generalised to Miller patterns).
-  defp try_bind(ctx, f, args, t, k) do
+  defp try_bind(ctx, f, args, t0, k, subst) do
     arena = ctx.arena
     var = var_id(arena, f)
 
     case pattern_indices(arena, args, k) do
       {:ok, idxs} ->
+        {arena, t} = Terms.instantiate(arena, t0, subst)
+        ctx = %{ctx | arena: arena}
+
         cond do
           not Arena.occurs_fvar?(arena, t, var) ->
             abstract(ctx, var, args, idxs, t)
