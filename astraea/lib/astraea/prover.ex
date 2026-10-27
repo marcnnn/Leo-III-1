@@ -606,7 +606,7 @@ defmodule Astraea.Prover do
 
       rules ->
         index = Demodulator.add_rules(HeadIndex.new(), state.arena, rules)
-        queries = Enum.map(rules, &redex_query_fv(state.arena, &1.lhs))
+        queries = Enum.map(rules, &Subsumption.term_query_fv(state.arena, &1.lhs))
 
         candidates =
           state.active_index
@@ -628,16 +628,6 @@ defmodule Astraea.Prover do
         |> Map.update!(:backward_rewritten, &(&1 + length(rewritten)))
         |> enqueue_passive(Enum.map(rewritten, &elem(&1, 1)))
     end
-  end
-
-  # Lanes of a term that bound those of any clause containing an instance of it:
-  # one literal, no free-variable or negative-literal lane (see `Subsumption`).
-  defp redex_query_fv(%Arena{} = arena, term) do
-    arena
-    |> Arena.feature_vector(term)
-    |> List.replace_at(0, 1)
-    |> List.replace_at(4, 0)
-    |> FVIndex.fv()
   end
 
   # Clause Condensation (`condense_clause/2`):
@@ -1303,11 +1293,12 @@ defmodule Astraea.Prover do
 
     fvar_ids = MapSet.new(fvars, &elem(&1, 0))
 
-    weight =
-      Enum.reduce(lits, 0, fn {_pol, atom_id}, acc ->
-        {w, _v} = Arena.term_weight_and_vars(state.arena, atom_id)
-        acc + w
+    lit_weights =
+      Enum.map(lits, fn {_pol, atom_id} = lit ->
+        {lit, elem(Arena.term_weight_and_vars(state.arena, atom_id), 0)}
       end)
+
+    weight = lit_weights |> Enum.map(&elem(&1, 1)) |> Enum.sum()
 
     fv = clause_feature_vector(state.arena, lits)
     num_lits = MapSet.size(lits)
@@ -1338,8 +1329,10 @@ defmodule Astraea.Prover do
       weight: weight,
       depth: depth,
       fv: fv,
-      score: score
+      score: score,
+      lits_by_weight: lit_weights |> Enum.sort_by(&(-elem(&1, 1))) |> Enum.map(&elem(&1, 0))
     }
+    |> Map.put(:sfv, Subsumption.clause_fv(state.arena, lits))
   end
 
   # ---------------------------------------------------------------------------

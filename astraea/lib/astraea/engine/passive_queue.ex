@@ -98,8 +98,9 @@ defmodule Astraea.Engine.PassiveQueue do
     end)
   end
 
-  defp priority(:score, item), do: item.score
+  # Ties go to the newest clause (its id is larger), except in the age queue.
+  defp priority(:score, item), do: {item.score, -item.id}
   defp priority(:age, item), do: item.id
-  defp priority(:weight, item), do: item.weight
-  defp priority(:depth, item), do: item.depth
+  defp priority(:weight, item), do: {item.weight, -item.id}
+  defp priority(:depth, item), do: {item.depth, -item.id}
 end
