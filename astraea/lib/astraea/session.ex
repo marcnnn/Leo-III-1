@@ -31,6 +31,7 @@ defmodule Astraea.Session do
             harvested_lemmas: [],
             queries_attempted: 0,
             queries_proved: 0,
+            verified_proved: 0,
             opts: []
 
   # ---------------------------------------------------------------------------
@@ -149,77 +150,115 @@ defmodule Astraea.Session do
 
   @impl true
   def handle_call({:prove, goal_spec, opts}, _from, %__MODULE__{} = state) do
-    if is_nil(state.theory_lowered) do
-      {:reply, {:error, :theory_not_initialized}, state}
-    else
-      timeout_ms = Keyword.get(opts, :timeout_ms, 2500)
-      state = %{state | queries_attempted: state.queries_attempted + 1}
-
-      case prepare_goal_input(state, goal_spec) do
-        {:ok, augmented_src} ->
-          t0 = System.monotonic_time(:millisecond)
-
-          case TptpLower.from_string(augmented_src, state.opts) do
-            {:ok, lowered} ->
-              res = Portfolio.prove_lowered(lowered, Keyword.merge(state.opts, timeout_ms: timeout_ms))
-              dur_ms = System.monotonic_time(:millisecond) - t0
-
-              case res do
-                {:proved, steps, stats} ->
-                  # Harvest sound pure-theory lemmas
-                  {new_state, new_count} =
-                    case Lineage.harvest_theory_lemmas(stats.arena, steps, lowered) do
-                      {:ok, pure_lemmas, _lineage_meta} ->
-                        {updated_demod, inserted} =
-                          DemodCache.insert_lemmas(state.demod_cache, stats.arena, pure_lemmas)
-
-                        s = %{
-                          state
-                          | demod_cache: updated_demod,
-                            harvested_lemmas: state.harvested_lemmas ++ pure_lemmas,
-                            queries_proved: state.queries_proved + 1
-                        }
-
-                        {s, inserted}
-
-                      _ ->
-                        {%{state | queries_proved: state.queries_proved + 1}, 0}
-                    end
-
-                  reply = {
-                    :ok,
-                    %{
-                      szs: :theorem,
-                      duration_ms: dur_ms,
-                      proof_length: length(steps),
-                      iterations: Map.get(stats, :iterations, 0),
-                      winning_strategy: Map.get(stats, :winning_strategy, :unknown),
-                      harvested_rules: new_count
-                    }
-                  }
-
-                  {:reply, reply, new_state}
-
-                other ->
-                  reply = {
-                    :ok,
-                    %{
-                      szs: Portfolio.szs_status(other),
-                      duration_ms: dur_ms,
-                      status: elem(other, 0)
-                    }
-                  }
-
-                  {:reply, reply, state}
-              end
-
-            {:error, reason} ->
-              {:reply, {:error, {:parse_goal_failed, reason}}, state}
-          end
-
-        {:error, reason} ->
-          {:reply, {:error, {:goal_input_failed, reason}}, state}
+    state =
+      if is_nil(state.theory_lowered) do
+        {:ok, empty_lowered} = TptpLower.from_string("", state.opts)
+        %{state | theory_lowered: empty_lowered}
+      else
+        state
       end
+
+    timeout_ms = Keyword.get(opts, :timeout_ms, 2500)
+    state = %{state | queries_attempted: state.queries_attempted + 1}
+
+    case prepare_goal_input(state, goal_spec) do
+      {:ok, augmented_src} ->
+        t0 = System.monotonic_time(:millisecond)
+
+        call_opts =
+          state.opts
+          |> Keyword.merge(opts)
+          |> Keyword.put(:timeout_ms, timeout_ms)
+
+        case TptpLower.from_string(augmented_src, call_opts) do
+          {:ok, lowered} ->
+            res = Portfolio.prove_lowered(lowered, call_opts)
+            dur_ms = System.monotonic_time(:millisecond) - t0
+
+            case res do
+              {:proved, steps, stats} ->
+                # Harvest sound pure-theory lemmas
+                {new_state, new_count} =
+                  case Lineage.harvest_theory_lemmas(stats.arena, steps, lowered) do
+                    {:ok, pure_lemmas, _lineage_meta} ->
+                      {updated_demod, inserted} =
+                        DemodCache.insert_lemmas(state.demod_cache, stats.arena, pure_lemmas)
+
+                      s = %{
+                        state
+                        | demod_cache: updated_demod,
+                          harvested_lemmas: state.harvested_lemmas ++ pure_lemmas,
+                          queries_proved: state.queries_proved + 1,
+                          verified_proved: state.verified_proved + 1
+                      }
+
+                      {s, inserted}
+
+                    _ ->
+                      {%{state | queries_proved: state.queries_proved + 1, verified_proved: state.verified_proved + 1}, 0}
+                  end
+
+                reply = {
+                  :ok,
+                  %{
+                    szs: :theorem,
+                    duration_ms: dur_ms,
+                    proof_length: length(steps),
+                    iterations: Map.get(stats, :iterations, 0),
+                    winning_strategy: Map.get(stats, :winning_strategy, :unknown),
+                    harvested_rules: new_count,
+                    verified: true
+                  }
+                }
+
+                {:reply, reply, new_state}
+
+              {:proved_external, stats} ->
+                reply = {
+                  :ok,
+                  %{
+                    szs: :theorem,
+                    duration_ms: dur_ms,
+                    proof_length: 0,
+                    iterations: 0,
+                    winning_strategy: {:external, Map.get(stats, :prover, :external)},
+                    harvested_rules: 0,
+                    verified: false
+                  }
+                }
+
+                {:reply, reply, %{state | queries_proved: state.queries_proved + 1}}
+
+              other ->
+                szs = Portfolio.szs_status(other)
+                new_state =
+                  if szs in [:theorem, :unsatisfiable] do
+                    %{state | queries_proved: state.queries_proved + 1}
+                  else
+                    state
+                  end
+
+                reply = {
+                  :ok,
+                  %{
+                    szs: szs,
+                    duration_ms: dur_ms,
+                    status: elem(other, 0),
+                    winning_strategy: :none,
+                    harvested_rules: 0,
+                    verified: false
+                  }
+                }
+
+                {:reply, reply, new_state}
+            end
+
+          {:error, reason} ->
+            {:reply, {:error, {:parse_goal_failed, reason}}, state}
+        end
+
+      {:error, reason} ->
+        {:reply, {:error, {:goal_input_failed, reason}}, state}
     end
   end
 
@@ -232,6 +271,7 @@ defmodule Astraea.Session do
       harvested_lemmas_count: length(state.harvested_lemmas),
       queries_attempted: state.queries_attempted,
       queries_proved: state.queries_proved,
+      verified_proved: state.verified_proved,
       solve_rate_pct:
         if state.queries_attempted > 0 do
           Float.round(state.queries_proved * 100.0 / state.queries_attempted, 2)
@@ -273,6 +313,10 @@ defmodule Astraea.Session do
     {:ok, str, []}
   end
 
+  defp build_theory_source(:none) do
+    {:ok, "", []}
+  end
+
   defp build_theory_source(other) do
     {:error, {:invalid_theory_spec, other}}
   end
@@ -303,15 +347,24 @@ defmodule Astraea.Session do
   defp prepare_goal_content(state, goal_content) do
     cached_axioms =
       state.demod_cache.thf_rules
+      |> Enum.take(300)
       |> Enum.with_index()
       |> Enum.map(fn {thf, idx} -> "thf(session_lem_#{idx}, axiom, #{thf})." end)
       |> Enum.join("\n")
 
     augmented =
-      if cached_axioms == "" do
-        state.theory_source <> "\n" <> goal_content
-      else
-        state.theory_source <> "\n% --- ACCUMULATED SOUND THEORY RULES ---\n" <> cached_axioms <> "\n" <> goal_content
+      cond do
+        state.theory_source == "" and cached_axioms == "" ->
+          goal_content
+
+        state.theory_source == "" ->
+          "% --- ACCUMULATED SOUND THEORY RULES ---\n" <> cached_axioms <> "\n" <> goal_content
+
+        cached_axioms == "" ->
+          state.theory_source <> "\n" <> goal_content
+
+        true ->
+          state.theory_source <> "\n% --- ACCUMULATED SOUND THEORY RULES ---\n" <> cached_axioms <> "\n" <> goal_content
       end
 
     {:ok, augmented}

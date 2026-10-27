@@ -102,7 +102,7 @@ defmodule Astraea.SessionTest do
     end
   end
 
-  describe "Astraea.Session.Ltb CASC batch protocol parser" do
+  describe "Astraea.Session.Ltb CASC batch protocol parser and runner" do
     test "parses batch configuration, includes, and problem pairs" do
       spec_content = """
       division.category LTB.HOL_Isabelle
@@ -135,6 +135,63 @@ defmodule Astraea.SessionTest do
       assert hd(config.problems) == {"Problems/AGT/AGT037^2.p", "/tmp/out/AGT037^2.out"}
 
       File.rm(tmp_file)
+    end
+
+    test "executes batch with checkpointing, result generation, and recovery" do
+      tmp_dir = Path.join(System.tmp_dir!(), "ltb_test_#{:rand.uniform(1_000_000)}")
+      File.mkdir_p!(tmp_dir)
+
+      theory_file = Path.join(tmp_dir, "theory.ax")
+      File.write!(theory_file, @theory_src)
+
+      prob1 = Path.join(tmp_dir, "p1.p")
+      File.write!(prob1, @goal1_src)
+
+      prob2 = Path.join(tmp_dir, "p2.p")
+      File.write!(prob2, @goal2_src)
+
+      out1 = Path.join(tmp_dir, "p1.out")
+      out2 = Path.join(tmp_dir, "p2.out")
+
+      spec_content = """
+      division.category LTB.Test
+      % SZS start BatchConfiguration
+      execution.order ordered
+      output.required Proof
+      limit.time.problem.wc 2
+      limit.time.overall.wc 60
+      % SZS end BatchConfiguration
+      % SZS start BatchIncludes
+      include('theory.ax').
+      % SZS end BatchIncludes
+      % SZS start BatchProblems
+      #{prob1} #{out1}
+      #{prob2} #{out2}
+      % SZS end BatchProblems
+      """
+
+      spec_path = Path.join(tmp_dir, "batch.spec")
+      File.write!(spec_path, spec_content)
+
+      checkpoint_path = Path.join(tmp_dir, "checkpoint.json")
+
+      # 1. Run batch
+      assert {:ok, report} = Ltb.run_batch(spec_path, checkpoint_file: checkpoint_path, timeout_ms: 2000)
+      assert report.total_problems == 2
+      assert report.solved == 2
+      assert report.solve_rate_pct == 100.0
+      assert File.exists?(out1)
+      assert File.exists?(out2)
+      assert File.exists?(checkpoint_path)
+
+      # Verify SZS status in output file
+      assert File.read!(out1) =~ "% SZS status Theorem"
+
+      # 2. Re-run batch with checkpoint (should use cached results)
+      assert {:ok, report2} = Ltb.run_batch(spec_path, checkpoint_file: checkpoint_path, timeout_ms: 2000)
+      assert report2.solved == 2
+
+      File.rm_rf!(tmp_dir)
     end
   end
 end
