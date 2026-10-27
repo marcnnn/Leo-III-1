@@ -59,7 +59,7 @@ defmodule Astraea.Session do
   def prove(session, goal_spec, opts \\ []) do
     timeout_ms = Keyword.get(opts, :timeout_ms, 2500)
     # Give GenServer call slightly more headroom than the prover timeout
-    call_timeout = timeout_ms + 10_000
+    call_timeout = max(timeout_ms * 4 + 30_000, 120_000)
     GenServer.call(session, {:prove, goal_spec, opts}, call_timeout)
   end
 
