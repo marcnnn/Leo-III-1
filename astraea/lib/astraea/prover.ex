@@ -1582,8 +1582,7 @@ defmodule Astraea.Prover do
       passive_clauses: length(state.passive),
       total_steps: state.next_step_id - 1,
       arena_nodes: map_size(state.arena.nodes),
-      unification_cutoffs: state.unification_cutoffs,
-      step_counts: Enum.frequencies_by(Map.values(state.steps), &elem(&1, 0))
+      unification_cutoffs: state.unification_cutoffs
     }
 
     if state.cooperate == [],
