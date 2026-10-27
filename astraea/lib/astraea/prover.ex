@@ -1744,10 +1744,11 @@ defmodule Astraea.Prover do
           {s, sub_item, {eq1_sub, eq2_sub}} =
             apply_subst_to_pair(s, given, subst, eq1_id, eq2_id)
 
-          {@tag_eq, _, _, l1, r1} = Arena.get_node(s.arena, eq1_sub)
-          {@tag_eq, _, _, l2, r2} = Arena.get_node(s.arena, eq2_sub)
+          if eq1_sub != eq2_sub and MapSet.member?(sub_item.lits, {:pos, eq1_sub}) and MapSet.member?(sub_item.lits, {:pos, eq2_sub}) do
+            {@tag_eq, _, _, l1, r1} = Arena.get_node(s.arena, eq1_sub)
+            {@tag_eq, _, _, l2, r2} = Arena.get_node(s.arena, eq2_sub)
 
-          case ProofChecker.match_eq_sides(l1, r1, l2, r2) do
+            case ProofChecker.match_eq_sides(l1, r1, l2, r2) do
             {_common, rem_a, rem_b} ->
               {arena, neg_eq} = Arena.mk_eq(s.arena, rem_a, rem_b)
               s = %{s | arena: arena}
@@ -1770,7 +1771,10 @@ defmodule Astraea.Prover do
               end
 
             nil ->
-              {:cont, s, []}
+                {:cont, s, []}
+            end
+          else
+            {:cont, s, []}
           end
         end)
       end)
