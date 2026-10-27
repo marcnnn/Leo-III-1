@@ -12,7 +12,13 @@ defmodule Astraea.Session.Lineage do
 
   alias Astraea.{Arena, Clausifier, External.ThfPrinter, ProofChecker, TptpLower, Tstp}
 
+  @tag_const 1
+  @tag_app 4
+  @tag_lam 5
   @tag_eq 6
+  @tag_not 7
+  @tag_or 8
+  @tag_forall 9
 
   @type lemma :: %{
           id: non_neg_integer(),
@@ -29,11 +35,16 @@ defmodule Astraea.Session.Lineage do
   Inspects a verified refutation `{arena, steps}` against its `%TptpLower{}` specification,
   identifies true background axioms, and harvests all non-empty intermediate clauses
   whose ancestors contain zero dependencies on the problem conjecture.
+
+  Optionally restricts lemmas to those whose constants are a subset of `allowed_symbols`
+  (the symbols of the shared background theory), preventing query-local symbols from
+  leaking across independent problems.
   """
-  @spec harvest_theory_lemmas(Arena.t(), [ProofChecker.step()], TptpLower.t()) ::
+  @spec harvest_theory_lemmas(Arena.t(), [ProofChecker.step()], TptpLower.t(), MapSet.t() | nil) ::
           {:ok, [lemma()], %{total_derived: non_neg_integer(), conj_dependent: non_neg_integer()}}
           | {:error, term()}
-  def harvest_theory_lemmas(%Arena{} = arena, steps, %TptpLower{} = lowered) when is_list(steps) do
+  def harvest_theory_lemmas(%Arena{} = arena, steps, %TptpLower{} = lowered, allowed_symbols \\ nil)
+      when is_list(steps) do
     # 1. Compute keys of conjecture clauses (clausifying ONLY the 1-2 conjectures, instantaneous!)
     conj_keys =
       if lowered.conjectures == [] do
@@ -65,7 +76,7 @@ defmodule Astraea.Session.Lineage do
         {c_dep_count, lemmas} =
           Enum.reduce(derived_steps, {0, []}, fn step, {cd, acc_lemmas} ->
             id = elem(step, 1)
-            clause = Map.get(derived_map, id, MapSet.new())\
+            clause = Map.get(derived_map, id, MapSet.new())
 
             # Empty clause is the refutation root; not an intermediate lemma
             if MapSet.size(clause) == 0 do
@@ -78,7 +89,15 @@ defmodule Astraea.Session.Lineage do
                   Map.get(axiom_sources, anc_id) == :conjecture
                 end)
 
-              if touches_conj? do
+              symbols_ok? =
+                if is_nil(allowed_symbols) do
+                  true
+                else
+                  clause_syms = clause_symbols(arena, clause)
+                  MapSet.subset?(clause_syms, allowed_symbols)
+                end
+
+              if touches_conj? or not symbols_ok? do
                 {cd + 1, acc_lemmas}
               else
                 case build_lemma(arena, id, elem(step, 0), clause) do
@@ -99,6 +118,56 @@ defmodule Astraea.Session.Lineage do
 
       {:error, reason} ->
         {:error, reason}
+    end
+  end
+
+  @doc """
+  Extracts all symbol names occurring in a clause.
+  """
+  def clause_symbols(arena, clause) do
+    Enum.reduce(clause, MapSet.new(), fn {_pol, atom_id}, acc ->
+      MapSet.union(acc, term_symbols(arena, atom_id))
+    end)
+  end
+
+  @doc """
+  Extracts all symbol names occurring in a term DAG.
+  """
+  def term_symbols(arena, term_id) do
+    do_term_symbols(arena, term_id, MapSet.new())
+  end
+
+  defp do_term_symbols(arena, term_id, acc) do
+    case Arena.get_node(arena, term_id) do
+      {@tag_const, _ty, _, sym_id, _} ->
+        case Map.get(arena.symbol_names, sym_id) do
+          nil -> acc
+          name -> MapSet.put(acc, name)
+        end
+
+      {@tag_app, _ty, _, fun_id, arg_id} ->
+        acc1 = do_term_symbols(arena, fun_id, acc)
+        do_term_symbols(arena, arg_id, acc1)
+
+      {@tag_lam, _ty, _, body_id, _} ->
+        do_term_symbols(arena, body_id, acc)
+
+      {@tag_eq, _ty, _, lhs, rhs} ->
+        acc1 = do_term_symbols(arena, lhs, acc)
+        do_term_symbols(arena, rhs, acc1)
+
+      {@tag_not, _ty, _, sub_id, _} ->
+        do_term_symbols(arena, sub_id, acc)
+
+      {@tag_or, _ty, _, left, right} ->
+        acc1 = do_term_symbols(arena, left, acc)
+        do_term_symbols(arena, right, acc1)
+
+      {@tag_forall, _ty, _, body_id, _} ->
+        do_term_symbols(arena, body_id, acc)
+
+      _ ->
+        acc
     end
   end
 

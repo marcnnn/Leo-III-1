@@ -58,7 +58,6 @@ defmodule Astraea.Session do
   """
   def prove(session, goal_spec, opts \\ []) do
     timeout_ms = Keyword.get(opts, :timeout_ms, 2500)
-    # Give GenServer call slightly more headroom than the prover timeout
     call_timeout = max(timeout_ms * 4 + 30_000, 120_000)
     GenServer.call(session, {:prove, goal_spec, opts}, call_timeout)
   end
@@ -177,9 +176,16 @@ defmodule Astraea.Session do
 
             case res do
               {:proved, steps, stats} ->
+                theory_symbols =
+                  if state.theory_arena != nil and state.theory_source != "" do
+                    Map.keys(state.theory_arena.symbols) |> MapSet.new()
+                  else
+                    MapSet.new(["$true", "$false"])
+                  end
+
                 # Harvest sound pure-theory lemmas
                 {new_state, new_count} =
-                  case Lineage.harvest_theory_lemmas(stats.arena, steps, lowered) do
+                  case Lineage.harvest_theory_lemmas(stats.arena, steps, lowered, theory_symbols) do
                     {:ok, pure_lemmas, _lineage_meta} ->
                       {updated_demod, inserted} =
                         DemodCache.insert_lemmas(state.demod_cache, stats.arena, pure_lemmas)
