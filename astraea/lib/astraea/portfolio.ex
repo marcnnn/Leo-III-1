@@ -23,13 +23,51 @@ defmodule Astraea.Portfolio do
   (`Astraea.External.Reconstruct`) and then reported as an ordinary LCF-verified
   `{:proved, ...}` with `:external_assist` stats. Answers that cannot be
   reconstructed stay unverified oracle results, reported as
-  `{:proved_external, stats}` or `{:counter_satisfiable, stats}`.
+  `{:proved_external, stats}`, `{:counter_satisfiable, stats}` or
+  `{:satisfiable, stats}`.
+
+  ## SZS answers
+
+  Like Leo-III (`appropriateThmStatus`, `appropriateSatStatus`), results carry the
+  SZS status they establish, read with `szs_status/1`:
+
+    * an LCF-verified refutation is a `Theorem` when the problem has a conjecture,
+      `ContradictoryAxioms` when its input clauses all stem from the axioms alone,
+      and `Unsatisfiable` without a conjecture
+    * an internal strategy that saturates with `stats.complete == true` (no clause
+      lost to limits, no SInE filtering, no unification cutoffs) has found a model
+      of the clause set: `{:counter_satisfiable, stats}` with a conjecture,
+      `{:satisfiable, stats}` without one. Such an answer ends the race like a proof.
+    * other outcomes are `GaveUp`, or `Timeout` when the time limit was reached
   """
 
-  alias Astraea.{Clausifier, Compressor, External, ProofChecker, Prover, TptpCorpus, TptpLower}
+  alias Astraea.{
+    Clausifier,
+    Compressor,
+    External,
+    ProofChecker,
+    Prover,
+    TptpCorpus,
+    TptpLower,
+    Tstp
+  }
+
   alias Astraea.External.Reconstruct
 
+  # The ContradictoryAxioms check clausifies all axioms; when that takes longer the
+  # answer is Theorem.
+  @cax_check_ms 1_000
+
+  @model_tags [:counter_satisfiable, :satisfiable]
+  @external_tags [:proved_external | @model_tags]
+
   @type strategy_spec :: {atom(), keyword()}
+
+  @type result ::
+          Prover.result()
+          | {:proved_external, map()}
+          | {:counter_satisfiable, map()}
+          | {:satisfiable, map()}
 
   @doc """
   Returns the default 4-strategy portfolio schedule.
@@ -75,7 +113,7 @@ defmodule Astraea.Portfolio do
   @doc """
   Parses, lowers, and runs the multi-strategy portfolio on a TPTP problem file.
   """
-  @spec prove_file(Path.t(), keyword()) :: Prover.result()
+  @spec prove_file(Path.t(), keyword()) :: result()
   def prove_file(path, opts \\ []) do
     case TptpLower.from_file(path, opts) do
       {:ok, lowered} ->
@@ -105,14 +143,14 @@ defmodule Astraea.Portfolio do
     * `:fallback` - an external answer is only returned when no internal strategy
       finds an LCF-verified proof
   """
-  @spec prove_lowered(TptpLower.t(), keyword()) ::
-          Prover.result() | {:proved_external, map()} | {:counter_satisfiable, map()}
+  @spec prove_lowered(TptpLower.t(), keyword()) :: result()
   def prove_lowered(%TptpLower{} = lowered, opts \\ []) do
     timeout_ms = Keyword.get(opts, :timeout_ms, 2_500)
     strategies = Keyword.get(opts, :strategies, default_strategies())
     externals = opts |> Keyword.get(:external, []) |> Enum.map(&normalize_external/1)
     policy = Keyword.get(opts, :external_policy, :race)
     compress? = Keyword.get(opts, :compress, true)
+    conjecture? = lowered.conjectures != []
     deadline_ms = System.monotonic_time(:millisecond) + timeout_ms
 
     parent = self()
@@ -137,7 +175,7 @@ defmodule Astraea.Portfolio do
 
         {pid, mon_ref} =
           spawn_monitor(fn ->
-            res = Prover.prove_lowered(lowered, merged_opts)
+            res = lowered |> Prover.prove_lowered(merged_opts) |> model_answer(conjecture?)
             send(parent, {race_ref, self(), strat_name, res})
           end)
 
@@ -155,7 +193,11 @@ defmodule Astraea.Portfolio do
 
         {pid, mon_ref} =
           spawn_monitor(fn ->
-            res = run_external(ext_name, ext_opts, lowered, opts, deadline_ms)
+            res =
+              ext_name
+              |> run_external(ext_opts, lowered, opts, deadline_ms)
+              |> model_answer_external(conjecture?)
+
             send(parent, {race_ref, self(), strat_name, res})
           end)
 
@@ -173,24 +215,112 @@ defmodule Astraea.Portfolio do
 
     case race_result do
       {:proved, steps, stats} ->
-        if compress? and is_map_key(stats, :arena) do
-          {:ok, comp_arena, comp_steps, comp_meta} =
-            Compressor.compress_dag(stats.arena, steps)
+        {steps, stats} =
+          if compress? and is_map_key(stats, :arena) do
+            {:ok, comp_arena, comp_steps, comp_meta} =
+              Compressor.compress_dag(stats.arena, steps)
 
-          {:proved, comp_steps,
-           stats
-           |> Map.put(:arena, comp_arena)
-           |> Map.put(:raw_proof_length, length(steps))
-           |> Map.put(:proof_length, length(comp_steps))
-           |> Map.put(:compression, comp_meta)}
-        else
-          {:proved, steps, stats}
-        end
+            {comp_steps,
+             stats
+             |> Map.put(:arena, comp_arena)
+             |> Map.put(:raw_proof_length, length(steps))
+             |> Map.put(:proof_length, length(comp_steps))
+             |> Map.put(:compression, comp_meta)}
+          else
+            {steps, stats}
+          end
+
+        {:proved, steps, Map.put(stats, :szs, refutation_status(lowered, steps, stats))}
+
+      {:proved_external, stats} ->
+        status =
+          cond do
+            not conjecture? -> :unsatisfiable
+            stats[:szs_status] == :contradictory_axioms -> :contradictory_axioms
+            true -> :theorem
+          end
+
+        {:proved_external, Map.put(stats, :szs, status)}
+
+      {tag, stats} when tag in @model_tags ->
+        {tag, Map.put(stats, :szs, tag)}
+
+      {tag, stats} when tag in [:resource_out, :saturated] and is_map(stats) ->
+        out_of_time? = System.monotonic_time(:millisecond) >= deadline_ms
+        {tag, Map.put(stats, :szs, if(out_of_time?, do: :timeout, else: :gave_up))}
 
       other ->
         other
     end
   end
+
+  @doc """
+  Returns the SZS status established by a portfolio result (see the moduledoc).
+  Unverified external answers (`:proved_external`) report the status they claim.
+  """
+  @spec szs_status(result()) :: atom()
+  def szs_status({:proved, _steps, stats}), do: Map.get(stats, :szs, :theorem)
+  def szs_status({:proved_external, stats}), do: Map.get(stats, :szs, :theorem)
+  def szs_status({tag, _stats}) when tag in @model_tags, do: tag
+  def szs_status({:error, {:lcf_verification_failed, _, _}}), do: :error
+  def szs_status({:error, _reason}), do: :error
+  def szs_status({_tag, stats}) when is_map(stats), do: Map.get(stats, :szs, :gave_up)
+
+  # A saturated clause set is a model only if the search was complete.
+  defp model_answer({:saturated, stats} = res, conjecture?) do
+    cond do
+      not Map.get(stats, :complete, false) -> res
+      conjecture? -> {:counter_satisfiable, stats}
+      true -> {:satisfiable, stats}
+    end
+  end
+
+  defp model_answer(res, _conjecture?), do: res
+
+  # Leo-III reports ContradictoryAxioms when the refutation does not use the
+  # conjecture. Here every input clause of the proof must be a clause of the axioms
+  # alone (up to variable renaming), which the clausifier derives without SInE.
+  defp refutation_status(%TptpLower{conjectures: []}, _steps, _stats), do: :unsatisfiable
+
+  defp refutation_status(%TptpLower{} = lowered, steps, %{arena: arena}) do
+    parent = self()
+    ref = make_ref()
+
+    {pid, mon_ref} =
+      spawn_monitor(fn ->
+        {ax_arena, ax_clauses} =
+          Clausifier.clausify(%{lowered | conjectures: []}, sine_limit: nil)
+
+        keys = MapSet.new(ax_clauses, &Tstp.clause_key(ax_arena, &1))
+
+        axioms_only? =
+          Enum.all?(steps, fn
+            {:axiom, _id, clause} -> MapSet.member?(keys, Tstp.clause_key(arena, clause))
+            _step -> true
+          end)
+
+        send(parent, {ref, axioms_only?})
+      end)
+
+    receive do
+      {^ref, axioms_only?} ->
+        Process.demonitor(mon_ref, [:flush])
+        if axioms_only?, do: :contradictory_axioms, else: :theorem
+
+      {:DOWN, ^mon_ref, :process, ^pid, _reason} ->
+        :theorem
+    after
+      @cax_check_ms ->
+        Process.exit(pid, :kill)
+        Process.demonitor(mon_ref, [:flush])
+        :theorem
+    end
+  end
+
+  defp refutation_status(_lowered, _steps, _stats), do: :theorem
+
+  defp model_answer_external({:counter_satisfiable, stats}, false), do: {:satisfiable, stats}
+  defp model_answer_external(res, _conjecture?), do: res
 
   defp normalize_external(name) when is_atom(name), do: {name, []}
 
@@ -302,7 +432,12 @@ defmodule Astraea.Portfolio do
         lcf_err
 
       {^race_ref, _pid, strat_name, {tag, stats}}
-      when tag in [:proved_external, :counter_satisfiable] and policy == :race ->
+      when tag in @model_tags and is_atom(strat_name) ->
+        shutdown_workers(workers)
+        {tag, Map.put(stats, :winning_strategy, strat_name)}
+
+      {^race_ref, _pid, strat_name, {tag, stats}}
+      when tag in @external_tags and policy == :race ->
         shutdown_workers(workers)
         {tag, Map.put(stats, :winning_strategy, strat_name)}
 
@@ -348,7 +483,7 @@ defmodule Astraea.Portfolio do
     end
   end
 
-  defp external_answer?({tag, _stats}), do: tag in [:proved_external, :counter_satisfiable]
+  defp external_answer?({tag, _stats}), do: tag in @external_tags
   defp external_answer?(_other), do: false
 
   defp finish_external({tag, stats} = answer) do
@@ -374,13 +509,8 @@ defmodule Astraea.Portfolio do
 
   defp pick_better_non_proof(nil, candidate), do: candidate
 
-  defp pick_better_non_proof({tag, _} = ext, _candidate)
-       when tag in [:proved_external, :counter_satisfiable],
-       do: ext
-
-  defp pick_better_non_proof(_prev, {tag, _} = ext)
-       when tag in [:proved_external, :counter_satisfiable],
-       do: ext
+  defp pick_better_non_proof({tag, _} = ext, _candidate) when tag in @external_tags, do: ext
+  defp pick_better_non_proof(_prev, {tag, _} = ext) when tag in @external_tags, do: ext
 
   defp pick_better_non_proof({:saturated, _} = sat, _candidate), do: sat
   defp pick_better_non_proof(_prev, {:saturated, _} = sat), do: sat
@@ -390,6 +520,15 @@ defmodule Astraea.Portfolio do
   Evaluates a TPTP split (`:smoke`, `:dev`, or `:holdout`) using the multi-strategy
   portfolio, enforcing Gate 3 (0 `CSA` false proofs, 100% LCF proof verification)
   and aggregating strategy win counts and proof compression telemetry.
+
+  A wrong answer in either direction is a soundness failure: a proof of a
+  CounterSatisfiable/Satisfiable problem (`csa_false_proofs`) and an internal
+  CounterSatisfiable/Satisfiable claim on a Theorem/Unsatisfiable problem
+  (`false_model_claims`); `soundness_failures` counts both. Correct model answers
+  are reported as `csa_solved`.
+
+  With `schedule: true` problems are run through `Astraea.Schedule.prove_file/2`
+  (the CLI's time-sliced schedule) instead of a single portfolio race.
   """
   @spec evaluate_split(:smoke | :dev | :holdout, keyword()) :: map()
   def evaluate_split(split, opts \\ []) when split in [:smoke, :dev, :holdout] do
@@ -406,7 +545,13 @@ defmodule Astraea.Portfolio do
         fn entry ->
           abs_path = Path.join(tptp_root, entry.rel_path)
           t0 = System.monotonic_time(:microsecond)
-          res = prove_file(abs_path, Keyword.put(opts, :tptp_root, tptp_root))
+          run_opts = Keyword.put(opts, :tptp_root, tptp_root)
+
+          res =
+            if Keyword.get(opts, :schedule, false),
+              do: Astraea.Schedule.prove_file(abs_path, run_opts),
+              else: prove_file(abs_path, run_opts)
+
           elapsed_ms = Float.round((System.monotonic_time(:microsecond) - t0) / 1000.0, 2)
           {entry, res, elapsed_ms}
         end,
@@ -439,6 +584,31 @@ defmodule Astraea.Portfolio do
       for {entry, {:proved, _steps, _st}, _ms} <- results,
           is_map(entry) and entry.status in ["CounterSatisfiable", "Satisfiable"] do
         entry.problem
+      end
+
+    # Model answers of internal strategies (external ones are tallied below).
+    model_answers =
+      for {entry, {tag, st}, ms} <- results,
+          is_map(entry) and tag in @model_tags and is_atom(st.winning_strategy) do
+        {entry, tag, st, ms}
+      end
+
+    false_model_claims =
+      for {entry, tag, st, _ms} <- model_answers,
+          entry.status in ["Theorem", "Unsatisfiable", "ContradictoryAxioms"] do
+        {entry.problem, tag, st.winning_strategy}
+      end
+
+    csa_solved =
+      for {entry, tag, st, ms} <- model_answers,
+          entry.status in ["CounterSatisfiable", "Satisfiable"] do
+        %{
+          problem: entry.problem,
+          domain: entry.domain,
+          szs: tag,
+          elapsed_ms: ms,
+          winning_strategy: st.winning_strategy
+        }
       end
 
     lcf_failures =
@@ -477,7 +647,9 @@ defmodule Astraea.Portfolio do
             {:proved_external, "CounterSatisfiable"},
             {:proved_external, "Satisfiable"},
             {:counter_satisfiable, "Theorem"},
-            {:counter_satisfiable, "Unsatisfiable"}
+            {:counter_satisfiable, "Unsatisfiable"},
+            {:satisfiable, "Theorem"},
+            {:satisfiable, "Unsatisfiable"}
           ] do
         {entry.problem, st.winning_strategy, st.szs_status}
       end
@@ -493,6 +665,10 @@ defmodule Astraea.Portfolio do
       strategy_wins: strategy_wins,
       domain_breakdown: domain_breakdown,
       csa_false_proofs: csa_false_proofs,
+      false_model_claims: false_model_claims,
+      soundness_failures: length(csa_false_proofs) + length(false_model_claims),
+      csa_solved_count: length(csa_solved),
+      csa_solved: csa_solved,
       lcf_failures: lcf_failures,
       external_thm_solved_count: length(external_thm_solved),
       external_thm_solved: external_thm_solved,

@@ -8,8 +8,32 @@ defmodule Astraea.MixProject do
       elixir: "~> 1.15",
       start_permanent: Mix.env() == :prod,
       deps: deps(),
-      aliases: aliases()
+      aliases: aliases(),
+      releases: releases()
     ]
+  end
+
+  # `MIX_ENV=prod mix release` builds a self-contained prover (ERTS, NIF, MuonTrap
+  # port) under `_build/prod/rel/astraea`. `bin/astraea problem.p -t 60 -p` is the
+  # Leo-III compatible command line (`Astraea.CLI`); an escript cannot carry the
+  # NIF and the MuonTrap port binary. See `contrib/package_starexec_astraea`.
+  defp releases do
+    [
+      astraea: [
+        include_executables_for: [:unix],
+        steps: [:assemble, &cli_launcher/1]
+      ]
+    ]
+  end
+
+  # Moves the release script to `bin/astraea_release` and installs `rel/astraea`
+  # as `bin/astraea`, which runs `Astraea.CLI.main/1` through `eval`.
+  defp cli_launcher(%Mix.Release{path: path} = release) do
+    bin = Path.join(path, "bin")
+    File.rename!(Path.join(bin, "astraea"), Path.join(bin, "astraea_release"))
+    File.cp!(Path.expand("rel/astraea", __DIR__), Path.join(bin, "astraea"))
+    File.chmod!(Path.join(bin, "astraea"), 0o755)
+    release
   end
 
   def application do
