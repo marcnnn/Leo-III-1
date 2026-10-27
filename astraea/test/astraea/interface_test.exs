@@ -45,6 +45,12 @@ defmodule Astraea.InterfaceTest do
   thf(conj_invalid, conjecture, ! [X: $i]: (p @ X)).
   """
 
+  # A higher-order non-theorem: Astraea can neither prove it nor claim a model.
+  @ho_open_src """
+  thf(q_type, type, q: ($i > $o) > $o).
+  thf(conj_open, conjecture, q @ (^ [X: $i]: $true)).
+  """
+
   @def_src """
   thf(leibeq_decl, type, leibeq: $i > $i > $o).
   thf(leibeq, definition, leibeq = (^ [X: $i, Y: $i]: ! [P: $i > $o]: ((P @ X) => (P @ Y)))).
@@ -384,7 +390,15 @@ defmodule Astraea.InterfaceTest do
     end
 
     test "never claims a theorem it cannot prove", %{dir: dir} do
+      # First-order and saturated without limits, so the model answer is justified.
       path = write_problem(dir, "csa.p", @csa_src)
+      out = capture_io(fn -> CLI.run([path, "-t", "2", "-n", "2"]) end)
+
+      assert out =~ "% SZS status CounterSatisfiable for"
+      refute out =~ "Theorem"
+
+      # Higher-order saturation is never complete, so no model answer either.
+      path = write_problem(dir, "ho_open.p", @ho_open_src)
       out = capture_io(fn -> CLI.run([path, "-t", "2", "-n", "2"]) end)
 
       assert out =~ ~r/% SZS status (GaveUp|Timeout) for/
@@ -431,7 +445,7 @@ defmodule Astraea.InterfaceTest do
     end
 
     test "unverified external answers need --trust-external", %{dir: dir} do
-      path = write_problem(dir, "csa.p", @csa_src)
+      path = write_problem(dir, "ho_open.p", @ho_open_src)
       oracle = Path.join(dir, "oracle")
       File.write!(oracle, "#!/bin/sh\necho '% SZS status Theorem'\n")
       File.chmod!(oracle, 0o755)

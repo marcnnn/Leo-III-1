@@ -127,6 +127,8 @@ defmodule Astraea.Schedule do
   `s3bb, s2, s1b, s6, s3b`, then the rest) on rotating Astraea bases with deeper
   iteration limits, then the four portfolio strategies with twice the SInE
   window, negative literal selection, flex paramodulation and the deepest limits.
+  A limit-free `:complete_saturation` strategy runs right after the first slice,
+  since it is the only one whose saturation can prove a model exists.
   """
   @spec strategies() :: [strategy()]
   def strategies do
@@ -171,7 +173,11 @@ defmodule Astraea.Schedule do
         }
       end)
 
-    first ++ leo3_derived ++ deep
+    # The only strategy that can find models: without SInE and clause limits, a
+    # saturation with `stats.complete` proves CounterSatisfiable/Satisfiable.
+    saturate = %{name: :complete_saturation, share: 1, opts: [sine_limit: nil]}
+
+    first ++ [saturate] ++ leo3_derived ++ deep
   end
 
   @doc """
