@@ -4,7 +4,7 @@ defmodule Mix.Tasks.Gate.Four do
   (`Astraea.Engine.FVIndex`) on `armix`.
 
   The index is filled with the subsumption feature vectors of clauses clausified
-  from `TPTP-Smoke` problems, at the sizes the given-clause loop reaches (active set
+  from `TPTP-Smoke` problems (and variants of them with more symbols), at the sizes the given-clause loop reaches (active set
   hundreds to a few thousand clauses, passive set up to tens of thousands), and
   queried through every available backend:
 
@@ -42,7 +42,7 @@ defmodule Mix.Tasks.Gate.Four do
     simd? = NxKernel.available?()
 
     Enum.each(sizes, fn n ->
-      rows = fvs |> Stream.cycle() |> Enum.take(n) |> Enum.with_index(fn fv, id -> {id, fv} end)
+      rows = variants(fvs, n)
       elixir = build(rows, :elixir)
       simd = if simd?, do: build(rows, :nx_simd)
       if simd, do: warm(simd)
@@ -81,6 +81,17 @@ defmodule Mix.Tasks.Gate.Four do
       Enum.map(clauses, &Subsumption.clause_fv(arena, &1))
     end)
     |> Enum.uniq()
+  end
+
+  # The Smoke vectors, then variants with more symbols (lane 2) for every further
+  # round, so larger indexes do not just repeat the same hits.
+  defp variants(fvs, n) do
+    fvs
+    |> Stream.cycle()
+    |> Enum.take(n)
+    |> Enum.with_index(fn fv, id ->
+      {id, put_elem(fv, 2, min(elem(fv, 2) + div(id, length(fvs)), 0xFFFF))}
+    end)
   end
 
   defp build(rows, backend) do
