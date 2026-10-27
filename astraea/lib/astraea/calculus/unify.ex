@@ -278,7 +278,32 @@ defmodule Astraea.Calculus.Unify do
         {:bind, %{ctx | arena: arena}, var, binding}
 
       :error ->
-        :postpone
+        if not Terms.has_fvar?(ctx.arena, t) or rigid_bvar_escape?(ctx.arena, t, renaming, 0) do
+          :fail
+        else
+          :postpone
+        end
+    end
+  end
+
+  defp rigid_bvar_escape?(arena, term_id, renaming, depth) do
+    case Terms.view(arena, term_id) do
+      {:flex, _f, _args} ->
+        false
+
+      {:rigid, _head, args} ->
+        case Arena.get_node(arena, term_id) do
+          {1, _, _, idx, _} ->
+            not Map.has_key?(renaming, idx - depth)
+
+          _ ->
+            Enum.any?(args, fn {arg, _shift} ->
+              rigid_bvar_escape?(arena, arg, renaming, depth)
+            end)
+        end
+
+      {:lam, _dom, body} ->
+        rigid_bvar_escape?(arena, body, renaming, depth + 1)
     end
   end
 

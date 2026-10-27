@@ -2243,7 +2243,15 @@ defmodule Astraea.Prover do
     args == [] or not Terms.fvar?(arena, head) or not Terms.has_fvar?(arena, other) or
       Enum.any?(args, &Terms.subterm?(arena, other, &1)) or
       (length(other_args) == length(args) and
-         Arena.type_of(arena, other_head) == Arena.type_of(arena, head))
+         Arena.type_of(arena, other_head) == Arena.type_of(arena, head)) or
+      (miller_pattern_args?(arena, args) and
+         not Arena.occurs_fvar?(arena, other, elem(Arena.get_node(arena, head), 3)))
+  end
+
+  defp miller_pattern_args?(arena, args) do
+    length(args) > 0 and
+      Enum.all?(args, &(Terms.bvar?(arena, &1) or Terms.fvar?(arena, &1))) and
+      length(Enum.uniq(args)) == length(args)
   end
 
   # Pairwise fingerprint pre-filter for literal atoms (modulo equation symmetry).
