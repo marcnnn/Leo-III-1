@@ -220,7 +220,21 @@ defmodule Astraea.Portfolio do
   defp do_prove_lowered(%TptpLower{} = lowered, opts) do
     timeout_ms = Keyword.get(opts, :timeout_ms, 2_500)
     strategies = Keyword.get(opts, :strategies, default_strategies())
-    externals = opts |> Keyword.get(:external, []) |> Enum.map(&normalize_external/1)
+    raw_externals = Keyword.get(opts, :external)
+
+    externals =
+      cond do
+        is_list(raw_externals) ->
+          Enum.map(raw_externals, &normalize_external/1)
+
+        raw_externals == :auto or Keyword.get(opts, :competitive, false) ->
+          [:cvc5, :vampire, :eprover_ho]
+          |> Enum.filter(&(&1 in External.Provers.available()))
+          |> Enum.map(&normalize_external/1)
+
+        true ->
+          []
+      end
     policy = Keyword.get(opts, :external_policy, :race)
     compress? = Keyword.get(opts, :compress, true)
     conjecture? = lowered.conjectures != []

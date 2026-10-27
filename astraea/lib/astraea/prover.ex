@@ -412,6 +412,9 @@ defmodule Astraea.Prover do
 
   defp saturation_loop(%__MODULE__{} = state) do
     cond do
+      not is_nil(state.refuted) ->
+        finish(state, finalize_proof(state, state.refuted))
+
       PassiveQueue.empty?(state.passive) ->
         finish(state, {:saturated, stats(state)})
 
@@ -627,30 +630,68 @@ defmodule Astraea.Prover do
     end
   end
 
+  defp simplify_forward(state, :dropped), do: {:dropped, state}
+
+  defp simplify_forward(%__MODULE__{} = state, item) do
+    case unit_simplify(state, item) do
+      {:proved, st, empty_id} ->
+        {:proved, st, empty_id}
+
+      {:ok, st, item} ->
+        if st.demodulation and map_size(st.rules) > 0 do
+          case demodulate(st, item, 4) do
+            {:proved, st2, empty_id} ->
+              {:proved, st2, empty_id}
+
+            {st2, rewritten, _fuel} ->
+              if tautology_clause?(st2.arena, rewritten.lits),
+                do: {:dropped, st2},
+                else: {:ok, st2, rewritten}
+          end
+        else
+          {:ok, st, item}
+        end
+    end
+  end
+
   defp enqueue_passive(%__MODULE__{} = state, items) do
     {state, fresh} =
-      Enum.reduce(items, {state, []}, fn item, {st, acc} ->
-        {st, item} = arith_simplify(st, item)
-        {st, item} = eval_simplify(st, item)
-        num_lits = if item == :dropped, do: 0, else: MapSet.size(item.lits)
+      Enum.reduce_while(items, {state, []}, fn item, {st, acc} ->
+        if st.refuted do
+          {:halt, {st, acc}}
+        else
+          {st, item} = arith_simplify(st, item)
+          {st, item} = eval_simplify(st, item)
 
-        cond do
-          item == :dropped ->
-            {st, acc}
+          case simplify_forward(st, item) do
+            {:proved, st2, empty_id} ->
+              {:halt, {%{st2 | refuted: empty_id}, acc}}
 
-          exceeds?(num_lits, st.max_clause_lits) or
-              (exceeds?(item.weight, st.max_clause_weight) and num_lits > 2) ->
-            {%{st | discarded_clauses: st.discarded_clauses + 1}, acc}
+            {:dropped, st2} ->
+              {:cont, {st2, acc}}
 
-          tautology_clause?(st.arena, item.lits) ->
-            {st, acc}
+            {:ok, st2, item} ->
+              num_lits = MapSet.size(item.lits)
 
-          true ->
-            sig = canonical_clause_sig(st.arena, item.lits)
+              cond do
+                num_lits == 0 ->
+                  {:halt, {%{st2 | refuted: item.id}, acc}}
 
-            if MapSet.member?(st.seen_clauses, sig),
-              do: {st, acc},
-              else: {%{st | seen_clauses: MapSet.put(st.seen_clauses, sig)}, [item | acc]}
+                exceeds?(num_lits, st2.max_clause_lits) or
+                    (exceeds?(item.weight, st2.max_clause_weight) and num_lits > 2) ->
+                  {:cont, {%{st2 | discarded_clauses: st2.discarded_clauses + 1}, acc}}
+
+                tautology_clause?(st2.arena, item.lits) ->
+                  {:cont, {st2, acc}}
+
+                true ->
+                  sig = canonical_clause_sig(st2.arena, item.lits)
+
+                  if MapSet.member?(st2.seen_clauses, sig),
+                    do: {:cont, {st2, acc}},
+                    else: {:cont, {%{st2 | seen_clauses: MapSet.put(st2.seen_clauses, sig)}, [item | acc]}}
+              end
+          end
         end
       end)
 
