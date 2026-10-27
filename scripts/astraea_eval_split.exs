@@ -12,11 +12,20 @@ end
 competitive? = Enum.any?(args, &(&1 in ["--competitive", "competitive"]))
 root = TptpCorpus.default_tptp_root()
 entries = TptpCorpus.load_split_entries(split)
+total = length(entries)
+counter = :atomics.new(1, [])
+
 results =
   entries
   |> Task.async_stream(fn e ->
     opts = [tptp_root: root, timeout_ms: 2_500, competitive: competitive?]
-    {e, Portfolio.prove_file(Path.join(root, e.rel_path), opts)}
+    res = Portfolio.prove_file(Path.join(root, e.rel_path), opts)
+    idx = :atomics.add_get(counter, 1, 1)
+    if rem(idx, 25) == 0 or idx == total do
+      status_tag = if is_tuple(res), do: elem(res, 0), else: res
+      IO.puts("Progress: #{idx}/#{total} (last: #{e.problem} -> #{status_tag})")
+    end
+    {e, res}
   end, max_concurrency: conc, timeout: 35_000, on_timeout: :kill_task)
   |> Enum.zip(entries)
   |> Enum.map(fn {{:ok, r}, _} -> r; {{:exit, _}, e} -> {e, :timeout} end)
