@@ -13,12 +13,18 @@ This plan outlines the architecture for **`Astraea.Session`**: a stateful OTP th
 
 ---
 
-## 2. System Architecture
+## 2. System Architecture & Dual Protocol Interfaces
 
 ```mermaid
 flowchart TD
-    subgraph Client ["Client Verification Pipeline (Isabelle / Sledgehammer / Dafny)"]
-        Batch["Batch Query Stream: Goal 1, Goal 2, ... Goal N"]
+    subgraph ClientPipelines ["Client Verification Pipelines"]
+        InteractiveClient["Interactive Proof Assistant (Isabelle / Lean 4 Hammer / Dafny)"]
+        BatchClient["CASC LTB Competition / StarExec Batch Runner"]
+    end
+
+    subgraph Protocols ["Dual Protocol Ingestion Engine"]
+        InteractiveEngine["Astraea.Session.Interactive (Streaming JSON-RPC 2.0 / Stdio)"]
+        LtbEngine["Astraea.Session.Ltb (CASC LTB Batch Specification Parser)"]
     end
 
     subgraph Session ["Astraea.Session (OTP Theory Coordinator)"]
@@ -26,7 +32,7 @@ flowchart TD
         WarmedArena["Pre-warmed Astraea.Arena & Symbol Registry"]
         DemodCache["Persistent Demodulator (Oriented KBO Rewrite Rules)"]
         MacroIndex["Anti-Unified Macro Rule Cache"]
-        LineageTracker["Sub-Proof Lineage Tracker"]
+        LineageTracker["Astraea.Session.Lineage (Sub-Proof Lineage Tracker)"]
     end
 
     subgraph WorkerPool ["Ephemeral Saturation Worker Pool"]
@@ -38,12 +44,16 @@ flowchart TD
         LCF["Astraea.ProofChecker (derive_steps/2)"]
     end
 
-    Batch -->|Initialize Theory| Theory
-    Theory --> WarmedArena
+    InteractiveClient <-->|JSON-RPC 2.0| InteractiveEngine
+    BatchClient -->|Batch Spec & Problems| LtbEngine
+
+    InteractiveEngine --> Session
+    LtbEngine --> Session
+
+    Session --> WarmedArena
     WarmedArena --> DemodCache
 
-    Batch -->|Query Goal K| W1
-    WarmedArena -.->|Spawn with Warm State & Demod Rules| W1
+    Session -.->|Spawn with Warm State & Demod Rules| W1
     DemodCache -.->|Eager Simplification| W1
     MacroIndex -.->|Macro Rules| W1
 
@@ -54,7 +64,7 @@ flowchart TD
     LineageTracker -->|Pure Theory Lemmas (Theory |- L)| DemodCache
     LineageTracker -->|Isomorphic Patterns| MacroIndex
     
-    W1 -->|SZS Theorem & Certificate| Client
+    W1 -->|SZS Theorem & Certificate| Protocols
 ```
 
 ---
@@ -93,25 +103,21 @@ When sub-proofs share derivation topology but differ in concrete terms:
 
 ## 4. Phase-by-Phase Implementation Roadmap
 
-### Phase 1: Session Core & Pre-Warmed Theory Server
-* **Module:** `Astraea.Session` (OTP `GenServer`)
-  * `start_link(background_files, opts)`: Parses and elaborates background axioms once.
-  * Builds immutable background `Astraea.Arena`, `Demodulator`, and symbol index.
-  * Computes KBO weights and precedences across the shared signature.
-* **Module:** `Astraea.Session.Worker`
-  * Spawns an isolated prover instance per goal query.
-  * Ingests local conjecture, runs SInE only over the local goal against the pre-indexed theory, and seeds search with warm demodulation rules.
-* **Deliverable:** Zero-overhead warm query dispatch; eliminate 300ms–1,000ms JVM/parsing overhead per query.
+### Phase 1: Session Core & Dual Protocol Engine (Completed in Entry 013)
+* **Module:** [`Astraea.Session`](file:///Users/marcnickert/Projects/opensource/Leo-III/astraea/lib/astraea/session.ex) (OTP `GenServer`)
+  * Pre-clausifies background theory and builds warm `Astraea.Arena`, `Demodulator`, and symbol tables.
+  * Dispatches queries without re-parsing or re-clausifying background axioms.
+* **Module:** [`Astraea.Session.Interactive`](file:///Users/marcnickert/Projects/opensource/Leo-III/astraea/lib/astraea/session/interactive.ex)
+  * Bi-directional streaming JSON-RPC 2.0 interface (`init_theory`, `prove_goal`, `session_stats`).
+* **Module:** [`Astraea.Session.Ltb`](file:///Users/marcnickert/Projects/opensource/Leo-III/astraea/lib/astraea/session/ltb.ex)
+  * Standard CASC Large Theory Batch specification parser and sequential batch execution engine.
 
-### Phase 2: Refutation Lineage Analyzer & Lemma Harvester
-* **Module:** `Astraea.Session.Lineage`
-  * Leverages [`ProofChecker.derive_steps/2`](file:///Users/marcnickert/Projects/opensource/Leo-III/astraea/lib/astraea/proof_checker.ex#L107) to reconstruct full clauses for all proof nodes.
-  * Identifies `conjecture_dependent?` status for all derived clauses.
-  * Filters for unit equalities ($s = t$), unit predicate literals ($P(t)$), and small horn clauses.
-* **Module:** `Astraea.Session.DemodCache`
-  * Validates KBO orientability of extracted equalities.
-  * Dynamically installs new rewrite rules into the shared `Demodulator` state.
-* **Deliverable:** Continuous, sound accumulation of rewrite rules across sequential queries.
+### Phase 2: Refutation Lineage Analyzer & Demodulator Cache (Completed in Entry 013)
+* **Module:** [`Astraea.Session.Lineage`](file:///Users/marcnickert/Projects/opensource/Leo-III/astraea/lib/astraea/session/lineage.ex)
+  * Uses [`ProofChecker.derive_steps/2`](file:///Users/marcnickert/Projects/opensource/Leo-III/astraea/lib/astraea/proof_checker.ex#L107) to inspect refutation DAGs.
+  * Partitions inferences into pure theory lemmas vs. conjecture-dependent steps.
+* **Module:** [`Astraea.Session.DemodCache`](file:///Users/marcnickert/Projects/opensource/Leo-III/astraea/lib/astraea/session/demod_cache.ex)
+  * Evaluates KBO orientability of extracted unit equations and registers them into the active demodulator.
 
 ### Phase 3: Macro-Inference Synthesis & Anti-Unification
 * **Module:** `Astraea.Calculus.AntiUnify` (Elixir port of `PatternAntiUnification.scala`)
@@ -121,20 +127,40 @@ When sub-proofs share derivation topology but differ in concrete terms:
   * Constructs parametric macro rules that fire as single composite inferences during worker saturation.
 * **Deliverable:** Compressing search tree depth by skipping intermediate clause generation for known derivation patterns.
 
-### Phase 4: Batch Benchmarking & Real-World Evaluation
-* **Target Corpora:**
-  1. **Isabelle Sledgehammer THF0 Exports (`ITP` Domain):** High-axiom shared library batches.
-  2. **Mizar / Set Theory Collections (`SEU` / `SET` Domains):** Deep algebraic and set-theoretic theory hierarchies.
-  3. **CASC LTB Batch Harness (`contrib/ltbrun`):** Standard competitive batch protocol.
-* **Metrics to Measure:**
-  * **Throughput:** Queries proved per minute (cold-start vs. warm session).
-  * **Solve-Rate Lift:** Number of previously open/timeout VCs closed by accumulated lemmas.
-  * **Search Depth & Iterations:** Reduction in given-clause saturation loops.
-  * **Swamping Overhead:** Passive queue memory and forward subsumption latency under growing lemma caches.
+---
+
+## 5. Verification Protocol: The Last CASC LTB Division (CASC-J11 & CASC-28)
+
+To rigorously validate the system under real-world competitive conditions, the implementation will be verified against the benchmark suites and batch specifications of the **last active CASC LTB (Large Theory Batch) competitions**:
+
+### 5.1. Target Competition Corpora
+* **CASC-J11 (2022) LTB Division** *(The final active CASC LTB competition before the division went on hiatus in CASC-29)*:
+  * **`HOL` Category:** Problems derived from Isabelle/HOL theory libraries with deep axiom dependencies.
+  * **`MZR` Category:** Problems translated from the Mizar Mathematical Library (MML).
+* **CASC-28 (2021) LTB Division**:
+  * Benchmark problems evaluated on StarExec with wall-clock time limits and batch includes.
+
+### 5.2. Verification Execution Setup
+* Run via [`Astraea.Session.Ltb.run_batch/2`](file:///Users/marcnickert/Projects/opensource/Leo-III/astraea/lib/astraea/session/ltb.ex) using the exact CASC batch specification files (`BatchConfiguration`, `BatchIncludes`, `BatchProblems`).
+* Execute both sequential ordering (`execution.order ordered`) and parallel batches on `armix`.
+
+### 5.3. Comparison & Metrics to Measure
+
+| Experiment Condition | Description | Primary Metrics |
+| :--- | :--- | :--- |
+| **Baseline (Cold-Start)** | Stock prover execution per problem (re-parsing axioms from scratch per query). | Baseline solve count, total wall-clock time, average parsing overhead. |
+| **Warm Session (No Caching)** | `Astraea.Session` with pre-clausified background theory, but lemma harvesting disabled. | Speedup due to elimination of redundant parsing and clausification. |
+| **Full Session (With Sound Lemma Caching)** | `Astraea.Session` with active `Lineage` harvesting and `DemodCache` rewriting. | **Solve-rate lift** (newly solved problems), reduction in saturation iterations, demodulator hit rate. |
+
+* **Verification Acceptance Gates:**
+  1. **100% LCF Kernel Pass Rate:** Every emitted refutation certificate passes [`Astraea.ProofChecker.verify_refutation/2`](file:///Users/marcnickert/Projects/opensource/Leo-III/astraea/lib/astraea/proof_checker.ex).
+  2. **Zero Contradictory Axioms / Soundness Traps:** 0 false proofs across any satisfiability or counter-satisfiable control problems in the batch.
+  3. **Positive Throughput Lift:** Warm session must reduce overall batch wall-clock time compared to cold-start.
+  4. **Bounded Queue Growth:** Passive clause queue must remain bounded, proving that directed demodulation successfully prevents clause swamping.
 
 ---
 
-## 5. Risk Assessment & Mitigations
+## 6. Risk Assessment & Mitigations
 
 | Risk | Impact | Mitigation Strategy |
 | :--- | :---: | :--- |
