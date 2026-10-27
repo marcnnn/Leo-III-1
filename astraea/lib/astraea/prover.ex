@@ -36,6 +36,7 @@ defmodule Astraea.Prover do
   alias Astraea.{Arena, Clausifier, External, ProofChecker, TptpCorpus, TptpLower}
   alias Astraea.Engine.{Demodulator, FVIndex, HeadIndex, PassiveQueue, Subsumption}
   alias Astraea.External.Reconstruct
+  alias Astraea.Input.Arith
   alias Astraea.Calculus.{Choice, Cnf, FingerprintIndex, Ordering, PrimSubst, Terms, Unify}
 
   # Below this remaining budget an external call cannot finish in time.
@@ -86,6 +87,8 @@ defmodule Astraea.Prover do
             rewrites: 0,
             backward_rewritten: 0,
             wide_equations: false,
+            arith: false,
+            refuted: nil,
             deadline_ms: nil,
             opts: [],
             cooperate: [],
@@ -194,6 +197,7 @@ defmodule Astraea.Prover do
       arena: arena,
       active_index: FVIndex.new(index_opts),
       fp_index: new_fingerprints(opts),
+      arith: arithmetic?(arena),
       passive: PassiveQueue.new(Keyword.get(opts, :pick_ratio, score: 3, age: 1)),
       passive_index: FVIndex.new(index_opts),
       max_iterations: Keyword.get(opts, :max_iterations, :infinity),
@@ -344,6 +348,10 @@ defmodule Astraea.Prover do
     end)
   end
 
+  defp saturation_loop(%__MODULE__{refuted: empty_id} = state) when empty_id != nil do
+    finish(state, finalize_proof(state, empty_id))
+  end
+
   defp saturation_loop(%__MODULE__{iterations: iters, max_iterations: max_iters} = state)
        when is_integer(max_iters) and iters >= max_iters do
     finish(state, {:resource_out, stats(state)})
@@ -490,12 +498,46 @@ defmodule Astraea.Prover do
     |> fingerprint_remove(gone)
   end
 
+  # Ground arithmetic evaluation of new clauses (Leo-III `GroundArithmeticEval`),
+  # justified by `:arith_eval` steps. Only problems with an arithmetic sort can
+  # contain interpreted symbols (search introduces none), so others skip it. A
+  # clause evaluated to true is dropped; one evaluated to empty ends the search.
+  defp arithmetic?(%Arena{} = arena) do
+    Enum.any?(["$int", "$rat", "$real"], &Map.has_key?(arena.types, {:base, &1}))
+  end
+
+  defp arith_simplify(%__MODULE__{arith: false} = state, item), do: {state, item}
+
+  defp arith_simplify(%__MODULE__{} = state, item) do
+    case Arith.simplify_clause(state.arena, item.lits) do
+      {arena, :unchanged} ->
+        {%{state | arena: arena}, item}
+
+      {arena, :tautology} ->
+        {%{state | arena: arena}, :dropped}
+
+      {arena, {:simplified, lits}} ->
+        state = %{state | arena: arena}
+
+        {state, evaluated} =
+          add_step(state, {:arith_eval, state.next_step_id, item.id, lits}, lits, item.depth)
+
+        if MapSet.size(lits) == 0,
+          do: {%{state | refuted: state.refuted || evaluated.id}, :dropped},
+          else: {state, evaluated}
+    end
+  end
+
   defp enqueue_passive(%__MODULE__{} = state, items) do
     {state, fresh} =
       Enum.reduce(items, {state, []}, fn item, {st, acc} ->
-        num_lits = MapSet.size(item.lits)
+        {st, item} = arith_simplify(st, item)
+        num_lits = if item == :dropped, do: 0, else: MapSet.size(item.lits)
 
         cond do
+          item == :dropped ->
+            {st, acc}
+
           exceeds?(num_lits, st.max_clause_lits) or
               (exceeds?(item.weight, st.max_clause_weight) and num_lits > 2) ->
             {%{st | discarded_clauses: st.discarded_clauses + 1}, acc}

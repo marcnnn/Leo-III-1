@@ -302,6 +302,20 @@ defmodule Astraea.EngineTest do
     assert :ok == ProofChecker.verify_refutation(stats.arena, steps)
   end
 
+  @arith_src """
+  tff(p_type, type, p: $int > $o).
+  tff(q_type, type, q: $int > $o).
+  tff(ax1, axiom, ! [X: $int]: (p(X) => q($sum(X, 1)))).
+  tff(ax2, axiom, p(2)).
+  tff(conj, conjecture, q(3)).
+  """
+
+  test "ground arithmetic is evaluated during search with an :arith_eval step" do
+    assert {:proved, steps, stats} = Prover.prove_string(@arith_src)
+    assert Enum.any?(steps, &match?({:arith_eval, _, _, _}, &1))
+    assert :ok == ProofChecker.verify_refutation(stats.arena, steps)
+  end
+
   @sat_src """
   thf(p_type, type, p: $i > $o).
   thf(q_type, type, q: $i > $o).
