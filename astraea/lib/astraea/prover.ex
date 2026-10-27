@@ -36,6 +36,7 @@ defmodule Astraea.Prover do
   alias Astraea.{Arena, Clausifier, External, ProofChecker, TptpCorpus, TptpLower}
   alias Astraea.Engine.{Demodulator, FVIndex, HeadIndex, PassiveQueue, Subsumption}
   alias Astraea.External.Reconstruct
+  alias Astraea.Calculus.{Choice, Cnf, FingerprintIndex, Ordering, PrimSubst, Terms, Unify}
 
   # Below this remaining budget an external call cannot finish in time.
   @min_external_ms 300
@@ -80,8 +81,6 @@ defmodule Astraea.Prover do
             scoring_mode: :goal_directed,
             sine_filtered: false,
             discarded_clauses: 0,
-            # Unifier searches cut off by a depth limit (counted by the calculus).
-            unification_cutoffs: 0,
             forward_subsumed: 0,
             backward_subsumed: 0,
             rewrites: 0,
@@ -93,7 +92,10 @@ defmodule Astraea.Prover do
             coop_max_clauses: 400,
             coop_last_dispatch: 0,
             coop_inflight: %{},
-            coop_log: []
+            coop_log: [],
+            unification_cutoffs: 0,
+            fp_index: nil,
+            choice_done: MapSet.new()
 
   @type result ::
           {:proved, [ProofChecker.step()], map()}
@@ -189,6 +191,7 @@ defmodule Astraea.Prover do
     state = %__MODULE__{
       arena: arena,
       active_index: FVIndex.new(index_opts),
+      fp_index: new_fingerprints(opts),
       passive: PassiveQueue.new(Keyword.get(opts, :pick_ratio, score: 3, age: 1)),
       passive_index: FVIndex.new(index_opts),
       max_iterations: Keyword.get(opts, :max_iterations, :infinity),
@@ -363,7 +366,9 @@ defmodule Astraea.Prover do
   # One iteration of the given-clause loop (Leo-III `SeqLoop`): select, simplify
   # (condensation, unit simplification, demodulation), drop if redundant, else
   # simplify the processed set with it (backward subsumption and demodulation),
-  # generate inferences and activate it.
+  # generate inferences and activate it. A clause with non-atomic literals is only
+  # expanded by search-time clausification (`Calculus.Cnf`): its clauses replace it,
+  # so it neither simplifies the processed set nor becomes active.
   defp given_clause_step(%__MODULE__{} = state) do
     {given, passive} = PassiveQueue.pop(state.passive)
 
@@ -389,7 +394,12 @@ defmodule Astraea.Prover do
             saturation_loop(%{state | forward_subsumed: state.forward_subsumed + 1})
 
           true ->
-            state = state |> backward_subsume(given) |> backward_demodulate(given)
+            atomic? = Cnf.atomic?(state.arena, given.lits)
+
+            state =
+              if atomic?,
+                do: state |> backward_subsume(given) |> backward_demodulate(given),
+                else: state
 
             case generate_inferences(state, given) do
               {:proved, state, empty_id} ->
@@ -397,7 +407,7 @@ defmodule Astraea.Prover do
 
               {:cont, state, new_items} ->
                 state
-                |> activate(given)
+                |> activate(given, atomic?)
                 |> enqueue_passive(new_items)
                 |> saturation_loop()
             end
@@ -405,7 +415,9 @@ defmodule Astraea.Prover do
     end
   end
 
-  defp activate(%__MODULE__{} = state, item) do
+  defp activate(%__MODULE__{} = state, _item, false = _atomic?), do: state
+
+  defp activate(%__MODULE__{} = state, item, true = _atomic?) do
     state = %{
       state
       | active: [item | state.active],
@@ -414,7 +426,7 @@ defmodule Astraea.Prover do
           FVIndex.insert(state.active_index, item.id, Subsumption.subsumption_fv(item))
     }
 
-    state = add_unit(state, item)
+    state = state |> add_unit(item) |> fingerprint_activate(item)
 
     if state.demodulation,
       do: %{
@@ -462,6 +474,7 @@ defmodule Astraea.Prover do
         unit_count: length(HeadIndex.values(units)),
         rules: HeadIndex.reject(state.rules, gone)
     }
+    |> fingerprint_remove(gone)
   end
 
   defp enqueue_passive(%__MODULE__{} = state, items) do
@@ -752,18 +765,129 @@ defmodule Astraea.Prover do
   end
 
   # ---------------------------------------------------------------------------
-  # Inference Generation (EqRes, Factoring, HO Instantiation, Resolution, Paramod)
+  # Inference Generation over the higher-order calculus (`Astraea.Calculus.*`):
+  # EqRes, Factoring, HO Instantiation, Resolution, Paramod, PrimSubst,
+  # Extensionality, Choice, followed by search-time clausification.
+  #
+  # Strategy options (read from `state.opts`):
+  #   :unify_depth (2), :unifier_count (2), :unify_steps (24) - pre-unification bounds
+  #   :prim_subst (1, level 0-3), :prim_subst_depth (2) - primitive substitution
+  #   :ext_inferences (true) - BoolExt / FuncExt on given clauses
+  #   :choice (true) - Hilbert choice instances
+  #   :ordered (false), :literal_selection (:none | :neg_max) - see `Calculus.Ordering`
+  #   :fingerprints (true), :fingerprint_backend (:auto) - partner retrieval
+  #   :paramod_flex (false) - also paramodulate into flex-headed subterms
+  #   :flex_resolution (:ground | :all) - a flex-headed literal atom with arguments
+  #     (never a pattern at the top level) is resolved and factored only against
+  #     ground atoms or atoms containing one of its arguments under `:ground`, since
+  #     by imitation it unifies with any atom
   # ---------------------------------------------------------------------------
 
+  @eq_res_unifiers 2
+
   defp generate_inferences(%__MODULE__{} = state, given) do
-    with {:cont, state, items0} <- try_func_ext_unit(state, given),
-         {:cont, state, items1} <- try_immediate_eq_resolution(state, given),
-         {:cont, state, items2} <- try_factoring(state, given),
-         {:cont, state, items3} <- try_ho_pred_instantiation(state, given),
-         {:cont, state, items4} <- try_binary_resolution(state, given),
-         {:cont, state, items5} <- try_superposition(state, given) do
-      {:cont, state, items0 ++ items1 ++ items2 ++ items3 ++ items4 ++ items5}
+    if Cnf.atomic?(state.arena, given.lits) do
+      with {:cont, state, items0} <- try_func_ext_unit(state, given),
+           {:cont, state, items1} <- try_immediate_eq_resolution(state, given),
+           {:cont, state, items2} <- try_factoring(state, given),
+           {:cont, state, items3} <- try_ho_pred_instantiation(state, given),
+           {:cont, state, items4} <- try_binary_resolution(state, given),
+           {:cont, state, items5} <- try_superposition(state, given),
+           {:cont, state, items6} <- try_prim_subst(state, given),
+           {:cont, state, items7} <- try_extensionality(state, given),
+           {:cont, state, items8} <- try_choice(state, given) do
+        clausify_items(
+          state,
+          items0 ++ items1 ++ items2 ++ items3 ++ items4 ++ items5 ++ items6 ++ items7 ++ items8
+        )
+      end
+    else
+      clausify_items(state, [given])
     end
+  end
+
+  defp calculus_opt(%__MODULE__{} = state, key, default),
+    do: Keyword.get(state.opts, key, default)
+
+  defp ordering(%__MODULE__{} = state), do: Ordering.opts(state.opts)
+
+  defp cutoff(%__MODULE__{} = state, n \\ 1),
+    do: %{state | unification_cutoffs: state.unification_cutoffs + n}
+
+  # Threads `fun` over `enum`, collecting derived items until one call proves `$false`.
+  defp each_inference(%__MODULE__{} = state, enum, fun) do
+    Enum.reduce_while(enum, {:cont, state, []}, fn x, {:cont, st, acc} ->
+      case fun.(st, x) do
+        {:proved, _, _} = proved -> {:halt, proved}
+        {:cont, st, items} -> {:cont, {:cont, st, items ++ acc}}
+      end
+    end)
+  end
+
+  # Pre-unifiers of `pairs` (`Calculus.Unify`), bounded by the strategy options.
+  defp unifiers(%__MODULE__{} = state, pairs, opts \\ []) do
+    bounds =
+      Keyword.merge(
+        [
+          max_depth: calculus_opt(state, :unify_depth, 2),
+          max_unifiers: calculus_opt(state, :unifier_count, 2),
+          max_steps: calculus_opt(state, :unify_steps, 24)
+        ],
+        opts
+      )
+
+    {arena, next_fvar, substs, cut} =
+      Unify.unifiers(state.arena, pairs, state.next_fvar_id, bounds)
+
+    {cutoff(%{state | arena: arena, next_fvar_id: next_fvar}, cut), substs}
+  end
+
+  # Unifiers of two literal atoms, modulo the symmetry of a top-level equation.
+  defp atom_unifiers(%__MODULE__{} = state, a1, a2) do
+    problems =
+      case {Arena.get_node(state.arena, a1), Arena.get_node(state.arena, a2)} do
+        {{@tag_eq, _, _, l1, r1}, {@tag_eq, _, _, l2, r2}} ->
+          [[{l1, l2}, {r1, r2}], [{l1, r2}, {r1, l2}]]
+
+        _ ->
+          [[{a1, a2}]]
+      end
+
+    {state, substs} =
+      Enum.reduce(problems, {state, []}, fn pairs, {st, acc} ->
+        {st, substs} = unifiers(st, pairs)
+        {st, acc ++ substs}
+      end)
+
+    {state, Enum.uniq(substs)}
+  end
+
+  # Search-time clausification (`Calculus.Cnf`) of derived clauses via `:cnf` steps.
+  defp clausify_items(%__MODULE__{} = state, items) do
+    each_inference(state, items, &clausify_item(&1, &2, []))
+  end
+
+  defp clausify_item(%__MODULE__{} = state, item, opts) do
+    if Cnf.atomic?(state.arena, item.lits, opts) do
+      {:cont, state, [item]}
+    else
+      {arena, next_fvar, tree, cut} = Cnf.expand(state.arena, item.lits, state.next_fvar_id, opts)
+      state = cutoff(%{state | arena: arena, next_fvar_id: next_fvar}, cut)
+      replay_cnf(state, item, tree)
+    end
+  end
+
+  defp replay_cnf(%__MODULE__{} = state, item, :atomic) do
+    if MapSet.size(item.lits) == 0, do: {:proved, state, item.id}, else: {:cont, state, [item]}
+  end
+
+  defp replay_cnf(%__MODULE__{} = state, _item, :tautology), do: {:cont, state, []}
+
+  defp replay_cnf(%__MODULE__{} = state, item, {:expand, lit, branches}) do
+    each_inference(state, branches, fn st, {rule, lits, sub} ->
+      {st, child} = add_step(st, {:cnf, st.next_step_id, item.id, lit, rule}, lits, item.depth)
+      replay_cnf(st, child, sub)
+    end)
   end
 
   # 0. Positive Functional Extensionality (xi-rule) on 1-variable unit equations:
@@ -789,88 +913,83 @@ defmodule Astraea.Prover do
     end
   end
 
-  # 1. Equality Resolution: `C \/ ~(s = t)` where `s` and `t` unify under `subst`
+  # 1. Equality Resolution: `C \/ ~(s = t)` for every pre-unifier of `s` and `t`
   defp try_immediate_eq_resolution(%__MODULE__{} = state, clause_item) do
     neg_eqs =
-      clause_item.lits
-      |> Enum.filter(fn
+      Enum.filter(clause_item.lits, fn
         {:neg, id} -> match?({@tag_eq, _, _, _, _}, Arena.get_node(state.arena, id))
         _ -> false
       end)
 
-    Enum.reduce_while(neg_eqs, {:cont, state, []}, fn {:neg, eq_id}, {:cont, st, acc} ->
+    each_inference(state, neg_eqs, fn st, {:neg, eq_id} ->
       {@tag_eq, _, _, lhs, rhs} = Arena.get_node(st.arena, eq_id)
-
-      case Arena.unify(st.arena, lhs, rhs) do
-        {:ok, arena, subst} ->
-          st = %{st | arena: arena}
-          {st, parent_item, u_id} = apply_subst_if_needed(st, clause_item, subst, lhs)
-          {arena, eq_uu} = Arena.mk_eq(st.arena, u_id, u_id)
-          st = %{st | arena: arena}
-
-          if MapSet.member?(parent_item.lits, {:neg, eq_uu}) do
-            {st, refl_item} =
-              add_step(st, {:refl, st.next_step_id, u_id}, MapSet.new([{:pos, eq_uu}]), 0)
-
-            resolvent = MapSet.delete(parent_item.lits, {:neg, eq_uu})
-
-            {st, res_item} =
-              add_step(
-                st,
-                {:resolve, st.next_step_id, refl_item.id, parent_item.id, {:pos, eq_uu}},
-                resolvent,
-                clause_item.depth + 1
-              )
-
-            if MapSet.size(resolvent) == 0 do
-              {:halt, {:proved, st, res_item.id}}
-            else
-              case try_immediate_eq_resolution(st, res_item) do
-                {:proved, _, _} = proved ->
-                  {:halt, proved}
-
-                {:cont, st2, more} ->
-                  {:cont, {:cont, st2, [res_item | more] ++ acc}}
-              end
-            end
-          else
-            {:cont, {:cont, st, acc}}
-          end
-
-        :error ->
-          {:cont, {:cont, st, acc}}
-      end
+      {st, substs} = unifiers(st, [{lhs, rhs}], max_unifiers: @eq_res_unifiers)
+      each_inference(st, substs, &eq_resolve(&1, clause_item, lhs, &2))
     end)
   end
 
-  # 2. Factoring: unify two literals of the same polarity in `given`
+  defp eq_resolve(%__MODULE__{} = st, clause_item, lhs, subst) do
+    {st, parent_item, u_id} = apply_subst_if_needed(st, clause_item, subst, lhs)
+    {arena, eq_uu} = Arena.mk_eq(st.arena, u_id, u_id)
+    st = %{st | arena: arena}
+
+    if MapSet.member?(parent_item.lits, {:neg, eq_uu}) do
+      {st, refl_item} =
+        add_step(st, {:refl, st.next_step_id, u_id}, MapSet.new([{:pos, eq_uu}]), 0)
+
+      resolvent = MapSet.delete(parent_item.lits, {:neg, eq_uu})
+
+      {st, res_item} =
+        add_step(
+          st,
+          {:resolve, st.next_step_id, refl_item.id, parent_item.id, {:pos, eq_uu}},
+          resolvent,
+          clause_item.depth + 1
+        )
+
+      if MapSet.size(resolvent) == 0 do
+        {:proved, st, res_item.id}
+      else
+        case try_immediate_eq_resolution(st, res_item) do
+          {:proved, _, _} = proved -> proved
+          {:cont, st2, more} -> {:cont, st2, [res_item | more]}
+        end
+      end
+    else
+      {:cont, st, []}
+    end
+  end
+
+  # 2. Factoring: unify two literals of the same polarity in `given`, one of them eligible
   defp try_factoring(%__MODULE__{} = state, clause_item) do
-    lits = MapSet.to_list(clause_item.lits)
+    eligible = Ordering.eligible(state.arena, clause_item.lits, ordering(state))
+    indexed = Enum.with_index(clause_item.lits)
 
     pairs =
-      for {{pol1, a1}, idx1} <- Enum.with_index(lits),
-          {{pol2, a2}, idx2} <- Enum.with_index(lits),
+      for {{pol1, a1} = l1, idx1} <- indexed,
+          {{pol2, a2} = l2, idx2} <- indexed,
           idx1 < idx2 and pol1 == pol2,
+          MapSet.member?(eligible, l1) or MapSet.member?(eligible, l2),
+          atoms_compatible?(state, a1, a2),
           do: {a1, a2}
 
-    Enum.reduce_while(pairs, {:cont, state, []}, fn {a1, a2}, {:cont, st, acc} ->
-      case Arena.unify(st.arena, a1, a2) do
-        {:ok, arena, subst} when map_size(subst) > 0 ->
-          st = %{st | arena: arena}
-          {st, sub_item} = emit_subst_step(st, clause_item, subst, clause_item.depth + 1)
+    {state, pairs} = flex_filter(state, pairs, & &1)
 
-          case try_immediate_eq_resolution(st, sub_item) do
-            {:proved, _, _} = proved ->
-              {:halt, proved}
+    each_inference(state, pairs, fn st, {a1, a2} ->
+      {st, substs} = atom_unifiers(st, a1, a2)
 
-            {:cont, st2, eq_items} ->
-              {st3, fresh_sub} = freshen_clause_item(st2, sub_item)
-              {:cont, {:cont, st3, [fresh_sub | eq_items] ++ acc}}
-          end
+      each_inference(st, Enum.filter(substs, &(map_size(&1) > 0)), fn st, subst ->
+        {st, sub_item} = emit_subst_step(st, clause_item, subst, clause_item.depth + 1)
 
-        _ ->
-          {:cont, {:cont, st, acc}}
-      end
+        case try_immediate_eq_resolution(st, sub_item) do
+          {:proved, _, _} = proved ->
+            proved
+
+          {:cont, st2, eq_items} ->
+            {st3, fresh_sub} = freshen_clause_item(st2, sub_item)
+            {:cont, st3, [fresh_sub | eq_items]}
+        end
+      end)
     end)
   end
 
@@ -907,8 +1026,7 @@ defmodule Astraea.Prover do
           []
       end)
 
-    Enum.reduce_while(candidates, {:cont, state, []}, fn {fvar_id, dom_ty, arg_id},
-                                                         {:cont, st, acc} ->
+    each_inference(state, candidates, fn st, {fvar_id, dom_ty, arg_id} ->
       {arena, arg_s} = Arena.shift(st.arena, arg_id, 1, 0)
       {arena, z0} = Arena.mk_bvar(arena, 0, dom_ty)
       {arena, eq_z_arg} = Arena.mk_eq(arena, z0, arg_s)
@@ -919,133 +1037,101 @@ defmodule Astraea.Prover do
         emit_subst_step(st, clause_item, %{fvar_id => lam_id}, clause_item.depth + 1)
 
       case try_immediate_eq_resolution(st, sub_item) do
-        {:proved, _, _} = proved ->
-          {:halt, proved}
-
-        {:cont, st2, eq_items} ->
-          {:cont, {:cont, st2, eq_items ++ [sub_item | acc]}}
+        {:proved, _, _} = proved -> proved
+        {:cont, st2, eq_items} -> {:cont, st2, eq_items ++ [sub_item]}
       end
     end)
   end
 
-  # 4. Binary Resolution between `given` and `active` clauses
+  # 4. Binary Resolution between `given` and the fingerprint-retrieved `active` partners
   defp try_binary_resolution(%__MODULE__{} = state, given) do
-    Enum.reduce_while(state.active, {:cont, state, []}, fn active_c, {:cont, st, acc} ->
-      case resolve_clause_pair(st, given, active_c) do
-        {:proved, _, _} = proved ->
-          {:halt, proved}
+    {state, partners} = resolution_partners(state, given)
 
-        {:cont, st2, new_items} ->
-          {:cont, {:cont, st2, new_items ++ acc}}
-      end
-    end)
+    each_inference(
+      state,
+      Enum.filter(state.active, &partner?(partners, &1)),
+      &resolve_clause_pair(&1, given, &2)
+    )
   end
 
   defp resolve_clause_pair(%__MODULE__{} = state, c1, c2) do
-    {state, c2_disjoint} = ensure_disjoint_fvars(state, c1, c2)
+    # Fingerprints are invariant under renaming: test before freshening `c2`.
+    if resolvable_pairs(state, c1, c2) == [] do
+      {:cont, state, []}
+    else
+      {state, c2_disjoint} = ensure_disjoint_fvars(state, c1, c2)
 
-    lit_pairs =
-      for {pol1, a1} <- c1.lits,
-          {pol2, a2} <- c2_disjoint.lits,
-          pol1 != pol2 do
-        if pol1 == :pos do
-          {c1, a1, c2_disjoint, a2}
-        else
-          {c2_disjoint, a2, c1, a1}
-        end
-      end
+      {state, lit_pairs} =
+        flex_filter(state, resolvable_pairs(state, c1, c2_disjoint), fn {_, a1, _, a2} ->
+          {a1, a2}
+        end)
 
-    Enum.reduce_while(lit_pairs, {:cont, state, []}, fn {pos_c, pos_atom, neg_c, neg_atom},
-                                                        {:cont, st, acc} ->
-      case unify_literals(st.arena, pos_atom, neg_atom) do
-        {:ok, arena, subst} ->
-          st = %{st | arena: arena}
-          depth = max(pos_c.depth, neg_c.depth) + 1
+      resolve_lit_pairs(state, lit_pairs)
+    end
+  end
 
-          {st, pos_inst, pos_atom_inst} = apply_subst_if_needed(st, pos_c, subst, pos_atom)
-          {st, neg_inst, _neg_atom_inst} = apply_subst_if_needed(st, neg_c, subst, neg_atom)
+  defp resolvable_pairs(%__MODULE__{} = state, c1, c2) do
+    ord = ordering(state)
 
-          case find_resolvable_atom(st.arena, pos_inst.lits, neg_inst.lits, pos_atom_inst) do
-            {:ok, arena, resolve_atom, pos_lit, neg_lit} ->
-              st = %{st | arena: arena}
+    for {pol1, a1} <- Ordering.eligible(state.arena, c1.lits, ord),
+        {pol2, a2} <- Ordering.eligible(state.arena, c2.lits, ord),
+        pol1 != pol2,
+        atoms_compatible?(state, a1, a2) do
+      if pol1 == :pos, do: {c1, a1, c2, a2}, else: {c2, a2, c1, a1}
+    end
+  end
 
-              resolvent =
-                MapSet.union(
-                  MapSet.delete(pos_inst.lits, pos_lit),
-                  MapSet.delete(neg_inst.lits, neg_lit)
-                )
-
-              {st, res_item} =
-                add_step(
-                  st,
-                  {:resolve, st.next_step_id, pos_inst.id, neg_inst.id, {:pos, resolve_atom}},
-                  resolvent,
-                  depth
-                )
-
-              if MapSet.size(resolvent) == 0 do
-                {:halt, {:proved, st, res_item.id}}
-              else
-                case try_immediate_eq_resolution(st, res_item) do
-                  {:proved, _, _} = proved ->
-                    {:halt, proved}
-
-                  {:cont, st2, eq_items} ->
-                    {st3, res_fresh} = freshen_clause_item(st2, res_item)
-                    {:cont, {:cont, st3, eq_items ++ [res_fresh | acc]}}
-                end
-              end
-
-            :error ->
-              {:cont, {:cont, st, acc}}
-          end
-
-        :error ->
-          {:cont, {:cont, st, acc}}
-      end
+  defp resolve_lit_pairs(%__MODULE__{} = state, lit_pairs) do
+    each_inference(state, lit_pairs, fn st, {pos_c, pos_atom, neg_c, neg_atom} ->
+      {st, substs} = unify_literals(st, pos_atom, neg_atom)
+      each_inference(st, substs, &resolve_with(&1, pos_c, pos_atom, neg_c, neg_atom, &2))
     end)
   end
 
-  defp unify_literals(%Arena{} = arena, a1, a2) do
-    case Arena.unify(arena, a1, a2) do
-      {:ok, _, _} = ok ->
-        ok
+  defp resolve_with(%__MODULE__{} = st, pos_c, pos_atom, neg_c, neg_atom, subst) do
+    depth = max(pos_c.depth, neg_c.depth) + 1
+    {st, pos_inst, pos_atom_inst} = apply_subst_if_needed(st, pos_c, subst, pos_atom)
+    {st, neg_inst, _neg_atom_inst} = apply_subst_if_needed(st, neg_c, subst, neg_atom)
 
-      :error ->
-        try_const_pred_unify(arena, a1, a2)
-    end
-  end
+    case find_resolvable_atom(st.arena, pos_inst.lits, neg_inst.lits, pos_atom_inst) do
+      {:ok, arena, resolve_atom, pos_lit, neg_lit} ->
+        st = %{st | arena: arena}
 
-  defp try_const_pred_unify(%Arena{} = arena, a1, a2) do
-    case match_const_pred(arena, a1, a2) do
-      {:ok, _, _} = ok -> ok
-      :error -> match_const_pred(arena, a2, a1)
-    end
-  end
+        resolvent =
+          MapSet.union(
+            MapSet.delete(pos_inst.lits, pos_lit),
+            MapSet.delete(neg_inst.lits, neg_lit)
+          )
 
-  defp match_const_pred(%Arena{} = arena, app_id, other_id) do
-    case Arena.get_node(arena, app_id) do
-      {@tag_app, _, _, fun_id, arg_id} ->
-        case Arena.get_node(arena, fun_id) do
-          {@tag_fvar, _, _f_ty, fvar_id, _} ->
-            if Arena.occurs_fvar?(arena, other_id, fvar_id) or
-                 MapSet.size(Arena.free_vars(arena, other_id)) > 0 do
-              :error
-            else
-              arg_ty = Arena.type_of(arena, arg_id)
-              {arena, body_s} = Arena.shift(arena, other_id, 1, 0)
-              {arena, lam_id} = Arena.mk_lam(arena, arg_ty, body_s)
-              {:ok, arena, %{fvar_id => lam_id}}
-            end
+        {st, res_item} =
+          add_step(
+            st,
+            {:resolve, st.next_step_id, pos_inst.id, neg_inst.id, {:pos, resolve_atom}},
+            resolvent,
+            depth
+          )
 
-          _ ->
-            :error
+        if MapSet.size(resolvent) == 0 do
+          {:proved, st, res_item.id}
+        else
+          case try_immediate_eq_resolution(st, res_item) do
+            {:proved, _, _} = proved ->
+              proved
+
+            {:cont, st2, eq_items} ->
+              {st3, res_fresh} = freshen_clause_item(st2, res_item)
+              {:cont, st3, [res_fresh | eq_items]}
+          end
         end
 
-      _ ->
-        :error
+      :error ->
+        {:cont, st, []}
     end
   end
+
+  # Huet pre-unifiers of two complementary atoms (subsumes the former constant-predicate
+  # abstraction `F @ a = q  ~>  F := ^ [_]: q`, which is an imitation).
+  defp unify_literals(%__MODULE__{} = state, a1, a2), do: atom_unifiers(state, a1, a2)
 
   defp find_resolvable_atom(%Arena{} = arena, pos_lits, neg_lits, atom_id) do
     cond do
@@ -1076,102 +1162,111 @@ defmodule Astraea.Prover do
     end
   end
 
-  # 5. KBO-Oriented Superposition / Paramodulation
+  # 5. KBO-Oriented Superposition / Paramodulation with fingerprint-retrieved partners
   defp try_superposition(%__MODULE__{} = state, given) do
-    Enum.reduce_while(state.active, {:cont, state, []}, fn active_c, {:cont, st, acc} ->
-      with {:cont, st, items1} <- paramod_directed(st, given, active_c),
-           {:cont, st, items2} <- paramod_directed(st, active_c, given) do
-        {:cont, {:cont, st, items1 ++ items2 ++ acc}}
-      else
-        {:proved, _, _} = proved -> {:halt, proved}
+    {state, into_active, from_active} = paramod_partners(state, given)
+
+    each_inference(state, state.active, fn st, active_c ->
+      with {:cont, st, items1} <-
+             maybe_paramod(st, partner?(into_active, active_c), given, active_c),
+           {:cont, st, items2} <-
+             maybe_paramod(st, partner?(from_active, active_c), active_c, given) do
+        {:cont, st, items1 ++ items2}
       end
     end)
   end
+
+  defp maybe_paramod(%__MODULE__{} = st, false, _eq_clause, _target_clause), do: {:cont, st, []}
+
+  defp maybe_paramod(%__MODULE__{} = st, true, eq_clause, target_clause),
+    do: paramod_directed(st, eq_clause, target_clause)
 
   defp paramod_directed(%__MODULE__{} = state, eq_clause, target_clause) do
     if MapSet.size(eq_clause.lits) > 2 or
          MapSet.size(eq_clause.lits) + MapSet.size(target_clause.lits) - 1 > state.max_clause_lits do
       {:cont, state, []}
     else
-      pos_eqs =
-        Enum.filter(eq_clause.lits, fn
-          {:pos, id} -> match?({@tag_eq, _, _, _, _}, Arena.get_node(state.arena, id))
-          _ -> false
-        end)
+      ord = ordering(state)
+      eq_eligible = Ordering.eligible(state.arena, eq_clause.lits, ord)
+      sides = paramod_sides(state, eq_clause, eq_eligible)
 
-      if pos_eqs == [] do
+      if sides == [] do
         {:cont, state, []}
       else
         {state, target_disjoint} = ensure_disjoint_fvars(state, eq_clause, target_clause)
+        target_eligible = Ordering.eligible(state.arena, target_disjoint.lits, ord)
+        state = cutoff(state, skipped_flex_targets(state, target_eligible))
 
         candidates =
-          for {:pos, eq_id} <- pos_eqs,
-              {@tag_eq, _, _, lhs, rhs} = Arena.get_node(state.arena, eq_id),
-              {from_term, to_term} <- orient_equation(state.arena, lhs, rhs),
-              not fvar_node?(state.arena, from_term),
-              {pol, target_atom} = target_lit <- target_disjoint.lits,
-              subterm_id <- non_var_subterms(state.arena, target_atom),
-              Arena.type_of(state.arena, subterm_id) == Arena.type_of(state.arena, from_term) do
-            {eq_id, from_term, to_term, target_lit, pol, target_atom, subterm_id}
+          for {eq_id, from_term, to_term} <- sides,
+              {pol, target_atom} <- target_eligible,
+              subterm_id <- non_var_subterms(state, target_atom),
+              Arena.type_of(state.arena, subterm_id) == Arena.type_of(state.arena, from_term),
+              terms_compatible?(state, from_term, subterm_id) do
+            {eq_id, from_term, to_term, pol, target_atom, subterm_id}
           end
 
-        Enum.reduce_while(candidates, {:cont, state, []}, fn {eq_id, from_term, to_term,
-                                                              _target_lit, pol, target_atom,
-                                                              subterm_id},
-                                                             {:cont, st, acc} ->
-          case Arena.unify(st.arena, from_term, subterm_id) do
-            {:ok, arena, subst} ->
-              st = %{st | arena: arena}
-              depth = max(eq_clause.depth, target_disjoint.depth) + 1
-
-              {st, eq_inst, eq_atom_inst} = apply_subst_if_needed(st, eq_clause, subst, eq_id)
-
-              {st, target_inst, target_atom_inst} =
-                apply_subst_if_needed(st, target_disjoint, subst, target_atom)
-
-              {arena, from_inst} = Arena.subst_fvar(st.arena, from_term, subst)
-              {arena, to_inst} = Arena.subst_fvar(arena, to_term, subst)
-
-              {arena, rep_raw} =
-                ProofChecker.replace_subterm(arena, target_atom_inst, from_inst, to_inst)
-
-              {arena, rewritten_atom} = Arena.beta_eta_norm(arena, rep_raw)
-              st = %{st | arena: arena}
-
-              if rewritten_atom != target_atom_inst and
-                   MapSet.member?(eq_inst.lits, {:pos, eq_atom_inst}) and
-                   MapSet.member?(target_inst.lits, {pol, target_atom_inst}) do
-                new_lits =
-                  MapSet.union(
-                    MapSet.delete(eq_inst.lits, {:pos, eq_atom_inst}),
-                    MapSet.delete(target_inst.lits, {pol, target_atom_inst})
-                  )
-                  |> MapSet.put({pol, rewritten_atom})
-
-                step =
-                  {:paramod, st.next_step_id, eq_inst.id, target_inst.id, eq_atom_inst,
-                   {pol, target_atom_inst}, {pol, rewritten_atom}}
-
-                {st, para_item} = add_step(st, step, new_lits, depth)
-
-                case try_immediate_eq_resolution(st, para_item) do
-                  {:proved, _, _} = proved ->
-                    {:halt, proved}
-
-                  {:cont, st2, eq_items} ->
-                    {st3, para_fresh} = freshen_clause_item(st2, para_item)
-                    {:cont, {:cont, st3, eq_items ++ [para_fresh | acc]}}
-                end
-              else
-                {:cont, {:cont, st, acc}}
-              end
-
-            :error ->
-              {:cont, {:cont, st, acc}}
-          end
+        each_inference(state, candidates, fn st,
+                                             {_eq, from_term, _to, _pol, _ta, subterm_id} = cand ->
+          {st, substs} = unifiers(st, [{from_term, subterm_id}])
+          each_inference(st, substs, &paramod_with(&1, eq_clause, target_disjoint, cand, &2))
         end)
       end
     end
+  end
+
+  defp paramod_with(%__MODULE__{} = st, eq_clause, target_disjoint, cand, subst) do
+    {eq_id, from_term, to_term, pol, target_atom, _subterm_id} = cand
+    depth = max(eq_clause.depth, target_disjoint.depth) + 1
+
+    {st, eq_inst, eq_atom_inst} = apply_subst_if_needed(st, eq_clause, subst, eq_id)
+
+    {st, target_inst, target_atom_inst} =
+      apply_subst_if_needed(st, target_disjoint, subst, target_atom)
+
+    {arena, from_inst} = Arena.subst_fvar(st.arena, from_term, subst)
+    {arena, to_inst} = Arena.subst_fvar(arena, to_term, subst)
+    {arena, rep_raw} = ProofChecker.replace_subterm(arena, target_atom_inst, from_inst, to_inst)
+    {arena, rewritten_atom} = Arena.beta_eta_norm(arena, rep_raw)
+    st = %{st | arena: arena}
+
+    if rewritten_atom != target_atom_inst and
+         MapSet.member?(eq_inst.lits, {:pos, eq_atom_inst}) and
+         MapSet.member?(target_inst.lits, {pol, target_atom_inst}) do
+      new_lits =
+        MapSet.union(
+          MapSet.delete(eq_inst.lits, {:pos, eq_atom_inst}),
+          MapSet.delete(target_inst.lits, {pol, target_atom_inst})
+        )
+        |> MapSet.put({pol, rewritten_atom})
+
+      step =
+        {:paramod, st.next_step_id, eq_inst.id, target_inst.id, eq_atom_inst,
+         {pol, target_atom_inst}, {pol, rewritten_atom}}
+
+      {st, para_item} = add_step(st, step, new_lits, depth)
+
+      case try_immediate_eq_resolution(st, para_item) do
+        {:proved, _, _} = proved ->
+          proved
+
+        {:cont, st2, eq_items} ->
+          {st3, para_fresh} = freshen_clause_item(st2, para_item)
+          {:cont, st3, [para_fresh | eq_items]}
+      end
+    else
+      {:cont, st, []}
+    end
+  end
+
+  # Oriented rewrite sides `{eq_atom, from, to}` of the eligible positive equations.
+  defp paramod_sides(%__MODULE__{} = state, eq_clause, eligible) do
+    for {:pos, eq_id} = lit <- eq_clause.lits,
+        MapSet.member?(eligible, lit),
+        {@tag_eq, _, _, lhs, rhs} <- [Arena.get_node(state.arena, eq_id)],
+        {from_term, to_term} <- orient_equation(state.arena, lhs, rhs),
+        not fvar_node?(state.arena, from_term),
+        do: {eq_id, from_term, to_term}
   end
 
   defp orient_equation(%Arena{} = arena, lhs, rhs) do
@@ -1187,9 +1282,28 @@ defmodule Astraea.Prover do
     match?({@tag_fvar, _, _, _, _}, Arena.get_node(arena, term_id))
   end
 
-  defp non_var_subterms(%Arena{} = arena, term_id) do
-    collect_subterms(arena, term_id, MapSet.new())
-    |> MapSet.to_list()
+  # Closed subterms with a rigid head (flex-headed ones only with `:paramod_flex`).
+  defp non_var_subterms(%__MODULE__{} = state, term_id) do
+    flex? = calculus_opt(state, :paramod_flex, false)
+
+    state.arena
+    |> collect_subterms(term_id, MapSet.new())
+    |> Enum.filter(&(flex? or not Terms.flex?(state.arena, &1)))
+  end
+
+  # Flex-headed paramodulation targets left out without `:paramod_flex` (search cutoffs).
+  defp skipped_flex_targets(%__MODULE__{} = state, lits) do
+    if calculus_opt(state, :paramod_flex, false),
+      do: 0,
+      else:
+        Enum.sum(
+          for {_pol, a} <- lits,
+              do:
+                Enum.count(
+                  collect_subterms(state.arena, a, MapSet.new()),
+                  &Terms.flex?(state.arena, &1)
+                )
+        )
   end
 
   defp collect_subterms(%Arena{} = arena, term_id, acc) do
@@ -1213,6 +1327,250 @@ defmodule Astraea.Prover do
       _ ->
         acc
     end
+  end
+
+  # 6. Primitive Substitution (Leo-III `PrimSubst`) on flexible literal heads
+  defp try_prim_subst(%__MODULE__{} = state, given) do
+    level = calculus_opt(state, :prim_subst, 1)
+
+    cond do
+      PrimSubst.head_vars(state.arena, given.lits) == [] ->
+        {:cont, state, []}
+
+      level == 0 or given.depth >= calculus_opt(state, :prim_subst_depth, 2) ->
+        {:cont, cutoff(state), []}
+
+      true ->
+        {arena, next_fvar, substs} =
+          PrimSubst.substitutions(state.arena, given.lits, state.next_fvar_id, level)
+
+        state = %{state | arena: arena, next_fvar_id: next_fvar}
+
+        each_inference(state, substs, fn st, subst ->
+          {st, item} = emit_subst_step(st, given, subst, given.depth + 1)
+          {:cont, st, [item]}
+        end)
+    end
+  end
+
+  # 7. Boolean and functional extensionality on the given clause (Leo-III `BoolExt`, `FuncExt`)
+  defp try_extensionality(%__MODULE__{} = state, given) do
+    opts = [bool_ext: true, func_ext: true]
+
+    if calculus_opt(state, :ext_inferences, true) and
+         not Cnf.atomic?(state.arena, given.lits, opts) do
+      clausify_item(state, given, opts)
+    else
+      {:cont, state, []}
+    end
+  end
+
+  # 8. Hilbert choice instances for `$choice @ P` occurring in the given clause
+  defp try_choice(%__MODULE__{} = state, given) do
+    preds =
+      if calculus_opt(state, :choice, true),
+        do:
+          state.arena
+          |> Choice.predicates(given.lits)
+          |> Enum.reject(&MapSet.member?(state.choice_done, &1)),
+        else: []
+
+    each_inference(state, preds, fn st, pred ->
+      fvar = st.next_fvar_id
+      st = %{st | next_fvar_id: fvar + 1, choice_done: MapSet.put(st.choice_done, pred)}
+
+      case ProofChecker.choice_instance(st.arena, pred, fvar) do
+        {:ok, arena, clause} ->
+          {st, item} =
+            add_step(
+              %{st | arena: arena},
+              {:choice, st.next_step_id, pred, fvar},
+              clause,
+              given.depth
+            )
+
+          {:cont, st, [item]}
+
+        :error ->
+          {:cont, st, []}
+      end
+    end)
+  end
+
+  # ---------------------------------------------------------------------------
+  # Fingerprint-Indexed Partner Retrieval (`Calculus.FingerprintIndex`)
+  # ---------------------------------------------------------------------------
+
+  # The three indexes (literal atoms, paramodulation targets, rewrite sides) follow
+  # the active set: the loop indexes a clause when it becomes active
+  # (`fingerprint_activate/2`) and tombstones it when redundancy elimination removes
+  # it (`fingerprint_remove/2`).
+  defp new_fingerprints(opts) do
+    if Keyword.get(opts, :fingerprints, true) do
+      %{
+        atoms: FingerprintIndex.new(),
+        subterms: FingerprintIndex.new(),
+        sides: FingerprintIndex.new(),
+        ids: MapSet.new()
+      }
+    end
+  end
+
+  defp fingerprint_activate(%__MODULE__{fp_index: nil} = state, _item), do: state
+
+  defp fingerprint_activate(%__MODULE__{} = state, item),
+    do: %{state | fp_index: index_clause(state, state.fp_index, item)}
+
+  defp fingerprint_remove(%__MODULE__{fp_index: nil} = state, _ids), do: state
+
+  defp fingerprint_remove(%__MODULE__{} = state, ids),
+    do: %{state | fp_index: drop_indexed(state.fp_index, ids)}
+
+  defp drop_indexed(fp, removed) do
+    gone? = fn
+      {id, _pol} -> MapSet.member?(removed, id)
+      id -> MapSet.member?(removed, id)
+    end
+
+    %{
+      fp
+      | atoms: FingerprintIndex.delete_where(fp.atoms, gone?),
+        subterms: FingerprintIndex.delete_where(fp.subterms, gone?),
+        sides: FingerprintIndex.delete_where(fp.sides, gone?),
+        ids: MapSet.difference(fp.ids, removed)
+    }
+  end
+
+  defp index_clause(%__MODULE__{} = state, fp, item) do
+    insert = fn index, term, payload ->
+      elem(FingerprintIndex.insert(index, state.arena, term, payload), 0)
+    end
+
+    sides = if MapSet.size(item.lits) <= 2, do: paramod_sides(state, item, item.lits), else: []
+
+    %{
+      fp
+      | atoms:
+          Enum.reduce(item.lits, fp.atoms, fn {pol, a}, idx -> insert.(idx, a, {item.id, pol}) end),
+        subterms:
+          for(
+            {_pol, a} <- item.lits,
+            s <- non_var_subterms(state, a),
+            reduce: fp.subterms,
+            do: (idx -> insert.(idx, s, item.id))
+          ),
+        sides:
+          Enum.reduce(sides, fp.sides, fn {_eq, from, _to}, idx -> insert.(idx, from, item.id) end),
+        ids: MapSet.put(fp.ids, item.id)
+    }
+  end
+
+  defp partner?(:all, _clause), do: true
+  defp partner?(ids, clause), do: MapSet.member?(ids, clause.id)
+
+  defp query_ids(%__MODULE__{} = state, index, terms) do
+    fps = Enum.map(terms, &FingerprintIndex.fingerprint(state.arena, &1))
+    opts = [backend: calculus_opt(state, :fingerprint_backend, :auto)]
+    FingerprintIndex.query(index, fps, :unify, opts)
+  end
+
+  # Active clauses with a literal of opposite polarity whose atom may unify with a
+  # literal of `given` (top-level equations are also queried swapped).
+  defp resolution_partners(%__MODULE__{fp_index: nil} = state, _given), do: {state, :all}
+
+  defp resolution_partners(%__MODULE__{} = state, given) do
+    {queries, arena} =
+      Enum.flat_map_reduce(given.lits, state.arena, fn {pol, atom}, ar ->
+        case Arena.get_node(ar, atom) do
+          {@tag_eq, _, _, l, r} ->
+            {ar, swapped} = Arena.mk_eq(ar, r, l)
+            {[{pol, atom}, {pol, swapped}], ar}
+
+          _ ->
+            {[{pol, atom}], ar}
+        end
+      end)
+
+    state = %{state | arena: arena}
+    rows = query_ids(state, state.fp_index.atoms, Enum.map(queries, &elem(&1, 1)))
+
+    partners =
+      for {{pol, _atom}, hits} <- Enum.zip(queries, rows),
+          {id, other_pol} <- hits,
+          other_pol != pol,
+          into: MapSet.new(),
+          do: id
+
+    {state, partners}
+  end
+
+  # `{into_active, from_active}`: active clauses `given` can rewrite, and active clauses
+  # whose rewrite sides may unify with a subterm of `given`.
+  defp paramod_partners(%__MODULE__{fp_index: nil} = state, _given), do: {state, :all, :all}
+
+  defp paramod_partners(%__MODULE__{} = state, given) do
+    from_terms =
+      if MapSet.size(given.lits) <= 2,
+        do: for({_eq, from, _to} <- paramod_sides(state, given, given.lits), do: from),
+        else: []
+
+    subterms = for {_pol, a} <- given.lits, s <- non_var_subterms(state, a), uniq: true, do: s
+
+    into =
+      state |> query_ids(state.fp_index.subterms, from_terms) |> List.flatten() |> MapSet.new()
+
+    from = state |> query_ids(state.fp_index.sides, subterms) |> List.flatten() |> MapSet.new()
+    {state, into, from}
+  end
+
+  # `:flex_resolution` policy; skipped pairs are counted as search cutoffs.
+  defp flex_filter(%__MODULE__{} = state, pairs, atoms_of) do
+    {kept, skipped} =
+      Enum.split_with(pairs, fn pair ->
+        {a1, a2} = atoms_of.(pair)
+        flex_policy?(state, a1, a2)
+      end)
+
+    {cutoff(state, length(skipped)), kept}
+  end
+
+  defp flex_policy?(%__MODULE__{} = state, a1, a2) do
+    calculus_opt(state, :flex_resolution, :ground) == :all or
+      (flex_ok?(state.arena, a1, a2) and flex_ok?(state.arena, a2, a1))
+  end
+
+  # `F @ args` may meet `other` if `other` is ground, contains one of the `args` (the
+  # non-vacuous abstraction case of Entry 006) or has a head of the type of `F` applied
+  # to as many arguments (first-order decomposition `F := h`).
+  defp flex_ok?(arena, atom, other) do
+    {head, args} = Terms.spine(arena, atom)
+    {other_head, other_args} = Terms.spine(arena, other)
+
+    args == [] or not Terms.fvar?(arena, head) or not Terms.has_fvar?(arena, other) or
+      Enum.any?(args, &Terms.subterm?(arena, other, &1)) or
+      (length(other_args) == length(args) and
+         Arena.type_of(arena, other_head) == Arena.type_of(arena, head))
+  end
+
+  # Pairwise fingerprint pre-filter for literal atoms (modulo equation symmetry).
+  defp atoms_compatible?(%__MODULE__{} = state, a1, a2) do
+    case {Arena.get_node(state.arena, a1), Arena.get_node(state.arena, a2)} do
+      {{@tag_eq, _, _, l1, r1}, {@tag_eq, _, _, l2, r2}} ->
+        (terms_compatible?(state, l1, l2) and terms_compatible?(state, r1, r2)) or
+          (terms_compatible?(state, l1, r2) and terms_compatible?(state, r1, l2))
+
+      _ ->
+        terms_compatible?(state, a1, a2)
+    end
+  end
+
+  defp terms_compatible?(%__MODULE__{} = state, s, t) do
+    not calculus_opt(state, :fingerprints, true) or
+      FingerprintIndex.compatible?(
+        :unify,
+        FingerprintIndex.fingerprint(state.arena, s),
+        FingerprintIndex.fingerprint(state.arena, t)
+      )
   end
 
   # ---------------------------------------------------------------------------
@@ -1478,9 +1836,10 @@ defmodule Astraea.Prover do
   defp step_parents({:func_ext, _id, p, _fv, _ty}), do: [p]
   defp step_parents({:paramod, _id, p1, p2, _eq, _tl, _rl}), do: [p1, p2]
   defp step_parents({:resolve, _id, p1, p2, _lit}), do: [p1, p2]
+  defp step_parents(step), do: ProofChecker.step_parents(step)
 
   defp stats(%__MODULE__{} = state) do
-    cutoffs = Map.get(state, :unification_cutoffs, 0)
+    cutoffs = state.unification_cutoffs
 
     base = %{
       iterations: state.iterations,
@@ -1494,6 +1853,7 @@ defmodule Astraea.Prover do
       rewrites: state.rewrites,
       backward_rewritten: state.backward_rewritten,
       index_backend: state.active_index.backend,
+      unification_cutoffs: cutoffs,
       complete: state.discarded_clauses == 0 and not state.sine_filtered and cutoffs == 0
     }
 

@@ -231,6 +231,8 @@ defmodule Astraea.Compressor do
   defp rewire_step_parents({:resolve, id, p1, p2, lit}, remap),
     do: {:resolve, id, Map.get(remap, p1, p1), Map.get(remap, p2, p2), lit}
 
+  defp rewire_step_parents(step, remap), do: ProofChecker.rewire_parents(step, remap)
+
   defp step_signature({:axiom, _id, c}), do: {:axiom, c}
   defp step_signature({:refl, _id, t}), do: {:refl, t}
   defp step_signature({:symm, _id, p}), do: {:symm, p}
@@ -240,6 +242,7 @@ defmodule Astraea.Compressor do
   defp step_signature({:func_ext, _id, p, fv, ty}), do: {:func_ext, p, fv, ty}
   defp step_signature({:paramod, _id, p1, p2, eq, tl, rl}), do: {:paramod, p1, p2, eq, tl, rl}
   defp step_signature({:resolve, _id, p1, p2, lit}), do: {:resolve, p1, p2, lit}
+  defp step_signature(step), do: Tuple.delete_at(step, 1)
 
   # ---------------------------------------------------------------------------
   # 3. Unreachable Ancestor Pruning
@@ -284,6 +287,7 @@ defmodule Astraea.Compressor do
   defp step_parents({:func_ext, _id, p, _fv, _ty}), do: [p]
   defp step_parents({:paramod, _id, p1, p2, _eq, _tl, _rl}), do: [p1, p2]
   defp step_parents({:resolve, _id, p1, p2, _lit}), do: [p1, p2]
+  defp step_parents(step), do: ProofChecker.step_parents(step)
 
   # ---------------------------------------------------------------------------
   # 4. Macro-Inference Pattern Mining & Telemetry
