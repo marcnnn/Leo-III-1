@@ -434,4 +434,30 @@ defmodule Astraea.InputTest do
              &(&1.has_th1 or &1.has_arith or &1.has_choice or &1.has_modal or &1.has_let_ite)
            )
   end
+
+  test "saturating an embedded or uninterpreted fragment never counts as a model" do
+    # SYO931^1: TPTP status Theorem, but not valid under the Kripke embedding for K,
+    # so its embedded clause set saturates. That must not become CounterSatisfiable.
+    modal = """
+    thf(spec, logic, $modal == [$domains == $constant, $designation == $rigid,
+                                $terms == $local, $modalities == $modal_system_K]).
+    thf(a_type, type, a: $o).
+    thf(ax1, axiom, [.] a).
+    thf(c, conjecture, a).
+    """
+
+    arith = "tff(c, conjecture, ! [X: $int]: $lesseq(X, $sum(X, 1)))."
+
+    for src <- [modal, arith] do
+      assert {:saturated, stats} = Prover.prove_string(src, sine_limit: nil, timeout_ms: 1_000)
+      refute stats.complete
+      assert :input in stats.incomplete_reasons
+    end
+
+    # The same shape without an embedding stays a justified model answer.
+    plain = "fof(ax, axiom, ! [X]: (r(X) => p)).\nfof(c, conjecture, p)."
+
+    assert {:saturated, %{complete: true}} =
+             Prover.prove_string(plain, sine_limit: nil, timeout_ms: 1_000)
+  end
 end

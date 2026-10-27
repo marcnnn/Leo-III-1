@@ -81,6 +81,7 @@ defmodule Astraea.Prover do
             demodulation: true,
             scoring_mode: :goal_directed,
             sine_filtered: false,
+            input_incomplete: [],
             discarded_clauses: 0,
             forward_subsumed: 0,
             backward_subsumed: 0,
@@ -145,11 +146,25 @@ defmodule Astraea.Prover do
         inline_bridges: inline_bridges
       )
 
-    prove_clauses(
-      arena,
-      clauses,
-      Keyword.put(opts, :sine_filtered, sine_filtered?(lowered, sine_limit))
-    )
+    opts =
+      opts
+      |> Keyword.put(:sine_filtered, sine_filtered?(lowered, sine_limit))
+      |> Keyword.put(:input_incomplete, input_incomplete(lowered))
+
+    prove_clauses(arena, clauses, opts)
+  end
+
+  # Fragments whose clause sets are faithful in both directions, so that a model of
+  # the clauses is a model of the problem (`$ite`/`$let` are definitional extensions
+  # or substitutions, `$distinct` is axiomatized exactly). Proofs found through the
+  # other fragments stay valid, but their saturations prove nothing: the modal
+  # embedding need not match TPTP's intended semantics (SYO931^1), monomorphization
+  # only covers some type instances, and arithmetic beyond ground evaluation, choice,
+  # description and tuples are uninterpreted.
+  @model_faithful_fragments [:thf, :tff, :fof, :cnf, :ite, :let, :distinct]
+
+  defp input_incomplete(%TptpLower{} = lowered) do
+    lowered.incomplete ++ Enum.reject(lowered.fragments, &(&1 in @model_faithful_fragments))
   end
 
   # Mirrors the SInE trigger in `Clausifier.clausify/2`. It counts definitions the
@@ -186,6 +201,8 @@ defmodule Astraea.Prover do
       were already derived as steps `ids` of `steps`, so they are not registered as
       axioms and a refutation includes their derivations
     * `:sine_filtered` - the input omits axioms (set by `prove_lowered/2`)
+    * `:input_incomplete` - reasons why a model of the input clauses need not be a
+      model of the problem (set by `prove_lowered/2`)
   """
   @spec prove_clauses(Arena.t(), [ProofChecker.clause()], keyword()) ::
           result() | {:proved_external, map()}
@@ -210,6 +227,7 @@ defmodule Astraea.Prover do
       demodulation: Keyword.get(opts, :demodulation, true),
       scoring_mode: Keyword.get(opts, :scoring_mode, :goal_directed),
       sine_filtered: Keyword.get(opts, :sine_filtered, false),
+      input_incomplete: Keyword.get(opts, :input_incomplete, []),
       deadline_ms: deadline,
       opts: opts,
       cooperate: opts |> Keyword.get(:cooperate, []) |> Enum.map(&normalize_external/1),
@@ -1941,6 +1959,7 @@ defmodule Astraea.Prover do
       wide_equations: state.wide_equations,
       demodulation: state.rewrites > 0,
       sine: state.sine_filtered,
+      input: state.input_incomplete != [],
       partial_input: Keyword.has_key?(state.opts, :seed),
       unification_cutoffs: state.unification_cutoffs > 0
     ]

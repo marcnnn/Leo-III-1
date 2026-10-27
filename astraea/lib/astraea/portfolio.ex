@@ -640,9 +640,11 @@ defmodule Astraea.Portfolio do
         }
       end
 
+    # Internal model answers on Theorem problems are counted in `false_model_claims`.
     external_unsound =
       for {entry, {tag, st}, _ms} <- results,
           is_map(entry),
+          is_map(st) and match?({:external, _}, st[:winning_strategy]),
           {tag, entry.status} in [
             {:proved_external, "CounterSatisfiable"},
             {:proved_external, "Satisfiable"},
