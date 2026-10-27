@@ -25,6 +25,8 @@ defmodule Astraea.ProofChecker do
   - `{:arith_eval, id, parent_id, clause}` — ground arithmetic evaluation; `clause` must
     equal `Astraea.Input.Arith.eval_clause/2` of the parent, which the kernel recomputes
     (soundness argument in `Astraea.Input.Arith`)
+  - `{:eval, id, parent_id, clause}` — ground lambda/combinator/boolean evaluation; `clause` must
+    equal `Astraea.Evaluator.eval_clause/2` of the parent, which the kernel recomputes
 
   Soundness of the `:cnf` rules (each conclusion is entailed by its premise in
   extensional Henkin semantics, or, for `:skolem`, in every expansion of a model that
@@ -78,6 +80,7 @@ defmodule Astraea.ProofChecker do
           | {:cnf, non_neg_integer(), non_neg_integer(), literal(), cnf_rule()}
           | {:choice, non_neg_integer(), Arena.term_id(), non_neg_integer()}
           | {:arith_eval, non_neg_integer(), non_neg_integer(), clause()}
+          | {:eval, non_neg_integer(), non_neg_integer(), clause()}
 
   @type cnf_rule ::
           :not
@@ -88,6 +91,7 @@ defmodule Astraea.ProofChecker do
           | {:bool_eq, :left | :right}
           | :truth
           | :ext
+          | :lift_bool
 
   @doc """
   Verifies a linear/DAG refutation certificate ending in the empty clause (`MapSet.new()`).
@@ -253,7 +257,7 @@ defmodule Astraea.ProofChecker do
   end
 
   # ---------------------------------------------------------------------------
-  # Higher-order calculus rules (`:cnf`, `:choice`), see the moduledoc
+  # Higher-order calculus rules (`:cnf`, `:choice`, `:eval`), see the moduledoc
   # ---------------------------------------------------------------------------
 
   defp check_step(%Arena{} = arena, derived, {:cnf, id, parent_id, lit, rule}) do
@@ -282,6 +286,15 @@ defmodule Astraea.ProofChecker do
     end
   end
 
+  defp check_step(%Arena{} = arena, derived, {:eval, id, parent_id, claimed}) do
+    with {:ok, parent} <- fetch_clause(derived, parent_id),
+         {arena, ^claimed} <- Astraea.Evaluator.eval_clause(arena, parent) do
+      {:ok, arena, id, claimed}
+    else
+      _ -> {:error, {:invalid_eval, id, parent_id}}
+    end
+  end
+
   @doc """
   Premise step ids of `step` (for proof extraction and compression).
   """
@@ -289,6 +302,7 @@ defmodule Astraea.ProofChecker do
   def step_parents({:cnf, _id, p, _lit, _rule}), do: [p]
   def step_parents({:choice, _id, _pred, _fv}), do: []
   def step_parents({:arith_eval, _id, p, _clause}), do: [p]
+  def step_parents({:eval, _id, p, _clause}), do: [p]
   def step_parents({:axiom, _id, _c}), do: []
   def step_parents({:refl, _id, _t}), do: []
   def step_parents({:symm, _id, p}), do: [p]
@@ -300,7 +314,7 @@ defmodule Astraea.ProofChecker do
   def step_parents({:resolve, _id, p1, p2, _lit}), do: [p1, p2]
 
   @doc """
-  Renames the premise ids of a calculus step (`:cnf`, `:choice`, `:arith_eval`) through `remap`.
+  Renames the premise ids of a calculus step (`:cnf`, `:choice`, `:arith_eval`, `:eval`) through `remap`.
   """
   @spec rewire_parents(step(), %{non_neg_integer() => non_neg_integer()}) :: step()
   def rewire_parents({:cnf, id, p, lit, rule}, remap),
@@ -310,6 +324,9 @@ defmodule Astraea.ProofChecker do
 
   def rewire_parents({:arith_eval, id, p, clause}, remap),
     do: {:arith_eval, id, Map.get(remap, p, p), clause}
+
+  def rewire_parents({:eval, id, p, clause}, remap),
+    do: {:eval, id, Map.get(remap, p, p), clause}
 
   @doc """
   One-step clausal expansion of a non-atomic literal under `rule` (the `:cnf` kernel
@@ -401,6 +418,26 @@ defmodule Astraea.ProofChecker do
     falsum = if pol == :pos, do: "$false", else: "$true"
 
     if truth_const?(arena, atom, falsum), do: {:ok, arena, []}, else: :error
+  end
+
+  defp expand(arena, :pos, node, atom, :lift_bool) do
+    if Arena.type_of(arena, atom) == Arena.ty_o() and elem(node, 0) != @tag_eq do
+      {arena, true_const} = Arena.mk_const(arena, "$true", :o)
+      {arena, eq} = Arena.mk_eq(arena, atom, true_const)
+      {:ok, arena, [{:pos, eq}]}
+    else
+      :error
+    end
+  end
+
+  defp expand(arena, :neg, node, atom, :lift_bool) do
+    if Arena.type_of(arena, atom) == Arena.ty_o() and elem(node, 0) != @tag_eq do
+      {arena, false_const} = Arena.mk_const(arena, "$false", :o)
+      {arena, eq} = Arena.mk_eq(arena, atom, false_const)
+      {:ok, arena, [{:pos, eq}]}
+    else
+      :error
+    end
   end
 
   defp expand(_arena, _pol, _node, _atom, _rule), do: :error

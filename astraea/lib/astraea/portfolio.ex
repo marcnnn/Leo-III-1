@@ -44,6 +44,7 @@ defmodule Astraea.Portfolio do
   alias Astraea.{
     Clausifier,
     Compressor,
+    Evaluator,
     External,
     ProofChecker,
     Prover,
@@ -97,7 +98,8 @@ defmodule Astraea.Portfolio do
          inline_bridges: true,
          scoring_mode: :weight_first,
          max_clause_lits: 7,
-         max_clause_weight: 55
+         max_clause_weight: 55,
+         funcspec: true
        ]},
       {:broad_breadth,
        [
@@ -105,9 +107,47 @@ defmodule Astraea.Portfolio do
          inline_bridges: false,
          scoring_mode: :breadth_first,
          max_clause_lits: 8,
-         max_clause_weight: 60
+         max_clause_weight: 60,
+         special_instances: true,
+         funcspec: true
        ]}
     ]
+  end
+
+  @doc """
+  The dedicated `:funcspec` strategy for function synthesis via choice.
+  """
+  @spec funcspec_strategy() :: strategy_spec()
+  def funcspec_strategy do
+    {:funcspec,
+     [
+       funcspec: true,
+       choice: true,
+       prim_subst: 2,
+       unifier_count: 10,
+       unify_depth: 8,
+       ordered: false,
+       flex_resolution: :all,
+       max_clause_lits: 8,
+       max_clause_weight: 60
+     ]}
+  end
+
+  @doc """
+  The dedicated `:eval_reflection` strategy that eagerly normalizes ground
+  lambda/combinator/boolean literals.
+  """
+  @spec eval_reflection_strategy() :: strategy_spec()
+  def eval_reflection_strategy do
+    {:eval_reflection,
+     [
+       eval_simplify: true,
+       prim_subst_filter: true,
+       sine_limit: 30,
+       scoring_mode: :unit_focused,
+       max_clause_lits: 5,
+       max_clause_weight: 40
+     ]}
   end
 
   @doc """
@@ -145,6 +185,39 @@ defmodule Astraea.Portfolio do
   """
   @spec prove_lowered(TptpLower.t(), keyword()) :: result()
   def prove_lowered(%TptpLower{} = lowered, opts \\ []) do
+    conjecture? = lowered.conjectures != []
+
+    counterexample =
+      if conjecture? and Keyword.get(opts, :model_probe, true) do
+        case lowered.conjectures do
+          [{_name, conj_term} | _] ->
+            axioms = Enum.map(lowered.axioms, &elem(&1, 2))
+            Evaluator.find_counterexample(lowered.arena, conj_term, axioms)
+
+          _ ->
+            :not_found
+        end
+      else
+        :not_found
+      end
+
+    case counterexample do
+      {:counterexample, env} ->
+        {:counter_satisfiable,
+         %{
+           szs: :counter_satisfiable,
+           counterexample: env,
+           complete: true,
+           iterations: 0,
+           reductions: 0
+         }}
+
+      :not_found ->
+        do_prove_lowered(lowered, opts)
+    end
+  end
+
+  defp do_prove_lowered(%TptpLower{} = lowered, opts) do
     timeout_ms = Keyword.get(opts, :timeout_ms, 2_500)
     strategies = Keyword.get(opts, :strategies, default_strategies())
     externals = opts |> Keyword.get(:external, []) |> Enum.map(&normalize_external/1)

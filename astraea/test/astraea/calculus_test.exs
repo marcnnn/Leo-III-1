@@ -3,7 +3,7 @@ defmodule Astraea.CalculusTest do
   use ExUnitProperties
 
   alias Astraea.{Arena, ProofChecker, Prover}
-  alias Astraea.Calculus.{Choice, Cnf, FingerprintIndex, Ordering, PrimSubst, Terms, Unify}
+  alias Astraea.Calculus.{Choice, Cnf, FingerprintIndex, FuncSpec, Ordering, PrimSubst, SpecialInstances, Terms, Unify}
 
   # ---------------------------------------------------------------------------
   # Random terms over a small higher-order signature:
@@ -472,5 +472,58 @@ defmodule Astraea.CalculusTest do
                timeout_ms: 1_000
              )
            )
+  end
+  test "funcspec synthesizes choice terms for flexible function specifications" do
+    {arena, s} = signature()
+    {arena, fa} = Arena.mk_app(arena, s[:F], s.a)
+    {arena, fb} = Arena.mk_app(arena, s[:F], s.b)
+    {arena, eq1} = Arena.mk_eq(arena, fa, s.b)
+    {arena, eq2} = Arena.mk_eq(arena, fb, s.a)
+    clause = %{
+      id: 1,
+      lits: MapSet.new([{:neg, eq1}, {:neg, eq2}]),
+      fvars: MapSet.new([{3, Arena.type_of(arena, s[:F])}]),
+      depth: 0
+    }
+
+    assert {arena, [{3, synthesized}]} = FuncSpec.candidates(arena, clause)
+    {arena, applied_a} = Arena.mk_app(arena, synthesized, s.a)
+    {arena, norm_a} = Arena.beta_eta_norm(arena, applied_a)
+    assert match?({4, _, _, _, _}, Arena.get_node(arena, norm_a))
+
+    src = """
+    thf(a_type, type, a: $i).
+    thf(b_type, type, b: $i).
+    thf(conj, conjecture, ? [F: $i > $i]: (((F @ a) = b) & ((F @ b) = a))).
+    """
+    assert {:proved, steps, _} = Prover.prove_string(src, funcspec: true, timeout_ms: 2_000)
+    assert :subst in kinds(steps)
+  end
+
+  test "special instances instantiates higher-order variables with canonical terms" do
+    arena = Arena.new()
+    {arena, io} = Arena.intern_type(arena, {:arrow, :i, Arena.ty_o()})
+    {arena, ii} = Arena.intern_type(arena, {:arrow, :i, :i})
+    {arena, choice_ty} = Arena.intern_type(arena, {:arrow, io, :i})
+
+    {arena, p_var} = Arena.mk_fvar(arena, 10, io)
+    {arena, _id_var} = Arena.mk_fvar(arena, 11, ii)
+    {arena, _ch_var} = Arena.mk_fvar(arena, 12, choice_ty)
+    {arena, x} = Arena.mk_const(arena, "c", :i)
+    {arena, px} = Arena.mk_app(arena, p_var, x)
+
+    clause = %{
+      id: 1,
+      lits: MapSet.new([{:pos, px}]),
+      fvars: MapSet.new([{10, io}, {11, ii}, {12, choice_ty}]),
+      depth: 0
+    }
+
+    assert {_arena, candidates} = SpecialInstances.candidates(arena, clause)
+    cand_map = Map.new(candidates)
+
+    assert length(cand_map[10]) == 2
+    assert length(cand_map[11]) == 1
+    assert length(cand_map[12]) == 1
   end
 end

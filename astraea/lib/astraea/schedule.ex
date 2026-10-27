@@ -49,6 +49,15 @@ defmodule Astraea.Schedule do
   @type slice :: %{strategies: [Portfolio.strategy_spec()], timeout_ms: non_neg_integer()}
 
   @doc """
+  Dedicated `:funcspec` strategy definition for function synthesis via choice.
+  """
+  @spec funcspec_strategy() :: strategy()
+  def funcspec_strategy do
+    strat = Enum.find(leo3_strategies(), &(&1.name == :funcspec))
+    %{name: :funcspec, share: strat.share, opts: leo3_opts(strat.params)}
+  end
+
+  @doc """
   Leo-III's 17 `RunStrategy` definitions (`s1` ... `s6`, `funcspec` and the
   `Configuration` defaults as `default`) with their original parameters.
   """

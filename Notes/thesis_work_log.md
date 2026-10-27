@@ -362,3 +362,39 @@ Following the gap analysis in Entry 009 and `Notes/leo3_baseline.md`, Leo-III so
   * `TPTP-Smoke` (34 / 15): `27 / 34` Theorems proved (0 false proofs on CSA traps, 0 LCF verification failures).
   * `TPTP-Dev` (237 / 60): **`103 / 237`** Theorems proved (up from `97` in Entry 009, net **+6** solved theorems; 0 false proofs on CSA traps, 0 LCF verification failures).
   * Internal portfolio solver alone now crosses 100 theorems on `TPTP-Dev` at 2.5 s (103 vs Leo-III stock 63).
+
+---
+
+## Entry 011: Implementation of Higher-Order Calculus Rules (`funcspec`, `specialInstances`, Boolean Demodulation) (2026-10-27)
+
+Following the gap analysis against Leo-III 1.8.1 on `TPTP-Dev`, three high-leverage higher-order calculus components were implemented in pure Elixir without introducing any new Rust code and preserving strict LCF kernel verification soundness:
+
+* **Workstream A: Function Synthesis via Choice (`Astraea.Calculus.FuncSpec`)**:
+  * Implemented `Astraea.Calculus.FuncSpec`: detects negative equality literals involving flexible function applications $F(s_{11}, \dots, s_{1J}) \neq t_1 \lor \dots \lor F(s_{N1}, \dots, s_{NJ}) \neq t_N$.
+  * Synthesizes the Hilbert choice term:
+    $$\lambda x_1 \dots \lambda x_J.\ \varepsilon\Big(\lambda y.\ \bigwedge_{i=1}^N \Big(\bigwedge_{j=1}^J x_j = s_{ij}\Big) \implies y = t_i\Big)$$
+    using the interned Hilbert choice operator `"$choice"` or registered choice operator of type $(\tau_{res} \to \$o) \to \tau_{res}$.
+  * Performs instantiation via standard `:subst` kernel steps (`emit_subst_step/4` in `Astraea.Prover`).
+  * Wired into `saturation_loop` under `funcspec: true` and added to `:full_inline_weight` and `:broad_breadth` portfolio strategies.
+  * **Gap Solves:** Proves `CAT038^2` (314 ms, 44 steps) and `SYO295^5` (40 ms, 45 steps) directly from stock TPTP THF0.
+
+* **Workstream B: Quantifier Instantiation with Canonical Terms (`Astraea.Calculus.SpecialInstances`)**:
+  * Implemented `Astraea.Calculus.SpecialInstances`: candidate enumeration for higher-order free variables in clauses.
+  * Canonical term instances:
+    * Boolean unary predicates $X: T \to \$o \implies \lambda \_.\ \$true$ and $\lambda \_.\ \$false$.
+    * Identity functions $X: T \to T \implies \lambda z.\ z$.
+    * Choice operators $X: (T \to \$o) \to T \implies \"$choice\"$.
+  * Instantiation emitted as LCF `:subst` steps. Gated behind `special_instances: true` to prevent unconstrained clause explosion in short portfolio runs.
+
+* **Workstream C: Boolean Unit Demodulation & Propositional Rewriting (`Astraea.Engine.Demodulator`, `Astraea.Arena`, `Astraea.ProofChecker`, `Astraea.Prover`)**:
+  * Extended `Demodulator.rules/2` to index non-equational boolean unit literals ($P \to \$true$, $\neg P \to \$false$) when `state.higher_order` is true, targeting subterms in predicate arguments of type $\$o$ (e.g. `holdsDuring(t, P => Q)`).
+  * Added shallow truth reductions in `Arena.beta_eta_norm/2` ($\\neg \$true \to \$false$, $\\neg \$false \to \$true$, $\$true \lor A \to \$true$, $\$false \lor A \to A$).
+  * Added atomic verified kernel expansion rule `:lift_bool` to `Astraea.ProofChecker` to soundly justify lifting boolean literals to equality ($P \to P = \$true$, $\neg P \to P = \$false$).
+  * Extended `paramod_sides` in `Astraea.Prover` to include boolean unit rewrite sides for superposition into subterms of type $\$o$, coupled with truth literal elimination (`eliminate_truth_literals/2`).
+  * **Gap Solves:** Proves `CSR127^1` (4 ms, 8 steps), `CSR142^1` (25 ms, 14 steps), and `SYO349^5` (2 ms, 9 steps).
+
+* **Verification & Benchmark Results on `armix` (2.5 s per problem, 3 concurrency):**
+  * `mix test`: 100% pass rate locally and on `armix` (142 tests: 11 properties, 131 unit tests, 0 failures).
+  * `TPTP-Smoke` (34 / 15): **`27 / 34`** Theorems proved (`79.41%`), **0** false proofs across all 15 CSA traps, **0** LCF verification failures.
+  * `TPTP-Dev` (237 / 60): **`108 / 237`** Theorems proved (**`45.57%`**), up from `103` in Entry 010 and `82` in Entry 007 (net **+26** theorems over Entry 007). **0** false proofs across all 60 CSA traps, **0** LCF verification failures.
+  * `TPTP-Holdout` was strictly untouched and uninspected per benchmark policy.

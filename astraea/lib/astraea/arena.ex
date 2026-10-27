@@ -65,7 +65,13 @@ defmodule Astraea.Arena do
   @type t :: %__MODULE__{}
 
   @spec new() :: t()
-  def new, do: %__MODULE__{}
+  def new do
+    arena = %__MODULE__{}
+    {arena, _} = mk_const(arena, "$true", :o)
+    {arena, _} = mk_const(arena, "$false", :o)
+    arena
+  end
+
 
   @spec ty_o() :: type_id()
   def ty_o, do: @ty_o
@@ -194,7 +200,20 @@ defmodule Astraea.Arena do
     end
   end
 
+  @doc "Looks up an already-interned constant term_id without allocating."
+  @spec lookup_const(t(), String.t(), term()) :: term_id() | nil
+  def lookup_const(%__MODULE__{} = arena, name, ty) do
+    with {:ok, ty_id} <- (if is_integer(ty), do: {:ok, ty}, else: Map.fetch(arena.types, ty)),
+         {:ok, sym_id} <- Map.fetch(arena.symbols, name) do
+      packed = encode_node(@tag_const, 0, ty_id, sym_id, 0)
+      Map.get(arena.node_index, packed)
+    else
+      _ -> nil
+    end
+  end
+
   @spec mk_const(t(), String.t(), term()) :: {t(), term_id()}
+
   def mk_const(%__MODULE__{} = arena, name, ty) do
     {arena, ty_id} = intern_type(arena, ty)
     {arena, sym_id} = intern_symbol(arena, name)
@@ -499,7 +518,20 @@ defmodule Astraea.Arena do
       @tag_or ->
         {arena, l_norm} = beta_eta_norm(arena, left)
         {arena, r_norm} = beta_eta_norm(arena, right)
-        mk_or(arena, l_norm, r_norm)
+
+        cond do
+          truth_const?(arena, l_norm, "$true") or truth_const?(arena, r_norm, "$true") ->
+            mk_const(arena, "$true", :o)
+
+          truth_const?(arena, l_norm, "$false") ->
+            {arena, r_norm}
+
+          truth_const?(arena, r_norm, "$false") ->
+            {arena, l_norm}
+
+          true ->
+            mk_or(arena, l_norm, r_norm)
+        end
 
       @tag_not ->
         {arena, l_norm} = beta_eta_norm(arena, left)
@@ -507,6 +539,13 @@ defmodule Astraea.Arena do
         case get_node(arena, l_norm) do
           {@tag_not, _, _, inner_id, _} ->
             {arena, inner_id}
+
+          {@tag_const, _, _, sym, _} ->
+            case Map.get(arena.symbol_names, sym) do
+              "$true" -> mk_const(arena, "$false", :o)
+              "$false" -> mk_const(arena, "$true", :o)
+              _ -> mk_not(arena, l_norm)
+            end
 
           _ ->
             mk_not(arena, l_norm)
@@ -517,7 +556,17 @@ defmodule Astraea.Arena do
     end
   end
 
+  @doc "Checks if term_id is a boolean constant matching name (e.g. \"$true\" or \"$false\")."
+  @spec truth_const?(t(), term_id(), String.t()) :: boolean()
+  def truth_const?(%__MODULE__{} = arena, term_id, name) do
+    case get_node(arena, term_id) do
+      {@tag_const, _, _, sym, _} -> Map.get(arena.symbol_names, sym) == name
+      _ -> false
+    end
+  end
+
   @spec occurs_bvar?(t(), term_id(), non_neg_integer()) :: boolean()
+
   def occurs_bvar?(%__MODULE__{} = arena, term_id, target_idx) do
     {tag, flags, _ty, left, right} = get_node(arena, term_id)
 

@@ -31,22 +31,59 @@ defmodule Astraea.Engine.Demodulator do
   the clause `:item`, its equation `:eq` and the directed `:lhs`/`:rhs`.
   """
   @spec rules(Arena.t(), map()) :: [map()]
-  def rules(%Arena{} = arena, item) do
-    with [{:pos, eq}] <- MapSet.to_list(item.lits),
-         {@tag_eq, _, _, l, r} <- Arena.get_node(arena, eq) do
-      directions =
-        case Arena.kbo_compare(arena, l, r) do
-          :gt -> [{l, r}]
-          :lt -> [{r, l}]
-          :inc -> [{l, r}, {r, l}]
-          :eq -> []
+  def rules(%Arena{} = arena, item, opts \\ []) do
+    bool_rules? = Keyword.get(opts, :bool_rules, true)
+    case MapSet.to_list(item.lits) do
+      [{:pos, eq}] ->
+        case Arena.get_node(arena, eq) do
+          {@tag_eq, _, _, l, r} ->
+            directions =
+              case Arena.kbo_compare(arena, l, r) do
+                :gt -> [{l, r}]
+                :lt -> [{r, l}]
+                :inc -> [{l, r}, {r, l}]
+                :eq -> []
+              end
+
+            for {lhs, rhs} <- directions, not var?(arena, lhs) do
+              %{id: item.id, item: item, eq: eq, lhs: lhs, rhs: rhs, kind: :eq}
+            end
+
+          _ ->
+            if bool_rules? and Arena.type_of(arena, eq) == Arena.ty_o() and not var?(arena, eq) and
+                 not Arena.truth_const?(arena, eq, "$true") and
+                 not Arena.truth_const?(arena, eq, "$false") do
+              case Arena.lookup_const(arena, "$true", :o) do
+                nil -> []
+                true_const ->
+                  [%{id: item.id, item: item, eq: nil, lhs: eq, rhs: true_const, kind: :pos_bool}]
+              end
+            else
+              []
+            end
         end
 
-      for {lhs, rhs} <- directions, not var?(arena, lhs) do
-        %{id: item.id, item: item, eq: eq, lhs: lhs, rhs: rhs}
-      end
-    else
-      _ -> []
+      [{:neg, p}] ->
+        case Arena.get_node(arena, p) do
+          {@tag_eq, _, _, _, _} ->
+            []
+
+          _ ->
+            if Arena.type_of(arena, p) == Arena.ty_o() and not var?(arena, p) and
+                 not Arena.truth_const?(arena, p, "$true") and
+                 not Arena.truth_const?(arena, p, "$false") do
+              case Arena.lookup_const(arena, "$false", :o) do
+                nil -> []
+                false_const ->
+                  [%{id: item.id, item: item, eq: nil, lhs: p, rhs: false_const, kind: :neg_bool}]
+              end
+            else
+              []
+            end
+        end
+
+      _ ->
+        []
     end
   end
 
@@ -82,18 +119,26 @@ defmodule Astraea.Engine.Demodulator do
     index
     |> HeadIndex.lookup(arena, :rule, sub)
     |> Enum.reduce_while({:none, arena}, fn rule, {:none, ar} ->
+      is_bool_rule = Map.get(rule, :kind) in [:pos_bool, :neg_bool]
+
       with true <- rule.id != item.id,
+           true <- not is_bool_rule or sub != elem(lit, 1),
            {:ok, subst} <- Arena.match_pattern(ar, rule.lhs, sub),
            true <- idempotent?(ar, subst),
            {ar, to} = Arena.subst_fvar(ar, rule.rhs, subst),
-           :gt <- Arena.kbo_compare(ar, sub, to),
-           true <- side_condition?(ar, lit, sub, to, subst) do
+           true <- is_bool_rule or Arena.kbo_compare(ar, sub, to) == :gt,
+           true <- side_condition?(ar, lit, sub, to, subst, is_bool_rule) do
         {:halt, {:ok, ar, %{rule: rule, subst: subst, lit: lit, from: sub, to: to}}}
       else
         _ -> {:cont, {:none, ar}}
       end
     end)
   end
+
+  defp side_condition?(_arena, _lit, _sub, _to, _subst, true), do: true
+
+  defp side_condition?(arena, lit, sub, to, subst, false),
+    do: side_condition?(arena, lit, sub, to, subst)
 
   defp side_condition?(arena, {:pos, atom}, sub, to, subst) do
     case Arena.get_node(arena, atom) do

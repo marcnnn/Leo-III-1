@@ -33,11 +33,11 @@ defmodule Astraea.Prover do
   guarantee unless `:trust_external` is set.
   """
 
-  alias Astraea.{Arena, Clausifier, External, ProofChecker, TptpCorpus, TptpLower}
+  alias Astraea.{Arena, Clausifier, Evaluator, External, ProofChecker, TptpCorpus, TptpLower}
   alias Astraea.Engine.{Demodulator, Fragment, FVIndex, HeadIndex, PassiveQueue, Subsumption}
   alias Astraea.External.Reconstruct
   alias Astraea.Input.Arith
-  alias Astraea.Calculus.{Choice, Cnf, FingerprintIndex, Ordering, PrimSubst, Terms, Unify}
+  alias Astraea.Calculus.{Choice, Cnf, FingerprintIndex, FuncSpec, Ordering, PrimSubst, SpecialInstances, Terms, Unify}
 
   # Below this remaining budget an external call cannot finish in time.
   @min_external_ms 300
@@ -83,6 +83,9 @@ defmodule Astraea.Prover do
             sine_filtered: false,
             input_incomplete: [],
             discarded_clauses: 0,
+            eval_simplify: false,
+            start_reductions: nil,
+            max_reductions: :infinity,
             forward_subsumed: 0,
             backward_subsumed: 0,
             rewrites: 0,
@@ -208,6 +211,9 @@ defmodule Astraea.Prover do
   @spec prove_clauses(Arena.t(), [ProofChecker.clause()], keyword()) ::
           result() | {:proved_external, map()}
   def prove_clauses(%Arena{} = arena, input_clauses, opts \\ []) do
+    {arena, _} = Arena.mk_const(arena, "$true", :o)
+    {arena, _} = Arena.mk_const(arena, "$false", :o)
+
     timeout_ms = Keyword.get(opts, :timeout_ms, 2_500)
     deadline = System.monotonic_time(:millisecond) + timeout_ms
     index_opts = [backend: Keyword.get(opts, :index_backend, :auto)]
@@ -229,6 +235,9 @@ defmodule Astraea.Prover do
       scoring_mode: Keyword.get(opts, :scoring_mode, :goal_directed),
       sine_filtered: Keyword.get(opts, :sine_filtered, false),
       input_incomplete: Keyword.get(opts, :input_incomplete, []),
+      eval_simplify: Keyword.get(opts, :eval_simplify, false),
+      max_reductions: Keyword.get(opts, :max_reductions, :infinity),
+      start_reductions: elem(Process.info(self(), :reductions), 1),
       deadline_ms: deadline,
       opts: opts,
       cooperate: opts |> Keyword.get(:cooperate, []) |> Enum.map(&normalize_external/1),
@@ -400,10 +409,14 @@ defmodule Astraea.Prover do
     finish(state, {:resource_out, stats(state)})
   end
 
+
   defp saturation_loop(%__MODULE__{} = state) do
     cond do
       PassiveQueue.empty?(state.passive) ->
         finish(state, {:saturated, stats(state)})
+
+      reductions_exceeded?(state) ->
+        finish(state, {:resource_out, stats(state)})
 
       System.monotonic_time(:millisecond) >= state.deadline_ms ->
         finish(state, {:resource_out, stats(state)})
@@ -415,6 +428,16 @@ defmodule Astraea.Prover do
         end
     end
   end
+
+  defp reductions_exceeded?(%__MODULE__{max_reductions: max_reds, start_reductions: start_reds})
+       when is_integer(max_reds) and is_integer(start_reds) do
+    case Process.info(self(), :reductions) do
+      {:reductions, r} -> r - start_reds >= max_reds
+      _ -> false
+    end
+  end
+
+  defp reductions_exceeded?(_state), do: false
 
   # One iteration of the given-clause loop (Leo-III `SeqLoop`): select, simplify
   # (condensation, unit simplification, demodulation), drop if redundant, else
@@ -454,15 +477,19 @@ defmodule Astraea.Prover do
                 do: state |> backward_subsume(given) |> backward_demodulate(given),
                 else: state
 
-            case generate_inferences(state, given) do
-              {:proved, state, empty_id} ->
-                finish(state, finalize_proof(state, empty_id))
+            if state.refuted do
+              finish(state, finalize_proof(state, state.refuted))
+            else
+              case generate_inferences(state, given) do
+                {:proved, state, empty_id} ->
+                  finish(state, finalize_proof(state, empty_id))
 
-              {:cont, state, new_items} ->
-                state
-                |> activate(given, atomic?)
-                |> enqueue_passive(new_items)
-                |> saturation_loop()
+                {:cont, state, new_items} ->
+                  state
+                  |> activate(given, atomic?)
+                  |> enqueue_passive(new_items)
+                  |> saturation_loop()
+              end
             end
         end
     end
@@ -485,7 +512,7 @@ defmodule Astraea.Prover do
       do: %{
         state
         | rules:
-            Demodulator.add_rules(state.rules, state.arena, Demodulator.rules(state.arena, item))
+            Demodulator.add_rules(state.rules, state.arena, Demodulator.rules(state.arena, item, bool_rules: state.higher_order))
       },
       else: state
   end
@@ -574,10 +601,37 @@ defmodule Astraea.Prover do
     end
   end
 
+  defp eval_simplify(%__MODULE__{} = state, :dropped), do: {state, :dropped}
+
+  defp eval_simplify(%__MODULE__{} = state, item) do
+    if state.eval_simplify or calculus_opt(state, :eval_simplify, false) do
+      case Evaluator.simplify_clause(state.arena, item.lits) do
+        {arena, :unchanged} ->
+          {%{state | arena: arena}, item}
+
+        {arena, :tautology} ->
+          {%{state | arena: arena}, :dropped}
+
+        {arena, {:simplified, lits}} ->
+          state = %{state | arena: arena}
+
+          {state, evaluated} =
+            add_step(state, {:eval, state.next_step_id, item.id, lits}, lits, item.depth)
+
+          if MapSet.size(lits) == 0,
+            do: {%{state | refuted: state.refuted || evaluated.id}, :dropped},
+            else: {state, evaluated}
+      end
+    else
+      {state, item}
+    end
+  end
+
   defp enqueue_passive(%__MODULE__{} = state, items) do
     {state, fresh} =
       Enum.reduce(items, {state, []}, fn item, {st, acc} ->
         {st, item} = arith_simplify(st, item)
+        {st, item} = eval_simplify(st, item)
         num_lits = if item == :dropped, do: 0, else: MapSet.size(item.lits)
 
         cond do
@@ -668,6 +722,7 @@ defmodule Astraea.Prover do
   defp simplify(%__MODULE__{} = state, item, fuel \\ @max_rewrites) do
     with {:ok, state, item} <- unit_simplify(state, item) do
       case demodulate(state, item, fuel) do
+        {:proved, state, empty_id} -> {:proved, state, empty_id}
         {state, ^item, _fuel} -> {:ok, state, item}
         {state, rewritten, 0} -> {:ok, state, rewritten}
         {state, rewritten, fuel} -> simplify(state, rewritten, fuel)
@@ -690,8 +745,23 @@ defmodule Astraea.Prover do
       {:ok, arena, redex} ->
         state = %{state | arena: arena}
 
+        {state, rule_parent, eq_atom} =
+          if redex.rule.eq != nil do
+            {state, redex.rule.item, redex.rule.eq}
+          else
+            [{rule_pol, p}] = MapSet.to_list(redex.rule.item.lits)
+            truth_name = if rule_pol == :pos, do: "$true", else: "$false"
+            {ar, truth_const} = Arena.mk_const(state.arena, truth_name, :o)
+            {ar, eq} = Arena.mk_eq(ar, p, truth_const)
+            step = {:cnf, state.next_step_id, redex.rule.item.id, {rule_pol, p}, :lift_bool}
+            {st, lifted} =
+              add_step(%{state | arena: ar}, step, MapSet.new([{:pos, eq}]), redex.rule.item.depth)
+
+            {st, lifted, eq}
+          end
+
         {state, rule_inst, eq_inst} =
-          apply_subst_if_needed(state, redex.rule.item, redex.subst, redex.rule.eq)
+          apply_subst_if_needed(state, rule_parent, redex.subst, eq_atom)
 
         {pol, atom} = lit = redex.lit
         {arena, replaced} = ProofChecker.replace_subterm(state.arena, atom, redex.from, redex.to)
@@ -703,7 +773,35 @@ defmodule Astraea.Prover do
           {:paramod, state.next_step_id, rule_inst.id, item.id, eq_inst, lit, {pol, new_atom}}
 
         {state, rewritten} = add_step(state, step, lits, item.depth)
-        demodulate(state, rewritten, fuel - 1, rules)
+        {state, rewritten} = eliminate_truth_literals(state, rewritten)
+
+        cond do
+          MapSet.size(rewritten.lits) == 0 ->
+            {:proved, %{state | refuted: state.refuted || rewritten.id}, rewritten.id}
+
+          tautology_clause?(state.arena, rewritten.lits) ->
+            {state, rewritten, 0}
+
+          true ->
+            demodulate(state, rewritten, fuel - 1, rules)
+        end
+    end
+  end
+
+  defp eliminate_truth_literals(state, item) do
+    false_lit =
+      Enum.find(item.lits, fn {pol, atom} ->
+        (pol == :pos and Terms.const_named?(state.arena, atom, "$false")) or
+          (pol == :neg and Terms.const_named?(state.arena, atom, "$true"))
+      end)
+
+    if false_lit do
+      step = {:cnf, state.next_step_id, item.id, false_lit, :truth}
+      new_lits = MapSet.delete(item.lits, false_lit)
+      {state, next_item} = add_step(state, step, new_lits, item.depth)
+      eliminate_truth_literals(state, next_item)
+    else
+      {state, item}
     end
   end
 
@@ -714,7 +812,7 @@ defmodule Astraea.Prover do
   defp backward_demodulate(%__MODULE__{demodulation: false} = state, _given), do: state
 
   defp backward_demodulate(%__MODULE__{} = state, given) do
-    case Demodulator.rules(state.arena, given) do
+    case Demodulator.rules(state.arena, given, bool_rules: state.higher_order) do
       [] ->
         state
 
@@ -732,8 +830,14 @@ defmodule Astraea.Prover do
         {state, rewritten} =
           Enum.reduce(candidates, {state, []}, fn item, {st, acc} ->
             case demodulate(st, item, @max_rewrites, index) do
-              {st, ^item, _} -> {st, acc}
-              {st, new_item, _} -> {st, [{item.id, new_item} | acc]}
+              {:proved, st, empty_id} ->
+                {%{st | refuted: st.refuted || empty_id}, acc}
+
+              {st, ^item, _} ->
+                {st, acc}
+
+              {st, new_item, _} ->
+                {st, [{item.id, new_item} | acc]}
             end
           end)
 
@@ -896,10 +1000,12 @@ defmodule Astraea.Prover do
            {:cont, state, items5} <- try_superposition(state, given),
            {:cont, state, items6} <- try_prim_subst(state, given),
            {:cont, state, items7} <- try_extensionality(state, given),
-           {:cont, state, items8} <- try_choice(state, given) do
+           {:cont, state, items8} <- try_func_spec(state, given),
+           {:cont, state, items9} <- try_special_instances(state, given),
+           {:cont, state, items10} <- try_choice(state, given) do
         clausify_items(
           state,
-          items0 ++ items1 ++ items2 ++ items3 ++ items4 ++ items5 ++ items6 ++ items7 ++ items8
+          items0 ++ items1 ++ items2 ++ items3 ++ items4 ++ items5 ++ items6 ++ items7 ++ items8 ++ items9 ++ items10
         )
       end
     else
@@ -1331,29 +1437,52 @@ defmodule Astraea.Prover do
     {arena, rewritten_atom} = Arena.beta_eta_norm(arena, rep_raw)
     st = %{st | arena: arena}
 
+    is_bool_eq = elem(Arena.get_node(st.arena, eq_atom_inst), 0) != 6
+
+    {st, eq_parent_inst, eq_atom_for_paramod} =
+      if is_bool_eq do
+        {arena, true_const} = Arena.mk_const(st.arena, "$true", :o)
+        {arena, eq} = Arena.mk_eq(arena, eq_atom_inst, true_const)
+        step = {:cnf, st.next_step_id, eq_inst.id, {:pos, eq_atom_inst}, :lift_bool}
+        {st, lifted} = add_step(%{st | arena: arena}, step, MapSet.new([{:pos, eq}]), eq_clause.depth)
+        {st, lifted, eq}
+      else
+        {st, eq_inst, eq_atom_inst}
+      end
+
     if rewritten_atom != target_atom_inst and
-         MapSet.member?(eq_inst.lits, {:pos, eq_atom_inst}) and
+         MapSet.member?(eq_parent_inst.lits, {:pos, eq_atom_for_paramod}) and
          MapSet.member?(target_inst.lits, {pol, target_atom_inst}) do
       new_lits =
         MapSet.union(
-          MapSet.delete(eq_inst.lits, {:pos, eq_atom_inst}),
+          MapSet.delete(eq_parent_inst.lits, {:pos, eq_atom_for_paramod}),
           MapSet.delete(target_inst.lits, {pol, target_atom_inst})
         )
         |> MapSet.put({pol, rewritten_atom})
 
       step =
-        {:paramod, st.next_step_id, eq_inst.id, target_inst.id, eq_atom_inst,
+        {:paramod, st.next_step_id, eq_parent_inst.id, target_inst.id, eq_atom_for_paramod,
          {pol, target_atom_inst}, {pol, rewritten_atom}}
 
       {st, para_item} = add_step(st, step, new_lits, depth)
+      {st, para_item} = eliminate_truth_literals(st, para_item)
 
-      case try_immediate_eq_resolution(st, para_item) do
-        {:proved, _, _} = proved ->
-          proved
+      cond do
+        MapSet.size(para_item.lits) == 0 ->
+          {:proved, st, para_item.id}
 
-        {:cont, st2, eq_items} ->
-          {st3, para_fresh} = freshen_clause_item(st2, para_item)
-          {:cont, st3, [para_fresh | eq_items]}
+        tautology_clause?(st.arena, para_item.lits) ->
+          {:cont, st, []}
+
+        true ->
+          case try_immediate_eq_resolution(st, para_item) do
+            {:proved, _, _} = proved ->
+              proved
+
+            {:cont, st2, eq_items} ->
+              {st3, para_fresh} = freshen_clause_item(st2, para_item)
+              {:cont, st3, [para_fresh | eq_items]}
+          end
       end
     else
       {:cont, st, []}
@@ -1362,12 +1491,40 @@ defmodule Astraea.Prover do
 
   # Oriented rewrite sides `{eq_atom, from, to}` of the eligible positive equations.
   defp paramod_sides(%__MODULE__{} = state, eq_clause, eligible) do
-    for {:pos, eq_id} = lit <- eq_clause.lits,
-        MapSet.member?(eligible, lit),
-        {@tag_eq, _, _, lhs, rhs} <- [Arena.get_node(state.arena, eq_id)],
-        {from_term, to_term} <- orient_equation(state.arena, lhs, rhs),
-        not fvar_node?(state.arena, from_term),
-        do: {eq_id, from_term, to_term}
+    eq_sides =
+      for {:pos, eq_id} = lit <- eq_clause.lits,
+          MapSet.member?(eligible, lit),
+          {@tag_eq, _, _, lhs, rhs} <- [Arena.get_node(state.arena, eq_id)],
+          {from_term, to_term} <- orient_equation(state.arena, lhs, rhs),
+          not fvar_node?(state.arena, from_term),
+          do: {eq_id, from_term, to_term}
+
+    bool_sides =
+      if state.higher_order and MapSet.size(eq_clause.lits) == 1 do
+        case hd(MapSet.to_list(eq_clause.lits)) do
+          {:pos, atom_id} = lit ->
+            if MapSet.member?(eligible, lit) and
+                 Arena.type_of(state.arena, atom_id) == Arena.ty_o() and
+                 elem(Arena.get_node(state.arena, atom_id), 0) != 6 and
+                 not fvar_node?(state.arena, atom_id) do
+              true_const = Arena.lookup_const(state.arena, "$true", :o)
+              if true_const do
+                [{atom_id, atom_id, true_const}]
+              else
+                []
+              end
+            else
+              []
+            end
+
+          _ ->
+            []
+        end
+      else
+        []
+      end
+
+    eq_sides ++ bool_sides
   end
 
   defp orient_equation(%Arena{} = arena, lhs, rhs) do
@@ -1447,6 +1604,14 @@ defmodule Astraea.Prover do
 
         state = %{state | arena: arena, next_fvar_id: next_fvar}
 
+        substs =
+          if calculus_opt(state, :prim_subst_filter, true) and state.units != nil do
+            unit_items = HeadIndex.values(state.units)
+            PrimSubst.filter_by_unit_examples(state.arena, substs, unit_items)
+          else
+            substs
+          end
+
         each_inference(state, substs, fn st, subst ->
           {st, item} = emit_subst_step(st, given, subst, given.depth + 1)
           {:cont, st, [item]}
@@ -1518,6 +1683,43 @@ defmodule Astraea.Prover do
     end)
   end
 
+
+  # 9. Function synthesis via choice (`Calculus.FuncSpec`)
+  defp try_func_spec(%__MODULE__{} = state, given) do
+    if calculus_opt(state, :funcspec, false) do
+      choice_heads = Map.keys(state.choice_axioms)
+      {arena, candidates} = FuncSpec.candidates(state.arena, given, choice_heads)
+      state = %{state | arena: arena}
+
+      each_inference(state, candidates, fn st, {var_id, synthesized_term} ->
+        {st, item} = emit_subst_step(st, given, %{var_id => synthesized_term}, given.depth + 1)
+        {:cont, st, [item]}
+      end)
+    else
+      {:cont, state, []}
+    end
+  end
+
+  # 10. Quantifier instantiation with canonical terms (`Calculus.SpecialInstances`)
+  defp try_special_instances(%__MODULE__{} = state, given) do
+    spec_opt = calculus_opt(state, :special_instances, false)
+    enabled? = spec_opt == true or (is_integer(spec_opt) and spec_opt > 0)
+
+    if enabled? and given.depth <= 2 do
+      choice_heads = Map.keys(state.choice_axioms)
+      {arena, candidates} = SpecialInstances.candidates(state.arena, given, choice_heads)
+      state = %{state | arena: arena}
+
+      each_inference(state, candidates, fn st, {var_id, terms} ->
+        Enum.reduce_while(terms, {:cont, st, []}, fn term, {:cont, s, acc} ->
+          {s, item} = emit_subst_step(s, given, %{var_id => term}, given.depth + 1)
+          {:cont, {:cont, s, [item | acc]}}
+        end)
+      end)
+    else
+      {:cont, state, []}
+    end
+  end
   # ---------------------------------------------------------------------------
   # Fingerprint-Indexed Partner Retrieval (`Calculus.FingerprintIndex`)
   # ---------------------------------------------------------------------------
@@ -1845,10 +2047,11 @@ defmodule Astraea.Prover do
     Enum.any?(lits, fn
       {:pos, id} ->
         MapSet.member?(lits, {:neg, id}) or
-          match?({@tag_eq, _, _, s, s}, Arena.get_node(arena, id))
+          match?({@tag_eq, _, _, s, s}, Arena.get_node(arena, id)) or
+          Terms.const_named?(arena, id, "$true")
 
-      _ ->
-        false
+      {:neg, id} ->
+        Terms.const_named?(arena, id, "$false")
     end)
   end
 
@@ -1962,8 +2165,18 @@ defmodule Astraea.Prover do
   defp stats(%__MODULE__{} = state) do
     reasons = incomplete_reasons(state)
 
+    reds =
+      case Process.info(self(), :reductions) do
+        {:reductions, r} ->
+          if is_integer(state.start_reductions), do: r - state.start_reductions, else: r
+
+        _ ->
+          0
+      end
+
     base = %{
       iterations: state.iterations,
+      reductions: reds,
       active_clauses: length(state.active),
       passive_clauses: PassiveQueue.size(state.passive),
       total_steps: state.next_step_id - 1,
@@ -1998,6 +2211,7 @@ defmodule Astraea.Prover do
     [
       discarded: state.discarded_clauses > 0,
       clause_lits_limit: state.max_clause_lits != :infinity,
+      reductions_limit: state.max_reductions != :infinity,
       higher_order: state.higher_order,
       wide_equations: state.wide_equations,
       demodulation: state.rewrites > 0,

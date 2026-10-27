@@ -58,6 +58,59 @@ defmodule Astraea.Calculus.PrimSubst do
     end)
   end
 
+  @doc """
+  Prunes candidate substitutions that contradict known ground unit clauses.
+  For any substitution `%{var => candidate_lambda}`, evaluates `candidate_lambda @ args`
+  against unit literals `[pol, var @ args]`. If a positive unit literal evaluates to $false
+  or a negative unit literal evaluates to $true, the candidate is discarded.
+  """
+  @spec filter_by_unit_examples(Arena.t(), [Arena.subst()], [map()], keyword()) :: [Arena.subst()]
+  def filter_by_unit_examples(%Arena{} = arena, substs, unit_items, opts \\ []) do
+    unit_lits =
+      Enum.flat_map(unit_items, fn item ->
+        case MapSet.to_list(item.lits) do
+          [{pol, atom}] ->
+            {head, args} = Terms.spine(arena, atom)
+
+            if Terms.fvar?(arena, head) and Enum.all?(args, &(not Terms.has_fvar?(arena, &1))) do
+              {_tag, _flags, _ty, var_id, _} = Arena.get_node(arena, head)
+              [{var_id, pol, args}]
+            else
+              []
+            end
+
+          _ ->
+            []
+        end
+      end)
+
+    if unit_lits == [] do
+      substs
+    else
+      Enum.filter(substs, fn subst ->
+        Enum.all?(unit_lits, fn {var_id, pol, args} ->
+          case Map.fetch(subst, var_id) do
+            {:ok, cand_lam} ->
+              {ar, app_term} =
+                Enum.reduce(args, {arena, cand_lam}, fn arg, {a, f} ->
+                  Arena.mk_app(a, f, arg)
+                end)
+
+              {_ar, val} = Astraea.Evaluator.eval(ar, app_term, %{}, opts)
+
+              case pol do
+                :pos -> not Astraea.Evaluator.is_false?(arena, val)
+                :neg -> not Astraea.Evaluator.is_true?(arena, val)
+              end
+
+            :error ->
+              true
+          end
+        end)
+      end)
+    end
+  end
+
   @doc "Template bindings for a variable of type `ty` up to `level`."
   @spec bindings(Arena.t(), non_neg_integer(), Arena.type_id(), pos_integer()) ::
           {Arena.t(), non_neg_integer(), [Arena.term_id()]}

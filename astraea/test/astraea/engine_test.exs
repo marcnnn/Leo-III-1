@@ -4,6 +4,7 @@ defmodule Astraea.EngineTest do
 
   alias Astraea.{Arena, NxKernel, ProofChecker, Prover}
   alias Astraea.Engine.{Demodulator, FVIndex, HeadIndex, Kernels, PassiveQueue, Subsumption}
+  alias Astraea.Calculus.Terms
 
   # ---------------------------------------------------------------------------
   # Feature-vector index: every backend against the plain-Elixir reference
@@ -350,5 +351,44 @@ defmodule Astraea.EngineTest do
       {tag, _} -> assert tag == :resource_out
       {:proved, _, _} -> :ok
     end
+  end
+  test "Boolean unit demodulation indexes non-equational units and rewrites subterms" do
+    {arena, s} = signature()
+    # Positive unit: p(a)
+    {arena, pa} = Arena.mk_app(arena, s.p, s.a)
+    unit_pos = %{id: 1, lits: MapSet.new([{:pos, pa}]), fvar_ids: MapSet.new()}
+    assert [%{lhs: ^pa, rhs: true_const}] = Demodulator.rules(arena, unit_pos)
+    assert Terms.const_named?(arena, true_const, "$true")
+
+    # Negative unit: p(b)
+    {arena, pb} = Arena.mk_app(arena, s.p, s.b)
+    unit_neg = %{id: 2, lits: MapSet.new([{:neg, pb}]), fvar_ids: MapSet.new()}
+    assert [%{lhs: ^pb, rhs: false_const}] = Demodulator.rules(arena, unit_neg)
+    assert Terms.const_named?(arena, false_const, "$false")
+
+    index =
+      HeadIndex.new()
+      |> Demodulator.add_rules(arena, Demodulator.rules(arena, unit_pos))
+      |> Demodulator.add_rules(arena, Demodulator.rules(arena, unit_neg))
+
+    # Target clause: holds(p(a) => q)
+    {arena, q} = Arena.mk_const(arena, "q", :o)
+    {arena, imp} = Arena.mk_imp(arena, pa, q)
+    {arena, h_ty} = Arena.intern_type(arena, {:arrow, Arena.ty_o(), Arena.ty_o()})
+    {arena, holds} = Arena.mk_const(arena, "holds", h_ty)
+    {arena, target_atom} = Arena.mk_app(arena, holds, imp)
+
+    target_clause = %{id: 3, lits: MapSet.new([{:pos, target_atom}]), fvar_ids: MapSet.new()}
+
+    # Should find redex p(a) inside holds(p(a) => q)
+    assert {:ok, arena, redex} = Demodulator.find_redex(arena, index, target_clause)
+    assert redex.from == pa
+    assert redex.to == true_const
+
+    # When replaced and beta-eta normalized, holds($true => q) simplifies to holds(q)
+    {arena, replaced} = ProofChecker.replace_subterm(arena, target_atom, redex.from, redex.to)
+    {_arena, norm} = Arena.beta_eta_norm(arena, replaced)
+    {_arena, expected} = Arena.mk_app(arena, holds, q)
+    assert norm == expected
   end
 end
