@@ -1,0 +1,151 @@
+% [INFO] 	 Parsing problem /home/marc/.local/share/tptp/TPTP-v9.3.1/Problems/SYO/SYO447^1.p ... 
+% [INFO] 	 Included file 'Axioms/LCL013^0.ax' not found, trying TPTP home directory ... 
+% [INFO] 	 Included file 'Axioms/LCL013^6.ax' not found, trying TPTP home directory ... 
+% [INFO] 	 Parsing done (230ms). 
+% [INFO] 	 Running in sequential loop mode. 
+% [INFO] 	 Scanning for conjecture ... 
+% [INFO] 	 Found a conjecture (or negated_conjecture) and 3 axioms. Running axiom selection ... 
+% [INFO] 	 Axiom selection finished. Selected 3 axioms (removed 0 axioms). 
+% [INFO] 	 Problem is higher-order (TPTP THF). 
+% [INFO] 	 Type checking passed. 
+% [CONFIG] 	 Using configuration: timeout(10) with strategy<name(default),share(1.0),primSubst(3),sos(false),unifierCount(4),uniDepth(8),boolExt(true),choice(true),renaming(true),funcspec(false), domConstr(0),specialInstances(39),restrictUniAttempts(true),termOrdering(CPO)>.  Searching for refutation ... 
+% Time passed: 4003ms (effective reasoning time: 3301ms)
+% Solved by strategy<name(default),share(1.0),primSubst(3),sos(false),unifierCount(4),uniDepth(8),boolExt(true),choice(true),renaming(true),funcspec(false), domConstr(0),specialInstances(39),restrictUniAttempts(true),termOrdering(CPO)>
+% Axioms used in derivation (2): a3, a2
+% No. of inferences in proof: 96
+% SZS status Theorem for /home/marc/.local/share/tptp/TPTP-v9.3.1/Problems/SYO/SYO447^1.p : 4003 ms resp. 3301 ms w/o parsing
+% SZS output start Refutation for /home/marc/.local/share/tptp/TPTP-v9.3.1/Problems/SYO/SYO447^1.p
+thf(mu_type, type, mu: $tType).
+thf(mnot_decl, type, mnot: (($i > $o) > ($i > $o))).
+thf(mor_decl, type, mor: (($i > $o) > (($i > $o) > ($i > $o)))).
+thf(mand_decl, type, mand: (($i > $o) > (($i > $o) > ($i > $o)))).
+thf(mimplies_decl, type, mimplies: (($i > $o) > (($i > $o) > ($i > $o)))).
+thf(mequiv_decl, type, mequiv: (($i > $o) > (($i > $o) > ($i > $o)))).
+thf(msymmetric_decl, type, msymmetric: (($i > ($i > $o)) > $o)).
+thf(mtransitive_decl, type, mtransitive: (($i > ($i > $o)) > $o)).
+thf(mvalid_decl, type, mvalid: (($i > $o) > $o)).
+thf(rel_s5_decl, type, rel_s5: ($i > ($i > $o))).
+thf(mbox_s5_decl, type, mbox_s5: (($i > $o) > ($i > $o))).
+thf(mdia_s5_decl, type, mdia_s5: (($i > $o) > ($i > $o))).
+thf(p_decl, type, p: ($i > $o)).
+thf(q_decl, type, q: ($i > $o)).
+thf(sk1_decl, type, sk1: $o).
+thf(sk2_decl, type, sk2: $i).
+thf(sk3_decl, type, sk3: $i).
+thf(sk4_decl, type, sk4: ($i > $i)).
+thf(sk5_decl, type, sk5: $i).
+thf(sk6_decl, type, sk6: $i).
+thf(sk7_decl, type, sk7: $i).
+thf(mnot_def, definition, mnot = (^ [A:($i > $o),B:$i]: ~ (A @ B)) ).
+thf(mor_def, definition, mor = (^ [A:($i > $o),B:($i > $o),C:$i]: ((A @ C) | (B @ C))) ).
+thf(mand_def, definition, mand = (^ [A:($i > $o),B:($i > $o)]: (mnot @ (mor @ (mnot @ A) @ (mnot @ B)))) ).
+thf(mimplies_def, definition, mimplies = (^ [A:($i > $o)]: (mor @ (mnot @ A))) ).
+thf(mequiv_def, definition, mequiv = (^ [A:($i > $o),B:($i > $o)]: (mand @ (mimplies @ A @ B) @ (mimplies @ B @ A))) ).
+thf(msymmetric_def, definition, msymmetric = (^ [A:($i > ($i > $o))]: ! [B:$i,C:$i]: ((A @ B @ C) => (A @ C @ B))) ).
+thf(mtransitive_def, definition, mtransitive = (^ [A:($i > ($i > $o))]: ! [B:$i,C:$i,D:$i]: (((A @ B @ C) & (A @ C @ D)) => (A @ B @ D))) ).
+thf(mvalid_def, definition, mvalid = ((!) @ $i) ).
+thf(mbox_s5_def, definition, mbox_s5 = (^ [A:($i > $o),B:$i]: ! [C:$i]: (~ (rel_s5 @ B @ C) | (A @ C))) ).
+thf(mdia_s5_def, definition, mdia_s5 = (^ [A:($i > $o)]: (mnot @ (mbox_s5 @ (mnot @ A)))) ).
+thf(sk2_def, definition, sk2 = (@+ [A:$i]: ~ (! [B:$i]: (~ (rel_s5 @ A @ B) | ~ (p @ B)) | ~ (! [B:$i]: (~ (rel_s5 @ A @ B) | (q @ B))) | ~ (! [B:$i]: (~ (rel_s5 @ A @ B) | ~ (p @ B) | ~ (! [C:$i]: (~ (rel_s5 @ B @ C) | (q @ C))))))) ).
+thf(sk3_def, definition, sk3 = (@+ [A:$i]: ~ (~ (rel_s5 @ sk2 @ A) | ~ (p @ A))) ).
+thf(sk4_def, definition, sk4 = (^ [A:$i]: (@+ [B:$i]: ~ (~ (rel_s5 @ A @ B) | (q @ B)))) ).
+thf(sk5_def, definition, sk5 = (@+ [A:$i]: ~ (! [B:$i]: (~ (rel_s5 @ A @ B) | ~ (p @ B) | ~ (! [C:$i]: (~ (rel_s5 @ B @ C) | (q @ C)))) | ~ (! [B:$i]: (~ (rel_s5 @ A @ B) | ~ (p @ B)) | ~ (! [B:$i]: (~ (rel_s5 @ A @ B) | (q @ B)))))) ).
+thf(sk6_def, definition, sk6 = (@+ [A:$i]: ~ (~ (rel_s5 @ sk5 @ A) | ~ (p @ A) | ~ (! [B:$i]: (~ (rel_s5 @ A @ B) | (q @ B))))) ).
+thf(sk7_def, definition, sk7 = (@+ [A:$i]: ~ (~ (rel_s5 @ sk5 @ A) | (q @ A))) ).
+thf(1,conjecture,((mvalid @ (mequiv @ (mand @ (mdia_s5 @ p) @ (mbox_s5 @ q)) @ (mdia_s5 @ (mand @ p @ (mbox_s5 @ q)))))),file('/home/marc/.local/share/tptp/TPTP-v9.3.1/Problems/SYO/SYO447^1.p',prove)).
+thf(2,negated_conjecture,((~ (mvalid @ (mequiv @ (mand @ (mdia_s5 @ p) @ (mbox_s5 @ q)) @ (mdia_s5 @ (mand @ p @ (mbox_s5 @ q))))))),inference(neg_conjecture,[status(cth)],[1])).
+thf(6,plain,((~ (! [A:$i]: ~ (~ (! [B:$i]: (~ (rel_s5 @ A @ B) | ~ (p @ B)) | ~ (! [B:$i]: (~ (rel_s5 @ A @ B) | (q @ B))) | ~ (! [B:$i]: (~ (rel_s5 @ A @ B) | ~ (p @ B) | ~ (! [C:$i]: (~ (rel_s5 @ B @ C) | (q @ C)))))) | ~ (! [B:$i]: (~ (rel_s5 @ A @ B) | ~ (p @ B) | ~ (! [C:$i]: (~ (rel_s5 @ B @ C) | (q @ C)))) | ~ (! [B:$i]: (~ (rel_s5 @ A @ B) | ~ (p @ B)) | ~ (! [B:$i]: (~ (rel_s5 @ A @ B) | (q @ B))))))))),inference(defexp_and_simp_and_etaexpand,[status(thm)],[2])).
+thf(7,plain,((~ (~ (~ (! [A:$i]: (! [B:$i]: (~ (rel_s5 @ A @ B) | ~ (p @ B)) | ~ (! [B:$i]: (~ (rel_s5 @ A @ B) | (q @ B))) | ~ (! [B:$i]: (~ (rel_s5 @ A @ B) | ~ (p @ B) | ~ (! [C:$i]: (~ (rel_s5 @ B @ C) | (q @ C))))))) | ~ (! [A:$i]: (! [B:$i]: (~ (rel_s5 @ A @ B) | ~ (p @ B) | ~ (! [C:$i]: (~ (rel_s5 @ B @ C) | (q @ C)))) | ~ (! [B:$i]: (~ (rel_s5 @ A @ B) | ~ (p @ B)) | ~ (! [B:$i]: (~ (rel_s5 @ A @ B) | (q @ B)))))))))),inference(miniscope,[status(thm)],[6])).
+thf(8,plain,(! [D:$i,C:$i,B:$i,A:$i] : ((((rel_s5 @ sk2 @ sk3) | (sk1)) & ((p @ sk3) | (sk1)) & (~ (rel_s5 @ sk2 @ A) | (q @ A) | (sk1)) & (~ (rel_s5 @ sk2 @ B) | ~ (p @ B) | (rel_s5 @ B @ (sk4 @ B)) | (sk1)) & (~ (rel_s5 @ sk2 @ B) | ~ (p @ B) | ~ (q @ (sk4 @ B)) | (sk1)) & (~ (sk1) | (rel_s5 @ sk5 @ sk6)) & (~ (sk1) | (p @ sk6)) & (~ (sk1) | ~ (rel_s5 @ sk6 @ C) | (q @ C)) & (~ (sk1) | ~ (rel_s5 @ sk5 @ D) | ~ (p @ D) | (rel_s5 @ sk5 @ sk7)) & (~ (sk1) | ~ (rel_s5 @ sk5 @ D) | ~ (p @ D) | ~ (q @ sk7))))),inference(cnf,[status(esa)],[7])).
+thf(12,plain,(~ (sk1) | (p @ sk6)),inference(cnfConj,[status(thm)],[8])).
+thf(17,plain,(~ (sk1) | (rel_s5 @ sk5 @ sk6)),inference(cnfConj,[status(thm)],[8])).
+thf(18,plain,(! [A:$i] : (~ (sk1) | (~ (rel_s5 @ sk5 @ A)) | (~ (p @ A)) | (rel_s5 @ sk5 @ sk7))),inference(cnfConj,[status(thm)],[8])).
+thf(21,plain,(! [A:$i] : (~ (sk1) | (~ (rel_s5 @ sk5 @ A)) | (~ (p @ A)) | (rel_s5 @ sk5 @ sk7))),inference(simp,[status(thm)],[18])).
+thf(333,plain,(! [A:$i] : (~ (sk1) | ~ (sk1) | ~ (($true)) | (~ (p @ A)) | (rel_s5 @ sk5 @ sk7) | ((rel_s5 @ sk5 @ sk6) != (rel_s5 @ sk5 @ A)))),inference(paramod_ordered,[status(thm)],[17,21])).
+thf(334,plain,(! [A:$i] : (~ (sk1) | (~ (p @ A)) | (rel_s5 @ sk5 @ sk7) | ((rel_s5 @ sk5 @ sk6) != (rel_s5 @ sk5 @ A)))),inference(simp,[status(thm)],[333])).
+thf(335,plain,(~ (sk1) | (~ (p @ sk6)) | (rel_s5 @ sk5 @ sk7)),inference(pattern_uni,[status(thm)],[334:[bind(A, $thf(sk6))]])).
+thf(597,plain,(~ (sk1) | ~ (sk1) | ~ (($true)) | (rel_s5 @ sk5 @ sk7) | ((p @ sk6) != (p @ sk6))),inference(paramod_ordered,[status(thm)],[12,335])).
+thf(598,plain,(~ (sk1) | (rel_s5 @ sk5 @ sk7) | ((p @ sk6) != (p @ sk6))),inference(simp,[status(thm)],[597])).
+thf(599,plain,(~ (sk1) | (rel_s5 @ sk5 @ sk7)),inference(pattern_uni,[status(thm)],[598:[]])).
+thf(5,axiom,((msymmetric @ rel_s5)),file('/home/marc/.local/share/tptp/TPTP-v9.3.1/Problems/SYO/SYO447^1.p',a3)).
+thf(28,plain,((! [A:$i,B:$i]: ((rel_s5 @ A @ B) => (rel_s5 @ B @ A)))),inference(defexp_and_simp_and_etaexpand,[status(thm)],[5])).
+thf(29,plain,(! [B:$i,A:$i] : ((~ (rel_s5 @ A @ B)) | (rel_s5 @ B @ A))),inference(cnf,[status(esa)],[28])).
+thf(611,plain,(! [B:$i,A:$i] : (~ (sk1) | ~ (($true)) | (rel_s5 @ B @ A) | ((rel_s5 @ sk5 @ sk7) != (rel_s5 @ A @ B)))),inference(paramod_ordered,[status(thm)],[599,29])).
+thf(612,plain,(! [B:$i,A:$i] : (~ (sk1) | (rel_s5 @ B @ A) | ((rel_s5 @ sk5 @ sk7) != (rel_s5 @ A @ B)))),inference(simp,[status(thm)],[611])).
+thf(613,plain,(~ (sk1) | (rel_s5 @ sk7 @ sk5)),inference(pattern_uni,[status(thm)],[612:[bind(A, $thf(sk5)),bind(B, $thf(sk7))]])).
+thf(13,plain,((p @ sk3) | sk1),inference(cnfConj,[status(thm)],[8])).
+thf(15,plain,((rel_s5 @ sk2 @ sk3) | sk1),inference(cnfConj,[status(thm)],[8])).
+thf(9,plain,(! [A:$i] : ((~ (rel_s5 @ sk2 @ A)) | (~ (p @ A)) | (rel_s5 @ A @ (sk4 @ A)) | sk1)),inference(cnfConj,[status(thm)],[8])).
+thf(20,plain,(! [A:$i] : ((~ (rel_s5 @ sk2 @ A)) | (~ (p @ A)) | (rel_s5 @ A @ (sk4 @ A)) | sk1)),inference(simp,[status(thm)],[9])).
+thf(207,plain,(! [A:$i] : (sk1 | ~ (($true)) | (~ (p @ A)) | (rel_s5 @ A @ (sk4 @ A)) | sk1 | ((rel_s5 @ sk2 @ sk3) != (rel_s5 @ sk2 @ A)))),inference(paramod_ordered,[status(thm)],[15,20])).
+thf(208,plain,(! [A:$i] : (sk1 | (~ (p @ A)) | (rel_s5 @ A @ (sk4 @ A)) | ((rel_s5 @ sk2 @ sk3) != (rel_s5 @ sk2 @ A)))),inference(simp,[status(thm)],[207])).
+thf(209,plain,(sk1 | (~ (p @ sk3)) | (rel_s5 @ sk3 @ (sk4 @ sk3))),inference(pattern_uni,[status(thm)],[208:[bind(A, $thf(sk3))]])).
+thf(278,plain,(sk1 | sk1 | ~ (($true)) | (rel_s5 @ sk3 @ (sk4 @ sk3)) | ((p @ sk3) != (p @ sk3))),inference(paramod_ordered,[status(thm)],[13,209])).
+thf(279,plain,(sk1 | (rel_s5 @ sk3 @ (sk4 @ sk3)) | ((p @ sk3) != (p @ sk3))),inference(simp,[status(thm)],[278])).
+thf(280,plain,(sk1 | (rel_s5 @ sk3 @ (sk4 @ sk3))),inference(pattern_uni,[status(thm)],[279:[]])).
+thf(297,plain,(! [B:$i,A:$i] : (sk1 | ~ (($true)) | (rel_s5 @ B @ A) | ((rel_s5 @ sk3 @ (sk4 @ sk3)) != (rel_s5 @ A @ B)))),inference(paramod_ordered,[status(thm)],[280,29])).
+thf(298,plain,(! [B:$i,A:$i] : (sk1 | (rel_s5 @ B @ A) | ((rel_s5 @ sk3 @ (sk4 @ sk3)) != (rel_s5 @ A @ B)))),inference(simp,[status(thm)],[297])).
+thf(299,plain,(sk1 | (rel_s5 @ (sk4 @ sk3) @ sk3)),inference(pattern_uni,[status(thm)],[298:[bind(A, $thf(sk3)),bind(B, $thf(sk4 @ sk3))]])).
+thf(77,plain,(! [B:$i,A:$i] : (sk1 | ~ (($true)) | (rel_s5 @ B @ A) | ((rel_s5 @ sk2 @ sk3) != (rel_s5 @ A @ B)))),inference(paramod_ordered,[status(thm)],[15,29])).
+thf(78,plain,(! [B:$i,A:$i] : (sk1 | (rel_s5 @ B @ A) | ((rel_s5 @ sk2 @ sk3) != (rel_s5 @ A @ B)))),inference(simp,[status(thm)],[77])).
+thf(79,plain,(sk1 | (rel_s5 @ sk3 @ sk2)),inference(pattern_uni,[status(thm)],[78:[bind(A, $thf(sk2)),bind(B, $thf(sk3))]])).
+thf(4,axiom,((mtransitive @ rel_s5)),file('/home/marc/.local/share/tptp/TPTP-v9.3.1/Problems/SYO/SYO447^1.p',a2)).
+thf(26,plain,((! [A:$i,B:$i,C:$i]: (((rel_s5 @ A @ B) & (rel_s5 @ B @ C)) => (rel_s5 @ A @ C)))),inference(defexp_and_simp_and_etaexpand,[status(thm)],[4])).
+thf(27,plain,(! [C:$i,B:$i,A:$i] : ((~ (rel_s5 @ A @ B)) | (~ (rel_s5 @ B @ C)) | (rel_s5 @ A @ C))),inference(cnf,[status(esa)],[26])).
+thf(496,plain,(! [C:$i,B:$i,A:$i] : (sk1 | (~ (rel_s5 @ A @ B)) | ~ (($true)) | (rel_s5 @ A @ C) | ((rel_s5 @ sk3 @ sk2) != (rel_s5 @ B @ C)))),inference(paramod_ordered,[status(thm)],[79,27])).
+thf(497,plain,(! [C:$i,B:$i,A:$i] : (sk1 | (~ (rel_s5 @ A @ B)) | (rel_s5 @ A @ C) | ((rel_s5 @ sk3 @ sk2) != (rel_s5 @ B @ C)))),inference(simp,[status(thm)],[496])).
+thf(498,plain,(! [A:$i] : (sk1 | (~ (rel_s5 @ A @ sk3)) | (rel_s5 @ A @ sk2))),inference(pattern_uni,[status(thm)],[497:[bind(A, $thf(A)),bind(B, $thf(sk3)),bind(C, $thf(sk2))]])).
+thf(907,plain,(! [A:$i] : (sk1 | sk1 | ~ (($true)) | (rel_s5 @ A @ sk2) | ((rel_s5 @ (sk4 @ sk3) @ sk3) != (rel_s5 @ A @ sk3)))),inference(paramod_ordered,[status(thm)],[299,498])).
+thf(908,plain,(! [A:$i] : (sk1 | (rel_s5 @ A @ sk2) | ((rel_s5 @ (sk4 @ sk3) @ sk3) != (rel_s5 @ A @ sk3)))),inference(simp,[status(thm)],[907])).
+thf(909,plain,(sk1 | (rel_s5 @ (sk4 @ sk3) @ sk2)),inference(pattern_uni,[status(thm)],[908:[bind(A, $thf(sk4 @ sk3))]])).
+thf(10,plain,(! [A:$i] : ((~ (rel_s5 @ sk2 @ A)) | (q @ A) | sk1)),inference(cnfConj,[status(thm)],[8])).
+thf(65,plain,(! [C:$i,B:$i,A:$i] : ((~ (rel_s5 @ A @ B)) | ~ (($true)) | (q @ C) | sk1 | ((rel_s5 @ B @ A) != (rel_s5 @ sk2 @ C)))),inference(paramod_ordered,[status(thm)],[29,10])).
+thf(66,plain,(! [C:$i,B:$i,A:$i] : ((~ (rel_s5 @ A @ B)) | (q @ C) | sk1 | ((rel_s5 @ B @ A) != (rel_s5 @ sk2 @ C)))),inference(simp,[status(thm)],[65])).
+thf(67,plain,(! [A:$i] : ((~ (rel_s5 @ A @ sk2)) | (q @ A) | sk1)),inference(pattern_uni,[status(thm)],[66:[bind(A, $thf(A)),bind(B, $thf(sk2)),bind(C, $thf(A))]])).
+thf(949,plain,(! [A:$i] : (sk1 | ~ (($true)) | (q @ A) | sk1 | ((rel_s5 @ (sk4 @ sk3) @ sk2) != (rel_s5 @ A @ sk2)))),inference(paramod_ordered,[status(thm)],[909,67])).
+thf(950,plain,(! [A:$i] : (sk1 | (q @ A) | ((rel_s5 @ (sk4 @ sk3) @ sk2) != (rel_s5 @ A @ sk2)))),inference(simp,[status(thm)],[949])).
+thf(951,plain,(sk1 | (q @ (sk4 @ sk3))),inference(pattern_uni,[status(thm)],[950:[bind(A, $thf(sk4 @ sk3))]])).
+thf(14,plain,(! [A:$i] : ((~ (rel_s5 @ sk2 @ A)) | (~ (p @ A)) | (~ (q @ (sk4 @ A))) | sk1)),inference(cnfConj,[status(thm)],[8])).
+thf(19,plain,(! [A:$i] : ((~ (rel_s5 @ sk2 @ A)) | (~ (p @ A)) | (~ (q @ (sk4 @ A))) | sk1)),inference(simp,[status(thm)],[14])).
+thf(138,plain,(! [A:$i] : (sk1 | ~ (($true)) | (~ (p @ A)) | (~ (q @ (sk4 @ A))) | sk1 | ((rel_s5 @ sk2 @ sk3) != (rel_s5 @ sk2 @ A)))),inference(paramod_ordered,[status(thm)],[15,19])).
+thf(139,plain,(! [A:$i] : (sk1 | (~ (p @ A)) | (~ (q @ (sk4 @ A))) | ((rel_s5 @ sk2 @ sk3) != (rel_s5 @ sk2 @ A)))),inference(simp,[status(thm)],[138])).
+thf(140,plain,(sk1 | (~ (p @ sk3)) | (~ (q @ (sk4 @ sk3)))),inference(pattern_uni,[status(thm)],[139:[bind(A, $thf(sk3))]])).
+thf(158,plain,(sk1 | sk1 | ~ (($true)) | (~ (q @ (sk4 @ sk3))) | ((p @ sk3) != (p @ sk3))),inference(paramod_ordered,[status(thm)],[13,140])).
+thf(159,plain,(sk1 | (~ (q @ (sk4 @ sk3))) | ((p @ sk3) != (p @ sk3))),inference(simp,[status(thm)],[158])).
+thf(160,plain,(sk1 | (~ (q @ (sk4 @ sk3)))),inference(pattern_uni,[status(thm)],[159:[]])).
+thf(988,plain,(sk1 | sk1 | ~ (($true)) | ((q @ (sk4 @ sk3)) != (q @ (sk4 @ sk3)))),inference(paramod_ordered,[status(thm)],[951,160])).
+thf(989,plain,(sk1 | ((q @ (sk4 @ sk3)) != (q @ (sk4 @ sk3)))),inference(simp,[status(thm)],[988])).
+thf(990,plain,(sk1),inference(pattern_uni,[status(thm)],[989:[]])).
+thf(1009,plain,(~ (($true)) | (rel_s5 @ sk7 @ sk5)),inference(rewrite,[status(thm)],[613,990])).
+thf(1010,plain,((rel_s5 @ sk7 @ sk5)),inference(simp,[status(thm)],[1009])).
+thf(1005,plain,(~ (($true)) | (rel_s5 @ sk5 @ sk6)),inference(rewrite,[status(thm)],[17,990])).
+thf(1006,plain,((rel_s5 @ sk5 @ sk6)),inference(simp,[status(thm)],[1005])).
+thf(1039,plain,(! [C:$i,B:$i,A:$i] : ((~ (rel_s5 @ A @ B)) | ~ (($true)) | (rel_s5 @ A @ C) | ((rel_s5 @ sk5 @ sk6) != (rel_s5 @ B @ C)))),inference(paramod_ordered,[status(thm)],[1006,27])).
+thf(1040,plain,(! [C:$i,B:$i,A:$i] : ((~ (rel_s5 @ A @ B)) | (rel_s5 @ A @ C) | ((rel_s5 @ sk5 @ sk6) != (rel_s5 @ B @ C)))),inference(simp,[status(thm)],[1039])).
+thf(1041,plain,(! [A:$i] : ((~ (rel_s5 @ A @ sk5)) | (rel_s5 @ A @ sk6))),inference(pattern_uni,[status(thm)],[1040:[bind(A, $thf(A)),bind(B, $thf(sk5)),bind(C, $thf(sk6))]])).
+thf(1331,plain,(! [A:$i] : (~ (($true)) | (rel_s5 @ A @ sk6) | ((rel_s5 @ sk7 @ sk5) != (rel_s5 @ A @ sk5)))),inference(paramod_ordered,[status(thm)],[1010,1041])).
+thf(1332,plain,(! [A:$i] : ((rel_s5 @ A @ sk6) | ((rel_s5 @ sk7 @ sk5) != (rel_s5 @ A @ sk5)))),inference(simp,[status(thm)],[1331])).
+thf(1333,plain,((rel_s5 @ sk7 @ sk6)),inference(pattern_uni,[status(thm)],[1332:[bind(A, $thf(sk7))]])).
+thf(16,plain,(! [A:$i] : (~ (sk1) | (~ (rel_s5 @ sk6 @ A)) | (q @ A))),inference(cnfConj,[status(thm)],[8])).
+thf(22,plain,(! [A:$i] : (~ (sk1) | (~ (rel_s5 @ sk6 @ A)) | (q @ A))),inference(simp,[status(thm)],[16])).
+thf(438,plain,(! [C:$i,B:$i,A:$i] : ((~ (rel_s5 @ A @ B)) | ~ (sk1) | ~ (($true)) | (q @ C) | ((rel_s5 @ B @ A) != (rel_s5 @ sk6 @ C)))),inference(paramod_ordered,[status(thm)],[29,22])).
+thf(439,plain,(! [C:$i,B:$i,A:$i] : ((~ (rel_s5 @ A @ B)) | ~ (sk1) | (q @ C) | ((rel_s5 @ B @ A) != (rel_s5 @ sk6 @ C)))),inference(simp,[status(thm)],[438])).
+thf(440,plain,(! [A:$i] : ((~ (rel_s5 @ A @ sk6)) | ~ (sk1) | (q @ A))),inference(pattern_uni,[status(thm)],[439:[bind(A, $thf(A)),bind(B, $thf(sk6)),bind(C, $thf(A))]])).
+thf(1015,plain,(! [A:$i] : ((~ (rel_s5 @ A @ sk6)) | ~ (($true)) | (q @ A))),inference(rewrite,[status(thm)],[440,990])).
+thf(1016,plain,(! [A:$i] : ((~ (rel_s5 @ A @ sk6)) | (q @ A))),inference(simp,[status(thm)],[1015])).
+thf(1355,plain,(! [A:$i] : (~ (($true)) | (q @ A) | ((rel_s5 @ sk7 @ sk6) != (rel_s5 @ A @ sk6)))),inference(paramod_ordered,[status(thm)],[1333,1016])).
+thf(1356,plain,(! [A:$i] : ((q @ A) | ((rel_s5 @ sk7 @ sk6) != (rel_s5 @ A @ sk6)))),inference(simp,[status(thm)],[1355])).
+thf(1357,plain,((q @ sk7)),inference(pattern_uni,[status(thm)],[1356:[bind(A, $thf(sk7))]])).
+thf(11,plain,(! [A:$i] : (~ (sk1) | (~ (rel_s5 @ sk5 @ A)) | (~ (p @ A)) | (~ (q @ sk7)))),inference(cnfConj,[status(thm)],[8])).
+thf(23,plain,(! [A:$i] : (~ (sk1) | (~ (rel_s5 @ sk5 @ A)) | (~ (p @ A)) | (~ (q @ sk7)))),inference(simp,[status(thm)],[11])).
+thf(62,plain,(! [A:$i] : (~ (sk1) | ~ (sk1) | ~ (($true)) | (~ (p @ A)) | (~ (q @ sk7)) | ((rel_s5 @ sk5 @ sk6) != (rel_s5 @ sk5 @ A)))),inference(paramod_ordered,[status(thm)],[17,23])).
+thf(63,plain,(! [A:$i] : (~ (sk1) | (~ (p @ A)) | (~ (q @ sk7)) | ((rel_s5 @ sk5 @ sk6) != (rel_s5 @ sk5 @ A)))),inference(simp,[status(thm)],[62])).
+thf(64,plain,(~ (sk1) | (~ (p @ sk6)) | (~ (q @ sk7))),inference(pattern_uni,[status(thm)],[63:[bind(A, $thf(sk6))]])).
+thf(107,plain,(~ (sk1) | ~ (sk1) | ~ (($true)) | (~ (q @ sk7)) | ((p @ sk6) != (p @ sk6))),inference(paramod_ordered,[status(thm)],[12,64])).
+thf(108,plain,(~ (sk1) | (~ (q @ sk7)) | ((p @ sk6) != (p @ sk6))),inference(simp,[status(thm)],[107])).
+thf(109,plain,(~ (sk1) | (~ (q @ sk7))),inference(pattern_uni,[status(thm)],[108:[]])).
+thf(1001,plain,(~ (($true)) | (~ (q @ sk7))),inference(rewrite,[status(thm)],[109,990])).
+thf(1002,plain,((~ (q @ sk7))),inference(simp,[status(thm)],[1001])).
+thf(1467,plain,(($false)),inference(rewrite,[status(thm)],[1357,1002])).
+thf(1468,plain,(($false)),inference(simp,[status(thm)],[1467])).
+% SZS output end Refutation for /home/marc/.local/share/tptp/TPTP-v9.3.1/Problems/SYO/SYO447^1.p

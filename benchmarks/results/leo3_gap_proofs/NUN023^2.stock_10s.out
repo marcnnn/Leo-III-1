@@ -1,0 +1,59 @@
+% [INFO] 	 Parsing problem /home/marc/.local/share/tptp/TPTP-v9.3.1/Problems/NUN/NUN023^2.p ... 
+% [INFO] 	 Parsing done (167ms). 
+% [INFO] 	 Running in sequential loop mode. 
+% [INFO] 	 Scanning for conjecture ... 
+% [INFO] 	 Found a conjecture (or negated_conjecture) and 0 axioms. Running axiom selection ... 
+% [INFO] 	 Axiom selection finished. Selected 0 axioms (removed 0 axioms). 
+% [INFO] 	 Problem is higher-order (TPTP THF). 
+% [INFO] 	 Type checking passed. 
+% [CONFIG] 	 Using configuration: timeout(10) with strategy<name(default),share(1.0),primSubst(3),sos(false),unifierCount(4),uniDepth(8),boolExt(true),choice(true),renaming(true),funcspec(false), domConstr(0),specialInstances(39),restrictUniAttempts(true),termOrdering(CPO)>.  Searching for refutation ... 
+% Time passed: 2250ms (effective reasoning time: 1569ms)
+% Solved by strategy<name(default),share(1.0),primSubst(3),sos(false),unifierCount(4),uniDepth(8),boolExt(true),choice(true),renaming(true),funcspec(false), domConstr(0),specialInstances(39),restrictUniAttempts(true),termOrdering(CPO)>
+% Axioms used in derivation (0): 
+% No. of inferences in proof: 39
+% SZS status Theorem for /home/marc/.local/share/tptp/TPTP-v9.3.1/Problems/NUN/NUN023^2.p : 2250 ms resp. 1569 ms w/o parsing
+% SZS output start Refutation for /home/marc/.local/share/tptp/TPTP-v9.3.1/Problems/NUN/NUN023^2.p
+thf(zero_decl, type, zero: $i).
+thf(s_decl, type, s: ($i > $i)).
+thf(ite_decl, type, ite: ($o > ($i > ($i > $i)))).
+thf(h_decl, type, h: ($i > $i)).
+thf(1,conjecture,(((! [A:$o,B:$i,C:$i]: ((A) => ((ite @ A @ B @ C) = B)) & ! [A:$o,B:$i,C:$i]: ((~ (A)) => ((ite @ A @ B @ C) = C)) & ! [A:$i]: ((h @ A) = (ite @ (A = zero) @ (s @ zero) @ zero))) => (? [A:($i > $i)]: (((A @ zero) = (s @ zero)) & ((A @ (s @ zero)) = zero))))),file('/home/marc/.local/share/tptp/TPTP-v9.3.1/Problems/NUN/NUN023^2.p',n10)).
+thf(2,negated_conjecture,((~ ((! [A:$o,B:$i,C:$i]: ((A) => ((ite @ A @ B @ C) = B)) & ! [A:$o,B:$i,C:$i]: ((~ (A)) => ((ite @ A @ B @ C) = C)) & ! [A:$i]: ((h @ A) = (ite @ (A = zero) @ (s @ zero) @ zero))) => (? [A:($i > $i)]: (((A @ zero) = (s @ zero)) & ((A @ (s @ zero)) = zero)))))),inference(neg_conjecture,[status(cth)],[1])).
+thf(3,plain,((~ ((! [A:$o,B:$i,C:$i]: ((A) => ((ite @ A @ B @ C) = B)) & ! [A:$o,B:$i,C:$i]: ((~ (A)) => ((ite @ A @ B @ C) = C)) & ! [A:$i]: ((h @ A) = (ite @ (A = zero) @ (s @ zero) @ zero))) => (? [A:($i > $i)]: (((A @ zero) = (s @ zero)) & ((A @ (s @ zero)) = zero)))))),inference(defexp_and_simp_and_etaexpand,[status(thm)],[2])).
+thf(10,plain,((~ ((! [A:$i,B:$i]: ((($false)) => ((ite @ ($false) @ A @ B) = A)) & ! [A:$i,B:$i]: ((~ (($false))) => ((ite @ ($false) @ A @ B) = B)) & ! [A:$i]: ((h @ A) = (ite @ (A = zero) @ (s @ zero) @ zero))) => (? [A:($i > $i)]: (((A @ zero) = (s @ zero)) & ((A @ (s @ zero)) = zero)))))),inference(instance,[status(thm)],[3])).
+thf(11,plain,((~ ((! [A:$i,B:$i]: ((ite @ ($false) @ A @ B) = B) & ! [A:$i]: ((h @ A) = (ite @ (A = zero) @ (s @ zero) @ zero))) => (? [A:($i > $i)]: (((A @ zero) = (s @ zero)) & ((A @ (s @ zero)) = zero)))))),inference(simp,[status(thm)],[10])).
+thf(24,plain,(! [D:($i > $i),C:$i,B:$i,A:$i] : ((((ite @ ($false) @ A @ B) = B) & ((h @ C) = (ite @ (C = zero) @ (s @ zero) @ zero)) & (~ ((D @ zero) = (s @ zero)) | ~ ((D @ (s @ zero)) = zero))))),inference(cnf,[status(esa)],[11])).
+thf(25,plain,(! [B:$i,A:$i] : (((ite @ ($false) @ A @ B) = B))),inference(cnfConj,[status(thm)],[24])).
+thf(28,plain,(! [B:$i,A:$i] : (((ite @ ($false) @ A @ B) = B))),inference(lifteq,[status(thm)],[25])).
+thf(4,plain,((~ ((! [A:$i,B:$i]: ((($true)) => ((ite @ ($true) @ A @ B) = A)) & ! [A:$i,B:$i]: ((~ (($true))) => ((ite @ ($true) @ A @ B) = B)) & ! [A:$i]: ((h @ A) = (ite @ (A = zero) @ (s @ zero) @ zero))) => (? [A:($i > $i)]: (((A @ zero) = (s @ zero)) & ((A @ (s @ zero)) = zero)))))),inference(instance,[status(thm)],[3])).
+thf(5,plain,((~ ((! [A:$i,B:$i]: ((ite @ ($true) @ A @ B) = A) & ! [A:$i]: ((h @ A) = (ite @ (A = zero) @ (s @ zero) @ zero))) => (? [A:($i > $i)]: (((A @ zero) = (s @ zero)) & ((A @ (s @ zero)) = zero)))))),inference(simp,[status(thm)],[4])).
+thf(12,plain,(! [D:($i > $i),C:$i,B:$i,A:$i] : ((((ite @ ($true) @ A @ B) = A) & ((h @ C) = (ite @ (C = zero) @ (s @ zero) @ zero)) & (~ ((D @ zero) = (s @ zero)) | ~ ((D @ (s @ zero)) = zero))))),inference(cnf,[status(esa)],[5])).
+thf(14,plain,(! [A:$i] : (((h @ A) = (ite @ (A = zero) @ (s @ zero) @ zero)))),inference(cnfConj,[status(thm)],[12])).
+thf(29,plain,(! [A:$i] : (((ite @ (A = zero) @ (s @ zero) @ zero) = (h @ A)))),inference(lifteq,[status(thm)],[14])).
+thf(30,plain,(! [A:$i] : (((ite @ (A = zero) @ (s @ zero) @ zero) = (h @ A)))),inference(simp,[status(thm)],[29])).
+thf(75,plain,(! [C:$i,B:$i,A:$i] : ((B = (h @ C)) | ((ite @ ($false) @ A @ B) != (ite @ (C = zero) @ (s @ zero) @ zero)))),inference(paramod_ordered,[status(thm)],[28,30])).
+thf(87,plain,(! [C:$i,B:$i,A:$i] : ((B = (h @ C)) | (C = zero) | (A != (s @ zero)) | (B != zero))),inference(simp,[status(thm)],[75])).
+thf(96,plain,(! [C:$i,B:$i,A:$i] : ((C = zero) | (B = (h @ C)) | (A != (s @ zero)) | (B != zero))),inference(lifteq,[status(thm)],[87])).
+thf(97,plain,(! [A:$i] : ((A = zero) | ((h @ A) = zero))),inference(simp,[status(thm)],[96])).
+thf(13,plain,(! [B:$i,A:$i] : (((ite @ ($true) @ A @ B) = A))),inference(cnfConj,[status(thm)],[12])).
+thf(33,plain,(! [B:$i,A:$i] : (((ite @ ($true) @ A @ B) = A))),inference(lifteq,[status(thm)],[13])).
+thf(76,plain,(! [C:$i,B:$i,A:$i] : (((h @ A) = B) | ((ite @ (A = zero) @ (s @ zero) @ zero) != (ite @ ($true) @ B @ C)))),inference(paramod_ordered,[status(thm)],[30,33])).
+thf(82,plain,(! [C:$i,B:$i,A:$i] : (((h @ A) = B) | (~ (A = zero)) | ((s @ zero) != B) | (zero != C))),inference(simp,[status(thm)],[76])).
+thf(90,plain,(! [C:$i,B:$i,A:$i] : ((A != zero) | ((h @ A) = B) | ((s @ zero) != B) | (zero != C))),inference(lifteq,[status(thm)],[82])).
+thf(91,plain,(((h @ zero) = (s @ zero))),inference(simp,[status(thm)],[90])).
+thf(6,plain,((~ ((! [A:$i,B:$i]: ((($true)) => ((ite @ ($true) @ A @ B) = A)) & ! [A:$i,B:$i]: ((~ (($false))) => ((ite @ ($false) @ A @ B) = B)) & ! [A:$i]: ((h @ A) = (ite @ (A = zero) @ (s @ zero) @ zero))) => (? [A:($i > $i)]: (((A @ zero) = (s @ zero)) & ((A @ (s @ zero)) = zero)))))),inference(instance,[status(thm)],[3])).
+thf(7,plain,((~ ((! [A:$i,B:$i]: ((ite @ ($true) @ A @ B) = A) & ! [A:$i,B:$i]: ((ite @ ($false) @ A @ B) = B) & ! [A:$i]: ((h @ A) = (ite @ (A = zero) @ (s @ zero) @ zero))) => (? [A:($i > $i)]: (((A @ zero) = (s @ zero)) & ((A @ (s @ zero)) = zero)))))),inference(simp,[status(thm)],[6])).
+thf(16,plain,(! [F:($i > $i),E:$i,D:$i,C:$i,B:$i,A:$i] : ((((ite @ ($true) @ A @ B) = A) & ((ite @ ($false) @ C @ D) = D) & ((h @ E) = (ite @ (E = zero) @ (s @ zero) @ zero)) & (~ ((F @ zero) = (s @ zero)) | ~ ((F @ (s @ zero)) = zero))))),inference(cnf,[status(esa)],[7])).
+thf(20,plain,(! [A:($i > $i)] : ((~ ((A @ zero) = (s @ zero))) | (~ ((A @ (s @ zero)) = zero)))),inference(cnfConj,[status(thm)],[16])).
+thf(31,plain,(! [A:($i > $i)] : (((A @ zero) != (s @ zero)) | ((A @ (s @ zero)) != zero))),inference(lifteq,[status(thm)],[20])).
+thf(32,plain,(! [A:($i > $i)] : (((A @ zero) != (s @ zero)) | ((A @ (s @ zero)) != zero))),inference(simp,[status(thm)],[31])).
+thf(102,plain,(! [A:($i > $i)] : (((s @ zero) != (s @ zero)) | ((A @ (s @ zero)) != zero) | ((h @ zero) != (A @ zero)))),inference(paramod_ordered,[status(thm)],[91,32])).
+thf(103,plain,(! [A:($i > $i)] : (((A @ (s @ zero)) != zero) | ((h @ zero) != (A @ zero)))),inference(simp,[status(thm)],[102])).
+thf(106,plain,(((h @ (s @ zero)) != zero)),inference(pre_uni,[status(thm)],[103:[bind(A, $thf(h))]])).
+thf(122,plain,(! [A:$i] : ((A = zero) | (zero != zero) | ((h @ A) != (h @ (s @ zero))))),inference(paramod_ordered,[status(thm)],[97,106])).
+thf(123,plain,(! [A:$i] : ((A = zero) | ((h @ A) != (h @ (s @ zero))))),inference(simp,[status(thm)],[122])).
+thf(124,plain,(((s @ zero) = zero)),inference(pattern_uni,[status(thm)],[123:[bind(A, $thf(s @ zero))]])).
+thf(62,plain,(! [A:($i > $i)] : (((A @ zero) != (s @ zero)) | ((A @ (s @ zero)) != (s @ zero)) | ((A @ zero) != zero))),inference(eqfactor_ordered,[status(thm)],[32])).
+thf(67,plain,(((s @ zero) != zero)),inference(pre_uni,[status(thm)],[62:[bind(A, $thf(^ [B:$i]: (B)))]])).
+thf(138,plain,(($false)),inference(simplifyReflect,[status(thm)],[124,67])).
+% SZS output end Refutation for /home/marc/.local/share/tptp/TPTP-v9.3.1/Problems/NUN/NUN023^2.p

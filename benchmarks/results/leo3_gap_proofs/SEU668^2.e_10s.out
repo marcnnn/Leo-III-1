@@ -1,0 +1,150 @@
+% [INFO] 	 Parsing problem /home/marc/.local/share/tptp/TPTP-v9.3.1/Problems/SEU/SEU668^2.p ... 
+% [INFO] 	 Parsing done (161ms). 
+% [INFO] 	 Running in sequential loop mode. 
+% [INFO] 	 e registered as external prover. 
+% [INFO] 	 Scanning for conjecture ... 
+% [INFO] 	 Found a conjecture (or negated_conjecture) and 0 axioms. Running axiom selection ... 
+% [INFO] 	 Axiom selection finished. Selected 0 axioms (removed 0 axioms). 
+% [INFO] 	 Problem is higher-order (TPTP THF). 
+% [INFO] 	 Type checking passed. 
+% [CONFIG] 	 Using configuration: timeout(10) with strategy<name(default),share(1.0),primSubst(3),sos(false),unifierCount(4),uniDepth(8),boolExt(true),choice(true),renaming(true),funcspec(false), domConstr(0),specialInstances(39),restrictUniAttempts(true),termOrdering(CPO)>.  Searching for refutation ... 
+% External prover 'e' found a proof!
+% [INFO] 	 Killing All external provers ... 
+% Time passed: 6958ms (effective reasoning time: 6298ms)
+% Solved by strategy<name(default),share(1.0),primSubst(3),sos(false),unifierCount(4),uniDepth(8),boolExt(true),choice(true),renaming(true),funcspec(false), domConstr(0),specialInstances(39),restrictUniAttempts(true),termOrdering(CPO)>
+% Axioms used in derivation (0): 
+% No. of inferences in proof: 100
+% SZS status Theorem for /home/marc/.local/share/tptp/TPTP-v9.3.1/Problems/SEU/SEU668^2.p : 6958 ms resp. 6298 ms w/o parsing
+% SZS output start Refutation for /home/marc/.local/share/tptp/TPTP-v9.3.1/Problems/SEU/SEU668^2.p
+thf(in_decl, type, in: ($i > ($i > $o))).
+thf(dsetconstr_decl, type, dsetconstr: ($i > (($i > $o) > $i))).
+thf(dsetconstrER_decl, type, dsetconstrER: $o).
+thf(kpair_decl, type, kpair: ($i > ($i > $i))).
+thf(cartprod_decl, type, cartprod: ($i > ($i > $i))).
+thf(setukpairinjL_decl, type, setukpairinjL: $o).
+thf(setukpairinjR_decl, type, setukpairinjR: $o).
+thf(dpsetconstr_decl, type, dpsetconstr: ($i > ($i > (($i > ($i > $o)) > $i)))).
+thf(sk1_decl, type, sk1: $i).
+thf(sk2_decl, type, sk2: $i).
+thf(sk3_decl, type, sk3: ($i > ($i > $o))).
+thf(sk4_decl, type, sk4: $i).
+thf(sk5_decl, type, sk5: $i).
+thf(sk6_decl, type, sk6: ($i > ($i > $i))).
+thf(sk7_decl, type, sk7: ($i > ($i > $i))).
+thf(sk8_decl, type, sk8: $i).
+thf(sk9_decl, type, sk9: $i).
+thf(dsetconstrER_def, definition, dsetconstrER = (! [A:$i,B:($i > $o),C:$i]: ((in @ C @ (dsetconstr @ A @ (B))) => (B @ C))) ).
+thf(setukpairinjL_def, definition, setukpairinjL = (! [A:$i,B:$i,C:$i,D:$i]: (((kpair @ A @ B) = (kpair @ C @ D)) => (A = C))) ).
+thf(setukpairinjR_def, definition, setukpairinjR = (! [A:$i,B:$i,C:$i,D:$i]: (((kpair @ A @ B) = (kpair @ C @ D)) => (B = D))) ).
+thf(dpsetconstr_def, definition, dpsetconstr = (^ [A:$i,B:$i,C:($i > ($i > $o))]: (dsetconstr @ (cartprod @ A @ B) @ (^ [D:$i]: ? [E:$i]: ((in @ E @ A) & ? [F:$i]: ((in @ F @ B) & (C @ E @ F) & (D = (kpair @ E @ F))))))) ).
+thf(sk1_def, definition, sk1 = (@+ [A:$i]: ~ (! [B:$i,C:($i > ($i > $o)),D:$i]: ((in @ D @ A) => (! [E:$i]: ((in @ E @ B) => ((in @ (kpair @ D @ E) @ (dsetconstr @ (cartprod @ A @ B) @ (^ [F:$i]: ? [G:$i]: ((in @ G @ A) & ? [H:$i]: ((in @ H @ B) & (C @ G @ H) & (F = (kpair @ G @ H))))))) => (C @ D @ E))))))) ).
+thf(sk2_def, definition, sk2 = (@+ [A:$i]: ~ (! [B:($i > ($i > $o)),C:$i]: ((in @ C @ sk1) => (! [D:$i]: ((in @ D @ A) => ((in @ (kpair @ C @ D) @ (dsetconstr @ (cartprod @ sk1 @ A) @ (^ [E:$i]: ? [F:$i]: ((in @ F @ sk1) & ? [G:$i]: ((in @ G @ A) & (B @ F @ G) & (E = (kpair @ F @ G))))))) => (B @ C @ D))))))) ).
+thf(sk3_def, definition, sk3 = (@+ [A:($i > ($i > $o))]: ~ (! [B:$i]: ((in @ B @ sk1) => (! [C:$i]: ((in @ C @ sk2) => ((in @ (kpair @ B @ C) @ (dsetconstr @ (cartprod @ sk1 @ sk2) @ (^ [D:$i]: ? [E:$i]: ((in @ E @ sk1) & ? [F:$i]: ((in @ F @ sk2) & (A @ E @ F) & (D = (kpair @ E @ F))))))) => (A @ B @ C))))))) ).
+thf(sk4_def, definition, sk4 = (@+ [A:$i]: ~ ((in @ A @ sk1) => (! [B:$i]: ((in @ B @ sk2) => ((in @ (kpair @ A @ B) @ (dsetconstr @ (cartprod @ sk1 @ sk2) @ (^ [C:$i]: ? [D:$i]: ((in @ D @ sk1) & ? [E:$i]: ((in @ E @ sk2) & (sk3 @ D @ E) & (C = (kpair @ D @ E))))))) => (sk3 @ A @ B)))))) ).
+thf(sk5_def, definition, sk5 = (@+ [A:$i]: ~ ((in @ A @ sk2) => ((in @ (kpair @ sk4 @ A) @ (dsetconstr @ (cartprod @ sk1 @ sk2) @ (^ [B:$i]: ? [C:$i]: ((in @ C @ sk1) & ? [D:$i]: ((in @ D @ sk2) & (sk3 @ C @ D) & (B = (kpair @ C @ D))))))) => (sk3 @ sk4 @ A)))) ).
+thf(sk6_def, definition, sk6 = (@+ [A:($i > ($i > $i))]: ! [B:$i,C:$i]: ((A @ B @ (kpair @ B @ C)) = C)) ).
+thf(sk7_def, definition, sk7 = (@+ [A:($i > ($i > $i))]: ! [B:$i,C:$i]: ((A @ C @ (kpair @ B @ C)) = B)) ).
+thf(sk8_def, definition, sk8 = (@+ [A:$i]: ((in @ A @ sk1) & ? [B:$i]: ((in @ B @ sk2) & (sk3 @ A @ B) & ((kpair @ sk4 @ sk5) = (kpair @ A @ B))))) ).
+thf(sk9_def, definition, sk9 = (@+ [A:$i]: ((in @ A @ sk2) & (sk3 @ sk8 @ A) & ((kpair @ sk4 @ sk5) = (kpair @ sk8 @ A)))) ).
+thf(1,conjecture,(((dsetconstrER) => ((setukpairinjL) => ((setukpairinjR) => (! [A:$i,B:$i,C:($i > ($i > $o)),D:$i]: ((in @ D @ A) => (! [E:$i]: ((in @ E @ B) => ((in @ (kpair @ D @ E) @ (dpsetconstr @ A @ B @ (C))) => (C @ D @ E)))))))))),file('/home/marc/.local/share/tptp/TPTP-v9.3.1/Problems/SEU/SEU668^2.p',dpsetconstrERa)).
+thf(2,negated_conjecture,((~ ((dsetconstrER) => ((setukpairinjL) => ((setukpairinjR) => (! [A:$i,B:$i,C:($i > ($i > $o)),D:$i]: ((in @ D @ A) => (! [E:$i]: ((in @ E @ B) => ((in @ (kpair @ D @ E) @ (dpsetconstr @ A @ B @ (C))) => (C @ D @ E))))))))))),inference(neg_conjecture,[status(cth)],[1])).
+thf(3,plain,((~ ((! [A:$i,B:($i > $o),C:$i]: ((in @ C @ (dsetconstr @ A @ (B))) => (B @ C))) => ((! [A:$i,B:$i,C:$i,D:$i]: (((kpair @ A @ B) = (kpair @ C @ D)) => (A = C))) => ((! [A:$i,B:$i,C:$i,D:$i]: (((kpair @ A @ B) = (kpair @ C @ D)) => (B = D))) => (! [A:$i,B:$i,C:($i > ($i > $o)),D:$i]: ((in @ D @ A) => (! [E:$i]: ((in @ E @ B) => ((in @ (kpair @ D @ E) @ (dsetconstr @ (cartprod @ A @ B) @ (^ [F:$i]: ? [G:$i]: ((in @ G @ A) & ? [H:$i]: ((in @ H @ B) & (C @ G @ H) & (F = (kpair @ G @ H))))))) => (C @ D @ E))))))))))),inference(defexp_and_simp_and_etaexpand,[status(thm)],[2])).
+thf(4,plain,((~ ((! [A:$i,B:($i > $o),C:$i]: ((in @ C @ (dsetconstr @ A @ (B))) => (B @ C))) => ((! [A:$i,B:$i,C:$i]: ((? [D:$i]: ((kpair @ A @ B) = (kpair @ C @ D))) => (A = C))) => ((! [A:$i,B:$i,C:$i,D:$i]: (((kpair @ A @ B) = (kpair @ C @ D)) => (B = D))) => (! [A:$i,B:$i,C:($i > ($i > $o)),D:$i]: ((in @ D @ A) => (! [E:$i]: ((in @ E @ B) => ((in @ (kpair @ D @ E) @ (dsetconstr @ (cartprod @ A @ B) @ (^ [F:$i]: ? [G:$i]: ((in @ G @ A) & ? [H:$i]: ((in @ H @ B) & (C @ G @ H) & (F = (kpair @ G @ H))))))) => (C @ D @ E))))))))))),inference(miniscope,[status(thm)],[3])).
+thf(5,plain,(! [K:$i,J:$i,I:$i,H:$i,G:$i,F:$i,E:$i,D:$i,C:$i,B:($i > $o),A:$i] : (((~ (in @ C @ (dsetconstr @ A @ (B))) | (B @ C)) & (~ ((kpair @ D @ E) = (kpair @ F @ G)) | (D = F)) & (~ ((kpair @ H @ I) = (kpair @ J @ K)) | (I = K)) & (in @ sk4 @ sk1) & (in @ sk5 @ sk2) & (in @ (kpair @ sk4 @ sk5) @ (dsetconstr @ (cartprod @ sk1 @ sk2) @ (^ [L:$i]: ? [M:$i]: ((in @ M @ sk1) & ? [N:$i]: ((in @ N @ sk2) & (sk3 @ M @ N) & (L = (kpair @ M @ N))))))) & ~ (sk3 @ sk4 @ sk5)))),inference(cnf,[status(esa)],[4])).
+thf(11,plain,(! [C:$i,B:($i > $o),A:$i] : ((~ (in @ C @ (dsetconstr @ A @ (B)))) | (B @ C))),inference(cnfConj,[status(thm)],[5])).
+thf(6,plain,((~ (sk3 @ sk4 @ sk5))),inference(cnfConj,[status(thm)],[5])).
+thf(22,plain,(! [C:$i,B:($i > $o),A:$i] : ((~ (in @ C @ (dsetconstr @ A @ (B)))) | ~ (($true)) | ((B @ C) != (sk3 @ sk4 @ sk5)))),inference(paramod_ordered,[status(thm)],[11,6])).
+thf(23,plain,(! [C:$i,B:($i > $o),A:$i] : ((~ (in @ C @ (dsetconstr @ A @ (B)))) | ((B @ C) != (sk3 @ sk4 @ sk5)))),inference(simp,[status(thm)],[22])).
+thf(42,plain,(! [A:$i] : ((~ (in @ sk5 @ (dsetconstr @ A @ (sk3 @ sk4)))))),inference(pre_uni,[status(thm)],[23:[bind(A, $thf(A)),bind(B, $thf(sk3 @ sk4)),bind(C, $thf(sk5))]])).
+thf(10,plain,(! [D:$i,C:$i,B:$i,A:$i] : ((~ ((kpair @ A @ B) = (kpair @ C @ D))) | (B = D))),inference(cnfConj,[status(thm)],[5])).
+thf(13,plain,(! [D:$i,C:$i,B:$i,A:$i] : (((kpair @ A @ B) != (kpair @ C @ D)) | (B = D))),inference(lifteq,[status(thm)],[10])).
+thf(14,plain,(! [D:$i,C:$i,B:$i,A:$i] : (((kpair @ A @ B) != (kpair @ C @ D)) | (B = D))),inference(simp,[status(thm)],[13])).
+thf(41,plain,(! [A:$i] : ((~ (in @ sk4 @ (dsetconstr @ A @ (^ [B:$i]: (sk3 @ B @ sk5))))))),inference(pre_uni,[status(thm)],[23:[bind(A, $thf(A)),bind(B, $thf(^ [D:$i]: (sk3 @ D @ sk5))),bind(C, $thf(sk4))]])).
+thf(35,plain,(! [D:($i > $o),C:($i > $o),B:$i,A:$i] : ((~ (in @ B @ (dsetconstr @ A @ (^ [E:$i]: ((C @ E) | (D @ E)))))) | ((C @ B) | (D @ B)))),inference(prim_subst,[status(thm)],[11:[bind(A, $thf(A)),bind(B, $thf(^ [F:$i]: ((D @ F) | (E @ F))))]])).
+thf(47,plain,(! [D:($i > $o),C:($i > $o),B:$i,A:$i] : ((~ (in @ B @ (dsetconstr @ A @ (^ [E:$i]: ((C @ E) | (D @ E)))))) | (C @ B) | (D @ B))),inference(cnf,[status(esa)],[35])).
+thf(48,plain,(! [D:($i > $o),C:($i > $o),B:$i,A:$i] : ((~ (in @ B @ (dsetconstr @ A @ (^ [E:$i]: ((C @ E) | (D @ E)))))) | (C @ B) | (D @ B))),inference(simp,[status(thm)],[47])).
+thf(248,plain,(! [E:($i > $o),D:($i > $o),C:($i > $o),B:$i,A:$i] : ((~ (in @ B @ (dsetconstr @ A @ (^ [F:$i]: ((C @ F) | (D @ F) | (E @ F)))))) | (C @ B) | ((D @ B) | (E @ B)))),inference(prim_subst,[status(thm)],[48:[bind(A, $thf(A)),bind(B, $thf(B)),bind(C, $thf(C)),bind(D, $thf(^ [G:$i]: ((E @ G) | (F @ G))))]])).
+thf(359,plain,(! [E:($i > $o),D:($i > $o),C:($i > $o),B:$i,A:$i] : ((~ (in @ B @ (dsetconstr @ A @ (^ [F:$i]: ((C @ F) | (D @ F) | (E @ F)))))) | (C @ B) | (D @ B) | (E @ B))),inference(cnf,[status(esa)],[248])).
+thf(360,plain,(! [E:($i > $o),D:($i > $o),C:($i > $o),B:$i,A:$i] : ((~ (in @ B @ (dsetconstr @ A @ (^ [F:$i]: ((C @ F) | (D @ F) | (E @ F)))))) | (C @ B) | (D @ B) | (E @ B))),inference(simp,[status(thm)],[359])).
+thf(30,plain,(! [C:$i,B:($i > $o),A:$i] : ((~ (in @ C @ (dsetconstr @ A @ (B)))) | ((B @ C) != (~ (in @ C @ (dsetconstr @ A @ (B))))) | ~ (($true)))),inference(eqfactor_ordered,[status(thm)],[11])).
+thf(43,plain,(! [A:$i] : ((~ (in @ (dsetconstr @ A @ (^ [B:$i]: ~ (in @ B @ B))) @ (dsetconstr @ A @ (^ [B:$i]: ~ (in @ B @ B))))))),inference(pre_uni,[status(thm)],[30:[bind(A, $thf(A)),bind(B, $thf(^ [D:$i]: ~ (in @ D @ D))),bind(C, $thf(dsetconstr @ A @ (^ [D:$i]: ~ (in @ D @ D))))]])).
+thf(382,plain,(! [D:$i,C:$i,B:($i > $o),A:$i] : ((~ (in @ C @ (dsetconstr @ A @ (B)))) | ~ (($true)) | ((B @ C) != (in @ (dsetconstr @ D @ (^ [E:$i]: ~ (in @ E @ E))) @ (dsetconstr @ D @ (^ [E:$i]: ~ (in @ E @ E))))))),inference(paramod_ordered,[status(thm)],[11,43])).
+thf(383,plain,(! [D:$i,C:$i,B:($i > $o),A:$i] : ((~ (in @ C @ (dsetconstr @ A @ (B)))) | ((B @ C) != (in @ (dsetconstr @ D @ (^ [E:$i]: ~ (in @ E @ E))) @ (dsetconstr @ D @ (^ [E:$i]: ~ (in @ E @ E))))))),inference(simp,[status(thm)],[382])).
+thf(393,plain,(! [B:$i,A:$i] : ((~ (in @ (dsetconstr @ B @ (^ [C:$i]: ~ (in @ C @ C))) @ (dsetconstr @ A @ (^ [C:$i]: (in @ C @ C))))))),inference(pre_uni,[status(thm)],[383:[bind(A, $thf(A)),bind(B, $thf(^ [E:$i]: (in @ E @ E))),bind(C, $thf(dsetconstr @ D @ (^ [E:$i]: ~ (in @ E @ E)))),bind(D, $thf(D))]])).
+thf(402,plain,(! [B:$i,A:$i] : ((~ (in @ (dsetconstr @ B @ (^ [C:$i]: ~ (in @ C @ C))) @ (dsetconstr @ A @ (^ [C:$i]: (in @ C @ C))))))),inference(simp,[status(thm)],[393])).
+thf(8,plain,((in @ (kpair @ sk4 @ sk5) @ (dsetconstr @ (cartprod @ sk1 @ sk2) @ (^ [A:$i]: ? [B:$i]: ((in @ B @ sk1) & ? [C:$i]: ((in @ C @ sk2) & (sk3 @ B @ C) & (A = (kpair @ B @ C)))))))),inference(cnfConj,[status(thm)],[5])).
+thf(74,plain,(! [C:$i,B:($i > $o),A:$i] : (~ (($true)) | (B @ C) | ((in @ (kpair @ sk4 @ sk5) @ (dsetconstr @ (cartprod @ sk1 @ sk2) @ (^ [D:$i]: ? [E:$i]: ((in @ E @ sk1) & ? [F:$i]: ((in @ F @ sk2) & (sk3 @ E @ F) & (D = (kpair @ E @ F))))))) != (in @ C @ (dsetconstr @ A @ (B)))))),inference(paramod_ordered,[status(thm)],[8,11])).
+thf(75,plain,(! [C:$i,B:($i > $o),A:$i] : ((B @ C) | ((in @ (kpair @ sk4 @ sk5) @ (dsetconstr @ (cartprod @ sk1 @ sk2) @ (^ [D:$i]: ? [E:$i]: ((in @ E @ sk1) & ? [F:$i]: ((in @ F @ sk2) & (sk3 @ E @ F) & (D = (kpair @ E @ F))))))) != (in @ C @ (dsetconstr @ A @ (B)))))),inference(simp,[status(thm)],[74])).
+thf(76,plain,((? [A:$i]: ((in @ A @ sk1) & ? [B:$i]: ((in @ B @ sk2) & (sk3 @ A @ B) & ((kpair @ sk4 @ sk5) = (kpair @ A @ B)))))),inference(pattern_uni,[status(thm)],[75:[bind(A, $thf(cartprod @ sk1 @ sk2)),bind(B, $thf(^ [D:$i]: ? [E:$i]: ((in @ E @ sk1) & ? [F:$i]: ((in @ F @ sk2) & (sk3 @ E @ F) & (D = (kpair @ E @ F)))))),bind(C, $thf(kpair @ sk4 @ sk5))]])).
+thf(78,plain,(((in @ sk8 @ sk1) & (in @ sk9 @ sk2) & (sk3 @ sk8 @ sk9) & ((kpair @ sk4 @ sk5) = (kpair @ sk8 @ sk9)))),inference(cnf,[status(esa)],[76])).
+thf(82,plain,(((kpair @ sk4 @ sk5) = (kpair @ sk8 @ sk9))),inference(cnfConj,[status(thm)],[78])).
+thf(83,plain,(((kpair @ sk8 @ sk9) = (kpair @ sk4 @ sk5))),inference(lifteq,[status(thm)],[82])).
+thf(15,plain,((? [A:($i > ($i > $i))]: ! [B:$i,C:$i]: ((A @ B @ (kpair @ B @ C)) = C))),inference(detectInverse,[status(thm)],[14])).
+thf(16,plain,(! [B:$i,A:$i] : (((sk6 @ A @ (kpair @ A @ B)) = B))),inference(cnf,[status(esa)],[15])).
+thf(21,plain,(! [B:$i,A:$i] : (((sk6 @ A @ (kpair @ A @ B)) = B))),inference(lifteq,[status(thm)],[16])).
+thf(107,plain,(! [B:$i,A:$i] : (((sk6 @ A @ (kpair @ sk4 @ sk5)) = B) | ((kpair @ sk8 @ sk9) != (kpair @ A @ B)))),inference(paramod_ordered,[status(thm)],[83,21])).
+thf(108,plain,(((sk6 @ sk8 @ (kpair @ sk4 @ sk5)) = sk9)),inference(pattern_uni,[status(thm)],[107:[bind(A, $thf(sk8)),bind(B, $thf(sk9))]])).
+thf(7,plain,((in @ sk5 @ sk2)),inference(cnfConj,[status(thm)],[5])).
+thf(130,plain,(! [A:$i] : (~ (($true)) | ((in @ sk5 @ (dsetconstr @ A @ (sk3 @ sk4))) != (in @ sk5 @ sk2)))),inference(paramod_ordered,[status(thm)],[7,42])).
+thf(131,plain,(! [A:$i] : (((in @ sk5 @ (dsetconstr @ A @ (sk3 @ sk4))) != (in @ sk5 @ sk2)))),inference(simp,[status(thm)],[130])).
+thf(140,plain,(! [A:$i] : ((sk5 != sk5) | ((dsetconstr @ A @ (sk3 @ sk4)) != sk2))),inference(simp,[status(thm)],[131])).
+thf(145,plain,(! [A:$i] : (((dsetconstr @ A @ (sk3 @ sk4)) != sk2))),inference(simp,[status(thm)],[140])).
+thf(9,plain,(! [D:$i,C:$i,B:$i,A:$i] : ((~ ((kpair @ A @ B) = (kpair @ C @ D))) | (A = C))),inference(cnfConj,[status(thm)],[5])).
+thf(17,plain,(! [D:$i,C:$i,B:$i,A:$i] : (((kpair @ A @ B) != (kpair @ C @ D)) | (A = C))),inference(lifteq,[status(thm)],[9])).
+thf(18,plain,(! [D:$i,C:$i,B:$i,A:$i] : (((kpair @ A @ B) != (kpair @ C @ D)) | (A = C))),inference(simp,[status(thm)],[17])).
+thf(19,plain,((? [A:($i > ($i > $i))]: ! [B:$i,C:$i]: ((A @ C @ (kpair @ B @ C)) = B))),inference(detectInverse,[status(thm)],[18])).
+thf(20,plain,(! [B:$i,A:$i] : (((sk7 @ B @ (kpair @ A @ B)) = A))),inference(cnf,[status(esa)],[19])).
+thf(146,plain,(! [B:$i,A:$i] : (((sk7 @ B @ (kpair @ A @ B)) = A))),inference(lifteq,[status(thm)],[20])).
+thf(34,plain,(! [B:$i,A:$i] : ((~ (in @ B @ (dsetconstr @ A @ (^ [C:$i]: (($false)))))) | ($false))),inference(prim_subst,[status(thm)],[11:[bind(A, $thf(A)),bind(B, $thf(^ [D:$i]: (($false))))]])).
+thf(46,plain,(! [B:$i,A:$i] : ((~ (in @ B @ (dsetconstr @ A @ (^ [C:$i]: (($false)))))))),inference(simp,[status(thm)],[34])).
+thf(175,plain,(! [B:$i,A:$i] : (~ (($true)) | ((in @ sk5 @ sk2) != (in @ B @ (dsetconstr @ A @ (^ [C:$i]: (($false)))))))),inference(paramod_ordered,[status(thm)],[7,46])).
+thf(176,plain,(! [B:$i,A:$i] : (((in @ sk5 @ sk2) != (in @ B @ (dsetconstr @ A @ (^ [C:$i]: (($false)))))))),inference(simp,[status(thm)],[175])).
+thf(181,plain,(! [B:$i,A:$i] : ((sk5 != B) | ((dsetconstr @ A @ (^ [C:$i]: (($false)))) != sk2))),inference(simp,[status(thm)],[176])).
+thf(189,plain,(! [A:$i] : (((dsetconstr @ A @ (^ [B:$i]: (($false)))) != sk2))),inference(simp,[status(thm)],[181])).
+thf(81,plain,((sk3 @ sk8 @ sk9)),inference(cnfConj,[status(thm)],[78])).
+thf(100,plain,(~ (($true)) | ((sk3 @ sk8 @ sk9) != (sk3 @ sk4 @ sk5))),inference(paramod_ordered,[status(thm)],[81,6])).
+thf(101,plain,(((sk3 @ sk8 @ sk9) != (sk3 @ sk4 @ sk5))),inference(simp,[status(thm)],[100])).
+thf(102,plain,((sk8 != sk4) | (sk9 != sk5)),inference(simp,[status(thm)],[101])).
+thf(12,plain,((in @ sk4 @ sk1)),inference(cnfConj,[status(thm)],[5])).
+thf(55,plain,(! [A:$i] : (~ (($true)) | ((in @ sk4 @ (dsetconstr @ A @ (^ [B:$i]: (sk3 @ B @ sk5)))) != (in @ sk4 @ sk1)))),inference(paramod_ordered,[status(thm)],[12,41])).
+thf(56,plain,(! [A:$i] : (((in @ sk4 @ (dsetconstr @ A @ (^ [B:$i]: (sk3 @ B @ sk5)))) != (in @ sk4 @ sk1)))),inference(simp,[status(thm)],[55])).
+thf(61,plain,(! [A:$i] : ((sk4 != sk4) | ((dsetconstr @ A @ (^ [B:$i]: (sk3 @ B @ sk5))) != sk1))),inference(simp,[status(thm)],[56])).
+thf(70,plain,(! [A:$i] : (((dsetconstr @ A @ (^ [B:$i]: (sk3 @ B @ sk5))) != sk1))),inference(simp,[status(thm)],[61])).
+thf(79,plain,((in @ sk8 @ sk1)),inference(cnfConj,[status(thm)],[78])).
+thf(128,plain,(! [A:$i] : (~ (($true)) | ((in @ sk8 @ sk1) != (in @ sk5 @ (dsetconstr @ A @ (sk3 @ sk4)))))),inference(paramod_ordered,[status(thm)],[79,42])).
+thf(129,plain,(! [A:$i] : (((in @ sk8 @ sk1) != (in @ sk5 @ (dsetconstr @ A @ (sk3 @ sk4)))))),inference(simp,[status(thm)],[128])).
+thf(137,plain,(! [A:$i] : ((sk8 != sk5) | ((dsetconstr @ A @ (sk3 @ sk4)) != sk1))),inference(simp,[status(thm)],[129])).
+thf(147,plain,(! [B:$i,A:$i] : (((sk7 @ B @ (kpair @ sk4 @ sk5)) = A) | ((kpair @ sk8 @ sk9) != (kpair @ A @ B)))),inference(paramod_ordered,[status(thm)],[83,146])).
+thf(148,plain,(((sk7 @ sk9 @ (kpair @ sk4 @ sk5)) = sk8)),inference(pattern_uni,[status(thm)],[147:[bind(A, $thf(sk8)),bind(B, $thf(sk9))]])).
+thf(32,plain,(! [C:($i > $o),B:$i,A:$i] : ((~ (in @ B @ (dsetconstr @ A @ (^ [D:$i]: ~ (C @ D))))) | (~ (C @ B)))),inference(prim_subst,[status(thm)],[11:[bind(A, $thf(A)),bind(B, $thf(^ [E:$i]: ~ (D @ E)))]])).
+thf(44,plain,(! [C:($i > $o),B:$i,A:$i] : ((~ (in @ B @ (dsetconstr @ A @ (^ [D:$i]: ~ (C @ D))))) | (~ (C @ B)))),inference(cnf,[status(esa)],[32])).
+thf(45,plain,(! [C:($i > $o),B:$i,A:$i] : ((~ (in @ B @ (dsetconstr @ A @ (^ [D:$i]: ~ (C @ D))))) | (~ (C @ B)))),inference(simp,[status(thm)],[44])).
+thf(24,plain,(! [C:$i,B:($i > $o),A:$i] : (~ (($true)) | (B @ C) | ((in @ sk4 @ sk1) != (in @ C @ (dsetconstr @ A @ (B)))))),inference(paramod_ordered,[status(thm)],[12,11])).
+thf(25,plain,(! [C:$i,B:($i > $o),A:$i] : ((B @ C) | ((in @ sk4 @ sk1) != (in @ C @ (dsetconstr @ A @ (B)))))),inference(simp,[status(thm)],[24])).
+thf(36,plain,(! [C:$i,B:($i > $o),A:$i] : ((B @ C) | (sk4 != C) | ((dsetconstr @ A @ (B)) != sk1))),inference(simp,[status(thm)],[25])).
+thf(49,plain,(! [B:($i > $o),A:$i] : ((B @ sk4) | ((dsetconstr @ A @ (B)) != sk1))),inference(simp,[status(thm)],[36])).
+thf(173,plain,(! [B:$i,A:$i] : (~ (($true)) | ((in @ sk8 @ sk1) != (in @ B @ (dsetconstr @ A @ (^ [C:$i]: (($false)))))))),inference(paramod_ordered,[status(thm)],[79,46])).
+thf(174,plain,(! [B:$i,A:$i] : (((in @ sk8 @ sk1) != (in @ B @ (dsetconstr @ A @ (^ [C:$i]: (($false)))))))),inference(simp,[status(thm)],[173])).
+thf(179,plain,(! [B:$i,A:$i] : ((sk8 != B) | ((dsetconstr @ A @ (^ [C:$i]: (($false)))) != sk1))),inference(simp,[status(thm)],[174])).
+thf(187,plain,(! [A:$i] : (((dsetconstr @ A @ (^ [B:$i]: (($false)))) != sk1))),inference(simp,[status(thm)],[179])).
+thf(80,plain,((in @ sk9 @ sk2)),inference(cnfConj,[status(thm)],[78])).
+thf(91,plain,(! [A:$i] : (~ (($true)) | ((in @ sk9 @ sk2) != (in @ sk4 @ (dsetconstr @ A @ (^ [B:$i]: (sk3 @ B @ sk5))))))),inference(paramod_ordered,[status(thm)],[80,41])).
+thf(92,plain,(! [A:$i] : (((in @ sk9 @ sk2) != (in @ sk4 @ (dsetconstr @ A @ (^ [B:$i]: (sk3 @ B @ sk5))))))),inference(simp,[status(thm)],[91])).
+thf(95,plain,(! [A:$i] : ((sk9 != sk4) | ((dsetconstr @ A @ (^ [B:$i]: (sk3 @ B @ sk5))) != sk2))),inference(simp,[status(thm)],[92])).
+thf(120,plain,(! [A:$i] : (~ (($true)) | ((in @ sk5 @ (dsetconstr @ A @ (sk3 @ sk4))) != (in @ sk4 @ sk1)))),inference(paramod_ordered,[status(thm)],[12,42])).
+thf(121,plain,(! [A:$i] : (((in @ sk5 @ (dsetconstr @ A @ (sk3 @ sk4))) != (in @ sk4 @ sk1)))),inference(simp,[status(thm)],[120])).
+thf(136,plain,(! [A:$i] : ((sk5 != sk4) | ((dsetconstr @ A @ (sk3 @ sk4)) != sk1))),inference(simp,[status(thm)],[121])).
+thf(59,plain,(! [D:$i,C:$i,B:($i > $o),A:$i] : ((~ (in @ C @ (dsetconstr @ A @ (B)))) | ~ (($true)) | ((B @ C) != (in @ sk4 @ (dsetconstr @ D @ (^ [E:$i]: (sk3 @ E @ sk5))))))),inference(paramod_ordered,[status(thm)],[11,41])).
+thf(60,plain,(! [D:$i,C:$i,B:($i > $o),A:$i] : ((~ (in @ C @ (dsetconstr @ A @ (B)))) | ((B @ C) != (in @ sk4 @ (dsetconstr @ D @ (^ [E:$i]: (sk3 @ E @ sk5))))))),inference(simp,[status(thm)],[59])).
+thf(65,plain,(! [B:($i > $i),A:$i] : ((~ (in @ sk4 @ (dsetconstr @ A @ (^ [C:$i]: (in @ C @ (dsetconstr @ (B @ C) @ (^ [D:$i]: (sk3 @ D @ sk5)))))))))),inference(pre_uni,[status(thm)],[60:[bind(A, $thf(A)),bind(B, $thf(^ [F:$i]: (in @ F @ (dsetconstr @ (G @ F) @ (^ [G:$i]: (sk3 @ G @ sk5)))))),bind(C, $thf(sk4)),bind(D, $thf(G @ sk4))]])).
+thf(68,plain,(! [B:($i > $i),A:$i] : ((~ (in @ sk4 @ (dsetconstr @ A @ (^ [C:$i]: (in @ C @ (dsetconstr @ (B @ C) @ (^ [D:$i]: (sk3 @ D @ sk5)))))))))),inference(simp,[status(thm)],[65])).
+thf(438,plain,(! [B:($i > $i),A:$i] : (~ (($true)) | ((in @ sk4 @ (dsetconstr @ A @ (^ [C:$i]: (in @ C @ (dsetconstr @ (B @ C) @ (^ [D:$i]: (sk3 @ D @ sk5))))))) != (in @ sk4 @ sk1)))),inference(paramod_ordered,[status(thm)],[12,68])).
+thf(439,plain,(! [B:($i > $i),A:$i] : (((in @ sk4 @ (dsetconstr @ A @ (^ [C:$i]: (in @ C @ (dsetconstr @ (B @ C) @ (^ [D:$i]: (sk3 @ D @ sk5))))))) != (in @ sk4 @ sk1)))),inference(simp,[status(thm)],[438])).
+thf(457,plain,(! [B:($i > $i),A:$i] : ((sk4 != sk4) | ((dsetconstr @ A @ (^ [C:$i]: (in @ C @ (dsetconstr @ (B @ C) @ (^ [D:$i]: (sk3 @ D @ sk5)))))) != sk1))),inference(simp,[status(thm)],[439])).
+thf(464,plain,(! [B:($i > $i),A:$i] : (((dsetconstr @ A @ (^ [C:$i]: (in @ C @ (dsetconstr @ (B @ C) @ (^ [D:$i]: (sk3 @ D @ sk5)))))) != sk1))),inference(simp,[status(thm)],[457])).
+thf(57,plain,(! [A:$i] : (~ (($true)) | ((in @ sk5 @ sk2) != (in @ sk4 @ (dsetconstr @ A @ (^ [B:$i]: (sk3 @ B @ sk5))))))),inference(paramod_ordered,[status(thm)],[7,41])).
+thf(58,plain,(! [A:$i] : (((in @ sk5 @ sk2) != (in @ sk4 @ (dsetconstr @ A @ (^ [B:$i]: (sk3 @ B @ sk5))))))),inference(simp,[status(thm)],[57])).
+thf(62,plain,(! [A:$i] : ((sk5 != sk4) | ((dsetconstr @ A @ (^ [B:$i]: (sk3 @ B @ sk5))) != sk2))),inference(simp,[status(thm)],[58])).
+thf(1126,plain,(($false)),inference(e,[status(thm)],[42,14,41,360,402,108,145,8,146,83,189,46,6,102,70,21,137,148,45,12,49,187,81,7,3,80,48,18,95,11,43,136,79,464,68,62])).
+% SZS output end Refutation for /home/marc/.local/share/tptp/TPTP-v9.3.1/Problems/SEU/SEU668^2.p
+% [INFO] 	 Killing All external provers ... 

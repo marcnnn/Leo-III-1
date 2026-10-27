@@ -1,0 +1,40 @@
+% [INFO] 	 Parsing problem /home/marc/.local/share/tptp/TPTP-v9.3.1/Problems/CSR/CSR151^3.p ... 
+% [INFO] 	 Included file 'Axioms/CSR005^0.ax' not found, trying TPTP home directory ... 
+% [INFO] 	 Parsing done (695ms). 
+% [INFO] 	 Running in sequential loop mode. 
+% [INFO] 	 Scanning for conjecture ... 
+% [INFO] 	 Found a conjecture (or negated_conjecture) and 3578 axioms. Running axiom selection ... 
+% [INFO] 	 Axiom selection finished. Selected 8 axioms (removed 3570 axioms). 
+% [INFO] 	 Problem is higher-order (TPTP THF). 
+% [INFO] 	 Type checking passed. 
+% [CONFIG] 	 Using configuration: timeout(10) with strategy<name(default),share(1.0),primSubst(3),sos(false),unifierCount(4),uniDepth(8),boolExt(true),choice(true),renaming(true),funcspec(false), domConstr(0),specialInstances(39),restrictUniAttempts(true),termOrdering(CPO)>.  Searching for refutation ... 
+% Time passed: 2638ms (effective reasoning time: 1427ms)
+% Solved by strategy<name(default),share(1.0),primSubst(3),sos(false),unifierCount(4),uniDepth(8),boolExt(true),choice(true),renaming(true),funcspec(false), domConstr(0),specialInstances(39),restrictUniAttempts(true),termOrdering(CPO)>
+% Axioms used in derivation (1): ax
+% No. of inferences in proof: 15
+% SZS status Theorem for /home/marc/.local/share/tptp/TPTP-v9.3.1/Problems/CSR/CSR151^3.p : 2638 ms resp. 1427 ms w/o parsing
+% SZS output start Refutation for /home/marc/.local/share/tptp/TPTP-v9.3.1/Problems/CSR/CSR151^3.p
+thf(num_type, type, num: $tType).
+thf(holdsDuring_THFTYPE_IiooI_decl, type, holdsDuring_THFTYPE_IiooI: ($i > ($o > $o))).
+thf(lYearFn_THFTYPE_IiiI_decl, type, lYearFn_THFTYPE_IiiI: ($i > $i)).
+thf(lBill_THFTYPE_i_decl, type, lBill_THFTYPE_i: $i).
+thf(lMary_THFTYPE_i_decl, type, lMary_THFTYPE_i: $i).
+thf(lSue_THFTYPE_i_decl, type, lSue_THFTYPE_i: $i).
+thf(likes_THFTYPE_IiioI_decl, type, likes_THFTYPE_IiioI: ($i > ($i > $o))).
+thf(n2009_THFTYPE_i_decl, type, n2009_THFTYPE_i: $i).
+thf(6,axiom,((holdsDuring_THFTYPE_IiooI @ (lYearFn_THFTYPE_IiiI @ n2009_THFTYPE_i) @ ((likes_THFTYPE_IiioI @ lMary_THFTYPE_i @ lBill_THFTYPE_i) & (likes_THFTYPE_IiioI @ lSue_THFTYPE_i @ lBill_THFTYPE_i)))),file('/home/marc/.local/share/tptp/TPTP-v9.3.1/Problems/CSR/CSR151^3.p',ax)).
+thf(19,plain,((holdsDuring_THFTYPE_IiooI @ (lYearFn_THFTYPE_IiiI @ n2009_THFTYPE_i) @ ((likes_THFTYPE_IiioI @ lMary_THFTYPE_i @ lBill_THFTYPE_i) & (likes_THFTYPE_IiioI @ lSue_THFTYPE_i @ lBill_THFTYPE_i)))),inference(defexp_and_simp_and_etaexpand,[status(thm)],[6])).
+thf(1,conjecture,((holdsDuring_THFTYPE_IiooI @ (lYearFn_THFTYPE_IiiI @ n2009_THFTYPE_i) @ ((likes_THFTYPE_IiioI @ lSue_THFTYPE_i @ lBill_THFTYPE_i) & (likes_THFTYPE_IiioI @ lMary_THFTYPE_i @ lBill_THFTYPE_i)))),file('/home/marc/.local/share/tptp/TPTP-v9.3.1/Problems/CSR/CSR151^3.p',con)).
+thf(2,negated_conjecture,((~ (holdsDuring_THFTYPE_IiooI @ (lYearFn_THFTYPE_IiiI @ n2009_THFTYPE_i) @ ((likes_THFTYPE_IiioI @ lSue_THFTYPE_i @ lBill_THFTYPE_i) & (likes_THFTYPE_IiioI @ lMary_THFTYPE_i @ lBill_THFTYPE_i))))),inference(neg_conjecture,[status(cth)],[1])).
+thf(11,plain,((~ (holdsDuring_THFTYPE_IiooI @ (lYearFn_THFTYPE_IiiI @ n2009_THFTYPE_i) @ ((likes_THFTYPE_IiioI @ lSue_THFTYPE_i @ lBill_THFTYPE_i) & (likes_THFTYPE_IiioI @ lMary_THFTYPE_i @ lBill_THFTYPE_i))))),inference(defexp_and_simp_and_etaexpand,[status(thm)],[2])).
+thf(37,plain,(~ (($true)) | ((holdsDuring_THFTYPE_IiooI @ (lYearFn_THFTYPE_IiiI @ n2009_THFTYPE_i) @ ((likes_THFTYPE_IiioI @ lMary_THFTYPE_i @ lBill_THFTYPE_i) & (likes_THFTYPE_IiioI @ lSue_THFTYPE_i @ lBill_THFTYPE_i))) != (holdsDuring_THFTYPE_IiooI @ (lYearFn_THFTYPE_IiiI @ n2009_THFTYPE_i) @ ((likes_THFTYPE_IiioI @ lSue_THFTYPE_i @ lBill_THFTYPE_i) & (likes_THFTYPE_IiioI @ lMary_THFTYPE_i @ lBill_THFTYPE_i))))),inference(paramod_ordered,[status(thm)],[19,11])).
+thf(38,plain,(((holdsDuring_THFTYPE_IiooI @ (lYearFn_THFTYPE_IiiI @ n2009_THFTYPE_i) @ ((likes_THFTYPE_IiioI @ lMary_THFTYPE_i @ lBill_THFTYPE_i) & (likes_THFTYPE_IiioI @ lSue_THFTYPE_i @ lBill_THFTYPE_i))) != (holdsDuring_THFTYPE_IiooI @ (lYearFn_THFTYPE_IiiI @ n2009_THFTYPE_i) @ ((likes_THFTYPE_IiioI @ lSue_THFTYPE_i @ lBill_THFTYPE_i) & (likes_THFTYPE_IiioI @ lMary_THFTYPE_i @ lBill_THFTYPE_i))))),inference(simp,[status(thm)],[37])).
+thf(39,plain,(((lYearFn_THFTYPE_IiiI @ n2009_THFTYPE_i) != (lYearFn_THFTYPE_IiiI @ n2009_THFTYPE_i)) | (((likes_THFTYPE_IiioI @ lMary_THFTYPE_i @ lBill_THFTYPE_i) & (likes_THFTYPE_IiioI @ lSue_THFTYPE_i @ lBill_THFTYPE_i)) != ((likes_THFTYPE_IiioI @ lSue_THFTYPE_i @ lBill_THFTYPE_i) & (likes_THFTYPE_IiioI @ lMary_THFTYPE_i @ lBill_THFTYPE_i)))),inference(simp,[status(thm)],[38])).
+thf(40,plain,((((likes_THFTYPE_IiioI @ lMary_THFTYPE_i @ lBill_THFTYPE_i) & (likes_THFTYPE_IiioI @ lSue_THFTYPE_i @ lBill_THFTYPE_i)) != ((likes_THFTYPE_IiioI @ lSue_THFTYPE_i @ lBill_THFTYPE_i) & (likes_THFTYPE_IiioI @ lMary_THFTYPE_i @ lBill_THFTYPE_i)))),inference(simp,[status(thm)],[39])).
+thf(43,plain,(((likes_THFTYPE_IiioI @ lMary_THFTYPE_i @ lBill_THFTYPE_i) & (likes_THFTYPE_IiioI @ lSue_THFTYPE_i @ lBill_THFTYPE_i)) | ((likes_THFTYPE_IiioI @ lSue_THFTYPE_i @ lBill_THFTYPE_i) & (likes_THFTYPE_IiioI @ lMary_THFTYPE_i @ lBill_THFTYPE_i))),inference(bool_ext,[status(thm)],[40])).
+thf(47,plain,((((likes_THFTYPE_IiioI @ lMary_THFTYPE_i @ lBill_THFTYPE_i) | (likes_THFTYPE_IiioI @ lSue_THFTYPE_i @ lBill_THFTYPE_i)) & ((likes_THFTYPE_IiioI @ lMary_THFTYPE_i @ lBill_THFTYPE_i) | (likes_THFTYPE_IiioI @ lMary_THFTYPE_i @ lBill_THFTYPE_i)) & ((likes_THFTYPE_IiioI @ lSue_THFTYPE_i @ lBill_THFTYPE_i) | (likes_THFTYPE_IiioI @ lSue_THFTYPE_i @ lBill_THFTYPE_i)) & ((likes_THFTYPE_IiioI @ lSue_THFTYPE_i @ lBill_THFTYPE_i) | (likes_THFTYPE_IiioI @ lMary_THFTYPE_i @ lBill_THFTYPE_i)))),inference(cnf,[status(esa)],[43])).
+thf(49,plain,((likes_THFTYPE_IiioI @ lMary_THFTYPE_i @ lBill_THFTYPE_i) | (likes_THFTYPE_IiioI @ lMary_THFTYPE_i @ lBill_THFTYPE_i)),inference(cnfConj,[status(thm)],[47])).
+thf(51,plain,((likes_THFTYPE_IiioI @ lMary_THFTYPE_i @ lBill_THFTYPE_i)),inference(simp,[status(thm)],[49])).
+thf(60,plain,((((($true)) & (likes_THFTYPE_IiioI @ lSue_THFTYPE_i @ lBill_THFTYPE_i)) != ((likes_THFTYPE_IiioI @ lSue_THFTYPE_i @ lBill_THFTYPE_i) & (($true))))),inference(rewrite,[status(thm)],[40,51])).
+thf(61,plain,(($false)),inference(simp,[status(thm)],[60])).
+% SZS output end Refutation for /home/marc/.local/share/tptp/TPTP-v9.3.1/Problems/CSR/CSR151^3.p

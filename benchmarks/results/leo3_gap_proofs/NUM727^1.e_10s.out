@@ -1,0 +1,114 @@
+% [INFO] 	 Parsing problem /home/marc/.local/share/tptp/TPTP-v9.3.1/Problems/NUM/NUM727^1.p ... 
+% [INFO] 	 Parsing done (203ms). 
+% [INFO] 	 Running in sequential loop mode. 
+% [INFO] 	 e registered as external prover. 
+% [INFO] 	 Scanning for conjecture ... 
+% [INFO] 	 Found a conjecture (or negated_conjecture) and 5 axioms. Running axiom selection ... 
+% [INFO] 	 Axiom selection finished. Selected 5 axioms (removed 0 axioms). 
+% [INFO] 	 Problem is higher-order (TPTP THF). 
+% [INFO] 	 Type checking passed. 
+% [CONFIG] 	 Using configuration: timeout(10) with strategy<name(default),share(1.0),primSubst(3),sos(false),unifierCount(4),uniDepth(8),boolExt(true),choice(true),renaming(true),funcspec(false), domConstr(0),specialInstances(39),restrictUniAttempts(true),termOrdering(CPO)>.  Searching for refutation ... 
+% External prover 'e' found a proof!
+% [INFO] 	 Killing All external provers ... 
+% Time passed: 6502ms (effective reasoning time: 5854ms)
+% Solved by strategy<name(default),share(1.0),primSubst(3),sos(false),unifierCount(4),uniDepth(8),boolExt(true),choice(true),renaming(true),funcspec(false), domConstr(0),specialInstances(39),restrictUniAttempts(true),termOrdering(CPO)>
+% Axioms used in derivation (5): e, satz29, satz31, f, satz33b
+% No. of inferences in proof: 84
+% SZS status Theorem for /home/marc/.local/share/tptp/TPTP-v9.3.1/Problems/NUM/NUM727^1.p : 6502 ms resp. 5854 ms w/o parsing
+% SZS output start Refutation for /home/marc/.local/share/tptp/TPTP-v9.3.1/Problems/NUM/NUM727^1.p
+thf(frac_type, type, frac: $tType).
+thf(nat_type, type, nat: $tType).
+thf(x_decl, type, x: frac).
+thf(y_decl, type, y: frac).
+thf(z_decl, type, z: frac).
+thf(ts_decl, type, ts: (nat > (nat > nat))).
+thf(num_decl, type, num: (frac > nat)).
+thf(den_decl, type, den: (frac > nat)).
+thf(sk1_decl, type, sk1: (nat > (nat > nat))).
+thf(sk1_def, definition, sk1 = (@+ [A:(nat > (nat > nat))]: ! [B:nat,C:nat]: ((A @ C @ (ts @ B @ C)) = B)) ).
+thf(7,axiom,((! [A:nat,B:nat,C:nat]: ((ts @ (ts @ A @ B) @ C) = (ts @ A @ (ts @ B @ C))))),file('/home/marc/.local/share/tptp/TPTP-v9.3.1/Problems/NUM/NUM727^1.p',satz31)).
+thf(23,plain,((! [A:nat,B:nat,C:nat]: ((ts @ (ts @ A @ B) @ C) = (ts @ A @ (ts @ B @ C))))),inference(defexp_and_simp_and_etaexpand,[status(thm)],[7])).
+thf(24,plain,(! [C:nat,B:nat,A:nat] : (((ts @ (ts @ A @ B) @ C) = (ts @ A @ (ts @ B @ C))))),inference(cnf,[status(esa)],[23])).
+thf(25,plain,(! [C:nat,B:nat,A:nat] : (((ts @ (ts @ A @ B) @ C) = (ts @ A @ (ts @ B @ C))))),inference(lifteq,[status(thm)],[24])).
+thf(3,axiom,(((ts @ (num @ x) @ (den @ y)) = (ts @ (num @ y) @ (den @ x)))),file('/home/marc/.local/share/tptp/TPTP-v9.3.1/Problems/NUM/NUM727^1.p',e)).
+thf(10,plain,(((ts @ (num @ x) @ (den @ y)) = (ts @ (num @ y) @ (den @ x)))),inference(defexp_and_simp_and_etaexpand,[status(thm)],[3])).
+thf(11,plain,(((ts @ (num @ y) @ (den @ x)) = (ts @ (num @ x) @ (den @ y)))),inference(lifteq,[status(thm)],[10])).
+thf(6,axiom,((! [A:nat,B:nat]: ((ts @ A @ B) = (ts @ B @ A)))),file('/home/marc/.local/share/tptp/TPTP-v9.3.1/Problems/NUM/NUM727^1.p',satz29)).
+thf(20,plain,((! [A:nat,B:nat]: ((ts @ A @ B) = (ts @ B @ A)))),inference(defexp_and_simp_and_etaexpand,[status(thm)],[6])).
+thf(21,plain,(! [B:nat,A:nat] : (((ts @ A @ B) = (ts @ B @ A)))),inference(cnf,[status(esa)],[20])).
+thf(22,plain,(! [B:nat,A:nat] : (((ts @ A @ B) = (ts @ B @ A)))),inference(lifteq,[status(thm)],[21])).
+thf(49,plain,(! [B:nat,A:nat] : (((ts @ (num @ x) @ (den @ y)) = (ts @ B @ A)) | ((ts @ (num @ y) @ (den @ x)) != (ts @ A @ B)))),inference(paramod_ordered,[status(thm)],[11,22])).
+thf(50,plain,(((ts @ (den @ x) @ (num @ y)) = (ts @ (num @ x) @ (den @ y)))),inference(pattern_uni,[status(thm)],[49:[bind(A, $thf(num @ y)),bind(B, $thf(den @ x))]])).
+thf(1,conjecture,(((ts @ (num @ x) @ (den @ z)) = (ts @ (num @ z) @ (den @ x)))),file('/home/marc/.local/share/tptp/TPTP-v9.3.1/Problems/NUM/NUM727^1.p',satz39)).
+thf(2,negated_conjecture,((~ ((ts @ (num @ x) @ (den @ z)) = (ts @ (num @ z) @ (den @ x))))),inference(neg_conjecture,[status(cth)],[1])).
+thf(8,plain,((~ ((ts @ (num @ x) @ (den @ z)) = (ts @ (num @ z) @ (den @ x))))),inference(defexp_and_simp_and_etaexpand,[status(thm)],[2])).
+thf(9,plain,(((ts @ (num @ z) @ (den @ x)) != (ts @ (num @ x) @ (den @ z)))),inference(lifteq,[status(thm)],[8])).
+thf(63,plain,(((ts @ (num @ x) @ (den @ z)) != (ts @ (num @ x) @ (den @ y))) | ((ts @ (den @ x) @ (num @ y)) != (ts @ (num @ z) @ (den @ x)))),inference(paramod_ordered,[status(thm)],[50,9])).
+thf(82,plain,(((num @ x) != (num @ x)) | ((den @ z) != (den @ y)) | ((den @ x) != (num @ z)) | ((den @ x) != (num @ y))),inference(simp,[status(thm)],[63])).
+thf(84,plain,(((den @ z) != (den @ y)) | ((den @ x) != (num @ z)) | ((den @ x) != (num @ y))),inference(simp,[status(thm)],[82])).
+thf(27,plain,(((ts @ (num @ x) @ (den @ z)) != (ts @ (num @ x) @ (den @ y))) | ((ts @ (num @ z) @ (den @ x)) != (ts @ (num @ y) @ (den @ x)))),inference(paramod_ordered,[status(thm)],[11,9])).
+thf(30,plain,(((num @ x) != (num @ x)) | ((den @ z) != (den @ y)) | ((num @ z) != (num @ y)) | ((den @ x) != (den @ x))),inference(simp,[status(thm)],[27])).
+thf(33,plain,(((den @ z) != (den @ y)) | ((num @ z) != (num @ y))),inference(simp,[status(thm)],[30])).
+thf(4,axiom,(((ts @ (num @ y) @ (den @ z)) = (ts @ (num @ z) @ (den @ y)))),file('/home/marc/.local/share/tptp/TPTP-v9.3.1/Problems/NUM/NUM727^1.p',f)).
+thf(12,plain,(((ts @ (num @ y) @ (den @ z)) = (ts @ (num @ z) @ (den @ y)))),inference(defexp_and_simp_and_etaexpand,[status(thm)],[4])).
+thf(13,plain,(((ts @ (num @ z) @ (den @ y)) = (ts @ (num @ y) @ (den @ z)))),inference(lifteq,[status(thm)],[12])).
+thf(55,plain,(! [B:nat,A:nat] : (((ts @ (num @ y) @ (den @ z)) = (ts @ B @ A)) | ((ts @ (num @ z) @ (den @ y)) != (ts @ A @ B)))),inference(paramod_ordered,[status(thm)],[13,22])).
+thf(56,plain,(((ts @ (den @ y) @ (num @ z)) = (ts @ (num @ y) @ (den @ z)))),inference(pattern_uni,[status(thm)],[55:[bind(A, $thf(num @ z)),bind(B, $thf(den @ y))]])).
+thf(191,plain,(! [C:nat,B:nat,A:nat] : (((ts @ (ts @ (num @ y) @ (den @ z)) @ C) = (ts @ A @ (ts @ B @ C))) | ((ts @ (num @ z) @ (den @ y)) != (ts @ A @ B)))),inference(paramod_ordered,[status(thm)],[13,25])).
+thf(192,plain,(! [A:nat] : (((ts @ (ts @ (num @ y) @ (den @ z)) @ A) = (ts @ (num @ z) @ (ts @ (den @ y) @ A))))),inference(pattern_uni,[status(thm)],[191:[bind(A, $thf(num @ z)),bind(B, $thf(den @ y)),bind(C, $thf(C))]])).
+thf(231,plain,(! [A:nat] : (((ts @ (ts @ (num @ y) @ (den @ z)) @ A) = (ts @ (num @ z) @ (ts @ (den @ y) @ A))))),inference(simp,[status(thm)],[192])).
+thf(451,plain,(! [A:nat] : (((ts @ (num @ y) @ (ts @ (den @ z) @ A)) = (ts @ (num @ z) @ (ts @ (den @ y) @ A))))),inference(rewrite,[status(thm)],[231,25])).
+thf(500,plain,(! [A:nat] : (((ts @ (num @ z) @ (ts @ (num @ y) @ (den @ z))) = (ts @ (num @ y) @ (ts @ (den @ z) @ A))) | ((ts @ (den @ y) @ (num @ z)) != (ts @ (den @ y) @ A)))),inference(paramod_ordered,[status(thm)],[56,451])).
+thf(501,plain,(((ts @ (num @ z) @ (ts @ (num @ y) @ (den @ z))) = (ts @ (num @ y) @ (ts @ (den @ z) @ (num @ z))))),inference(pattern_uni,[status(thm)],[500:[bind(A, $thf(num @ z))]])).
+thf(5,axiom,((! [A:nat,B:nat,C:nat]: (((ts @ A @ C) = (ts @ B @ C)) => (A = B)))),file('/home/marc/.local/share/tptp/TPTP-v9.3.1/Problems/NUM/NUM727^1.p',satz33b)).
+thf(14,plain,((! [A:nat,B:nat,C:nat]: (((ts @ A @ C) = (ts @ B @ C)) => (A = B)))),inference(defexp_and_simp_and_etaexpand,[status(thm)],[5])).
+thf(15,plain,((! [A:nat,B:nat]: ((? [C:nat]: ((ts @ A @ C) = (ts @ B @ C))) => (A = B)))),inference(miniscope,[status(thm)],[14])).
+thf(16,plain,(! [C:nat,B:nat,A:nat] : ((~ ((ts @ A @ C) = (ts @ B @ C))) | (A = B))),inference(cnf,[status(esa)],[15])).
+thf(17,plain,(! [C:nat,B:nat,A:nat] : (((ts @ A @ C) != (ts @ B @ C)) | (A = B))),inference(lifteq,[status(thm)],[16])).
+thf(18,plain,((? [A:(nat > (nat > nat))]: ! [B:nat,C:nat]: ((A @ C @ (ts @ B @ C)) = B))),inference(detectInverse,[status(thm)],[17])).
+thf(19,plain,(! [B:nat,A:nat] : (((sk1 @ B @ (ts @ A @ B)) = A))),inference(cnf,[status(esa)],[18])).
+thf(147,plain,(! [B:nat,A:nat] : (((sk1 @ B @ (ts @ A @ B)) = A))),inference(lifteq,[status(thm)],[19])).
+thf(152,plain,(! [D:nat,C:nat,B:nat,A:nat] : (((sk1 @ D @ (ts @ B @ A)) = C) | ((ts @ A @ B) != (ts @ C @ D)))),inference(paramod_ordered,[status(thm)],[22,147])).
+thf(153,plain,(! [B:nat,A:nat] : (((sk1 @ B @ (ts @ B @ A)) = A))),inference(pattern_uni,[status(thm)],[152:[bind(A, $thf(A)),bind(B, $thf(B)),bind(C, $thf(A)),bind(D, $thf(B))]])).
+thf(709,plain,(! [B:nat,A:nat] : (((sk1 @ B @ (ts @ (num @ y) @ (ts @ (den @ z) @ (num @ z)))) = A) | ((ts @ (num @ z) @ (ts @ (num @ y) @ (den @ z))) != (ts @ B @ A)))),inference(paramod_ordered,[status(thm)],[501,153])).
+thf(710,plain,(((sk1 @ (num @ z) @ (ts @ (num @ y) @ (ts @ (den @ z) @ (num @ z)))) = (ts @ (num @ y) @ (den @ z)))),inference(pattern_uni,[status(thm)],[709:[bind(A, $thf(ts @ (num @ y) @ (den @ z))),bind(B, $thf(num @ z))]])).
+thf(657,plain,(! [B:nat,A:nat] : (((sk1 @ B @ (ts @ (num @ y) @ (ts @ (den @ z) @ (num @ z)))) = A) | ((ts @ (num @ z) @ (ts @ (num @ y) @ (den @ z))) != (ts @ A @ B)))),inference(paramod_ordered,[status(thm)],[501,147])).
+thf(658,plain,(((sk1 @ (ts @ (num @ y) @ (den @ z)) @ (ts @ (num @ y) @ (ts @ (den @ z) @ (num @ z)))) = (num @ z))),inference(pattern_uni,[status(thm)],[657:[bind(A, $thf(num @ z)),bind(B, $thf(ts @ (num @ y) @ (den @ z)))]])).
+thf(889,plain,(! [B:nat,A:nat] : (((sk1 @ (ts @ (num @ y) @ (den @ z)) @ (ts @ (num @ y) @ (ts @ B @ A))) = (num @ z)) | ((ts @ A @ B) != (ts @ (den @ z) @ (num @ z))))),inference(paramod_ordered,[status(thm)],[22,658])).
+thf(890,plain,(((sk1 @ (ts @ (num @ y) @ (den @ z)) @ (ts @ (num @ y) @ (ts @ (num @ z) @ (den @ z)))) = (num @ z))),inference(pattern_uni,[status(thm)],[889:[bind(A, $thf(den @ z)),bind(B, $thf(num @ z))]])).
+thf(150,plain,(! [B:nat,A:nat] : (((sk1 @ B @ (ts @ (num @ y) @ (den @ z))) = A) | ((ts @ (num @ z) @ (den @ y)) != (ts @ A @ B)))),inference(paramod_ordered,[status(thm)],[13,147])).
+thf(151,plain,(((sk1 @ (den @ y) @ (ts @ (num @ y) @ (den @ z))) = (num @ z))),inference(pattern_uni,[status(thm)],[150:[bind(A, $thf(num @ z)),bind(B, $thf(den @ y))]])).
+thf(156,plain,(! [B:nat,A:nat] : (((sk1 @ B @ (ts @ (num @ x) @ (den @ y))) = A) | ((ts @ (den @ x) @ (num @ y)) != (ts @ A @ B)))),inference(paramod_ordered,[status(thm)],[50,147])).
+thf(157,plain,(((sk1 @ (num @ y) @ (ts @ (num @ x) @ (den @ y))) = (den @ x))),inference(pattern_uni,[status(thm)],[156:[bind(A, $thf(den @ x)),bind(B, $thf(num @ y))]])).
+thf(867,plain,(! [A:nat] : (((sk1 @ (ts @ (num @ y) @ (den @ z)) @ (ts @ (num @ z) @ (ts @ (den @ y) @ A))) = (num @ z)) | ((ts @ (num @ y) @ (ts @ (den @ z) @ A)) != (ts @ (num @ y) @ (ts @ (den @ z) @ (num @ z)))))),inference(paramod_ordered,[status(thm)],[451,658])).
+thf(868,plain,(((sk1 @ (ts @ (num @ y) @ (den @ z)) @ (ts @ (num @ z) @ (ts @ (den @ y) @ (num @ z)))) = (num @ z))),inference(pattern_uni,[status(thm)],[867:[bind(A, $thf(num @ z))]])).
+thf(2024,plain,(((sk1 @ (ts @ (num @ y) @ (den @ z)) @ (ts @ (num @ z) @ (ts @ (num @ y) @ (den @ z)))) = (num @ z))),inference(rewrite,[status(thm)],[868,56])).
+thf(733,plain,(! [B:nat,A:nat] : (((ts @ (num @ y) @ (ts @ B @ A)) = (ts @ (num @ z) @ (ts @ (num @ y) @ (den @ z)))) | ((ts @ A @ B) != (ts @ (den @ z) @ (num @ z))))),inference(paramod_ordered,[status(thm)],[22,501])).
+thf(734,plain,(((ts @ (num @ z) @ (ts @ (num @ y) @ (den @ z))) = (ts @ (num @ y) @ (ts @ (num @ z) @ (den @ z))))),inference(pattern_uni,[status(thm)],[733:[bind(A, $thf(den @ z)),bind(B, $thf(num @ z))]])).
+thf(29,plain,(((ts @ (num @ x) @ (den @ z)) != (ts @ (num @ x) @ (den @ y))) | ((num @ z) != (num @ y)) | ((den @ x) != (den @ x))),inference(simp,[status(thm)],[27])).
+thf(32,plain,(((ts @ (num @ x) @ (den @ z)) != (ts @ (num @ x) @ (den @ y))) | ((num @ z) != (num @ y))),inference(simp,[status(thm)],[29])).
+thf(148,plain,(! [B:nat,A:nat] : (((sk1 @ B @ (ts @ (num @ y) @ (den @ z))) = A) | ((ts @ (den @ y) @ (num @ z)) != (ts @ A @ B)))),inference(paramod_ordered,[status(thm)],[56,147])).
+thf(149,plain,(((sk1 @ (num @ z) @ (ts @ (num @ y) @ (den @ z))) = (den @ y))),inference(pattern_uni,[status(thm)],[148:[bind(A, $thf(den @ y)),bind(B, $thf(num @ z))]])).
+thf(34,plain,(((ts @ (num @ y) @ (den @ z)) != (ts @ (num @ x) @ (den @ z))) | ((ts @ (num @ z) @ (den @ y)) != (ts @ (num @ z) @ (den @ x)))),inference(paramod_ordered,[status(thm)],[13,9])).
+thf(39,plain,(((num @ y) != (num @ x)) | ((den @ z) != (den @ z)) | ((num @ z) != (num @ z)) | ((den @ y) != (den @ x))),inference(simp,[status(thm)],[34])).
+thf(44,plain,(((num @ y) != (num @ x)) | ((den @ y) != (den @ x))),inference(simp,[status(thm)],[39])).
+thf(390,plain,((y != x) | (y != x)),inference(simp,[status(thm)],[44])).
+thf(391,plain,((y != x)),inference(simp,[status(thm)],[390])).
+thf(158,plain,(! [B:nat,A:nat] : (((sk1 @ B @ (ts @ (num @ x) @ (den @ y))) = A) | ((ts @ (num @ y) @ (den @ x)) != (ts @ A @ B)))),inference(paramod_ordered,[status(thm)],[11,147])).
+thf(159,plain,(((sk1 @ (den @ x) @ (ts @ (num @ x) @ (den @ y))) = (num @ y))),inference(pattern_uni,[status(thm)],[158:[bind(A, $thf(num @ y)),bind(B, $thf(den @ x))]])).
+thf(28,plain,(((num @ x) != (num @ x)) | ((den @ z) != (den @ y)) | ((ts @ (num @ z) @ (den @ x)) != (ts @ (num @ y) @ (den @ x)))),inference(simp,[status(thm)],[27])).
+thf(31,plain,(((den @ z) != (den @ y)) | ((ts @ (num @ z) @ (den @ x)) != (ts @ (num @ y) @ (den @ x)))),inference(simp,[status(thm)],[28])).
+thf(394,plain,(((den @ z) != (den @ y)) | ((ts @ (num @ z) @ (den @ x)) != (ts @ (num @ x) @ (den @ y)))),inference(rewrite,[status(thm)],[31,11])).
+thf(114,plain,(((ts @ (num @ y) @ (den @ z)) != (ts @ (num @ x) @ (den @ z))) | ((ts @ (den @ y) @ (num @ z)) != (ts @ (num @ z) @ (den @ x)))),inference(paramod_ordered,[status(thm)],[56,9])).
+thf(137,plain,(((num @ y) != (num @ x)) | ((den @ z) != (den @ z)) | ((den @ y) != (num @ z)) | ((den @ x) != (num @ z))),inference(simp,[status(thm)],[114])).
+thf(143,plain,(((num @ y) != (num @ x)) | ((den @ y) != (num @ z)) | ((den @ x) != (num @ z))),inference(simp,[status(thm)],[137])).
+thf(35,plain,(((ts @ (num @ y) @ (den @ z)) = (ts @ (num @ x) @ (den @ y))) | ((ts @ (num @ z) @ (den @ y)) != (ts @ (num @ y) @ (den @ x)))),inference(paramod_ordered,[status(thm)],[13,11])).
+thf(40,plain,(((ts @ (num @ y) @ (den @ z)) = (ts @ (num @ x) @ (den @ y))) | ((num @ z) != (num @ y)) | ((den @ y) != (den @ x))),inference(simp,[status(thm)],[35])).
+thf(26,plain,(((num @ z) != (num @ x)) | ((den @ z) != (den @ x))),inference(simp,[status(thm)],[9])).
+thf(162,plain,((z != y) | (z != y)),inference(simp,[status(thm)],[33])).
+thf(163,plain,((z != y)),inference(simp,[status(thm)],[162])).
+thf(61,plain,((z != x) | (z != x)),inference(simp,[status(thm)],[26])).
+thf(62,plain,((z != x)),inference(simp,[status(thm)],[61])).
+thf(2920,plain,(($false)),inference(e,[status(thm)],[25,84,33,710,9,13,451,890,50,8,151,10,56,153,14,157,20,2024,147,734,32,17,149,22,44,391,12,159,394,658,11,143,40,26,23,163,62])).
+% SZS output end Refutation for /home/marc/.local/share/tptp/TPTP-v9.3.1/Problems/NUM/NUM727^1.p
+% [INFO] 	 Killing All external provers ... 

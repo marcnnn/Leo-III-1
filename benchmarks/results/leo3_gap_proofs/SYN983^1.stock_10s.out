@@ -1,0 +1,38 @@
+% [INFO] 	 Parsing problem /home/marc/.local/share/tptp/TPTP-v9.3.1/Problems/SYN/SYN983^1.p ... 
+% [INFO] 	 Parsing done (210ms). 
+% [INFO] 	 Running in sequential loop mode. 
+% [INFO] 	 Scanning for conjecture ... 
+% [INFO] 	 Found a conjecture (or negated_conjecture) and 0 axioms. Running axiom selection ... 
+% [INFO] 	 Axiom selection finished. Selected 0 axioms (removed 0 axioms). 
+% [INFO] 	 Problem is higher-order (TPTP THF). 
+% [INFO] 	 Type checking passed. 
+% [CONFIG] 	 Using configuration: timeout(10) with strategy<name(default),share(1.0),primSubst(3),sos(false),unifierCount(4),uniDepth(8),boolExt(true),choice(true),renaming(true),funcspec(false), domConstr(0),specialInstances(39),restrictUniAttempts(true),termOrdering(CPO)>.  Searching for refutation ... 
+% Time passed: 2344ms (effective reasoning time: 1485ms)
+% Solved by strategy<name(default),share(1.0),primSubst(3),sos(false),unifierCount(4),uniDepth(8),boolExt(true),choice(true),renaming(true),funcspec(false), domConstr(0),specialInstances(39),restrictUniAttempts(true),termOrdering(CPO)>
+% Axioms used in derivation (0): 
+% No. of inferences in proof: 19
+% SZS status Theorem for /home/marc/.local/share/tptp/TPTP-v9.3.1/Problems/SYN/SYN983^1.p : 2344 ms resp. 1485 ms w/o parsing
+% SZS output start Refutation for /home/marc/.local/share/tptp/TPTP-v9.3.1/Problems/SYN/SYN983^1.p
+thf(a_decl, type, a: $o).
+thf(b_decl, type, b: $o).
+thf(p_decl, type, p: ($o > $o)).
+thf(1,conjecture,((((p @ a) & (p @ b)) => (p @ ((a) & (b))))),file('/home/marc/.local/share/tptp/TPTP-v9.3.1/Problems/SYN/SYN983^1.p',thm)).
+thf(2,negated_conjecture,((~ (((p @ a) & (p @ b)) => (p @ ((a) & (b)))))),inference(neg_conjecture,[status(cth)],[1])).
+thf(3,plain,((~ (((p @ a) & (p @ b)) => (p @ ((a) & (b)))))),inference(defexp_and_simp_and_etaexpand,[status(thm)],[2])).
+thf(4,plain,(((p @ a) & (p @ b) & ~ (p @ ((a) & (b))))),inference(cnf,[status(esa)],[3])).
+thf(6,plain,((p @ b)),inference(cnfConj,[status(thm)],[4])).
+thf(7,plain,((~ (p @ ((a) & (b))))),inference(cnfConj,[status(thm)],[4])).
+thf(10,plain,(~ (($true)) | ((p @ ((a) & (b))) != (p @ b))),inference(paramod_ordered,[status(thm)],[6,7])).
+thf(11,plain,(((p @ ((a) & (b))) != (p @ b))),inference(simp,[status(thm)],[10])).
+thf(13,plain,((((a) & (b)) != b)),inference(simp,[status(thm)],[11])).
+thf(5,plain,((p @ a)),inference(cnfConj,[status(thm)],[4])).
+thf(8,plain,(~ (($true)) | ((p @ ((a) & (b))) != (p @ a))),inference(paramod_ordered,[status(thm)],[5,7])).
+thf(9,plain,(((p @ ((a) & (b))) != (p @ a))),inference(simp,[status(thm)],[8])).
+thf(12,plain,((((a) & (b)) != a)),inference(simp,[status(thm)],[9])).
+thf(15,plain,(((a) & (b)) | a),inference(bool_ext,[status(thm)],[12])).
+thf(18,plain,((((a) | (a)) & ((b) | (a)))),inference(cnf,[status(esa)],[15])).
+thf(19,plain,(a | a),inference(cnfConj,[status(thm)],[18])).
+thf(21,plain,(a),inference(simp,[status(thm)],[19])).
+thf(31,plain,((((($true)) & (b)) != b)),inference(rewrite,[status(thm)],[13,21])).
+thf(32,plain,(($false)),inference(simp,[status(thm)],[31])).
+% SZS output end Refutation for /home/marc/.local/share/tptp/TPTP-v9.3.1/Problems/SYN/SYN983^1.p

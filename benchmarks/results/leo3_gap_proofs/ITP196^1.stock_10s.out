@@ -1,0 +1,56 @@
+% [INFO] 	 Parsing problem /home/marc/.local/share/tptp/TPTP-v9.3.1/Problems/ITP/ITP196^1.p ... 
+% [INFO] 	 Parsing done (401ms). 
+% [INFO] 	 Running in sequential loop mode. 
+% [INFO] 	 Scanning for conjecture ... 
+% [INFO] 	 Found a conjecture (or negated_conjecture) and 349 axioms. Running axiom selection ... 
+% [INFO] 	 Axiom selection finished. Selected 349 axioms (removed 0 axioms). 
+% [INFO] 	 Problem is higher-order (TPTP THF). 
+% [INFO] 	 Type checking passed. 
+% [CONFIG] 	 Using configuration: timeout(10) with strategy<name(default),share(1.0),primSubst(3),sos(false),unifierCount(4),uniDepth(8),boolExt(true),choice(true),renaming(true),funcspec(false), domConstr(0),specialInstances(39),restrictUniAttempts(true),termOrdering(CPO)>.  Searching for refutation ... 
+% Time passed: 5609ms (effective reasoning time: 4613ms)
+% Solved by strategy<name(default),share(1.0),primSubst(3),sos(false),unifierCount(4),uniDepth(8),boolExt(true),choice(true),renaming(true),funcspec(false), domConstr(0),specialInstances(39),restrictUniAttempts(true),termOrdering(CPO)>
+% Axioms used in derivation (1): fact_0_quasi__sturm__seq_Ops__not__Nil
+% No. of inferences in proof: 11
+% SZS status Theorem for /home/marc/.local/share/tptp/TPTP-v9.3.1/Problems/ITP/ITP196^1.p : 5609 ms resp. 4613 ms w/o parsing
+% SZS output start Refutation for /home/marc/.local/share/tptp/TPTP-v9.3.1/Problems/ITP/ITP196^1.p
+thf(produc1456530199y_real_type, type, produc1456530199y_real: $tType).
+thf(produc1060019729y_real_type, type, produc1060019729y_real: $tType).
+thf(list_P657095678y_real_type, type, list_P657095678y_real: $tType).
+thf(set_Pr1405268809y_real_type, type, set_Pr1405268809y_real: $tType).
+thf(produc1426596841y_real_type, type, produc1426596841y_real: $tType).
+thf(list_l343759061y_real_type, type, list_l343759061y_real: $tType).
+thf(list_P991700890y_real_type, type, list_P991700890y_real: $tType).
+thf(option293660815y_real_type, type, option293660815y_real: $tType).
+thf(produc796638169y_real_type, type, produc796638169y_real: $tType).
+thf(list_P693436111y_real_type, type, list_P693436111y_real: $tType).
+thf(set_Pr483210409y_real_type, type, set_Pr483210409y_real: $tType).
+thf(list_P1001591419y_real_type, type, list_P1001591419y_real: $tType).
+thf(list_l6097393y_real_type, type, list_l6097393y_real: $tType).
+thf(produc461822025y_real_type, type, produc461822025y_real: $tType).
+thf(option988260395y_real_type, type, option988260395y_real: $tType).
+thf(list_P736648811y_real_type, type, list_P736648811y_real: $tType).
+thf(list_l1245274212y_real_type, type, list_l1245274212y_real: $tType).
+thf(produc321349221y_real_type, type, produc321349221y_real: $tType).
+thf(option1330723604y_real_type, type, option1330723604y_real: $tType).
+thf(list_list_poly_real_type, type, list_list_poly_real: $tType).
+thf(set_list_poly_real_type, type, set_list_poly_real: $tType).
+thf(option_poly_real_type, type, option_poly_real: $tType).
+thf(list_poly_real_type, type, list_poly_real: $tType).
+thf(set_poly_real_type, type, set_poly_real: $tType).
+thf(poly_real_type, type, poly_real: $tType).
+thf(list_nat_type, type, list_nat: $tType).
+thf(nat_type, type, nat: $tType).
+thf(nil_poly_real_decl, type, nil_poly_real: list_poly_real).
+thf(sturm_891428828rm_seq_decl, type, sturm_891428828rm_seq: (list_poly_real > $o)).
+thf(290,axiom,((! [A:list_poly_real]: ((sturm_891428828rm_seq @ A) => (A != nil_poly_real)))),file('/home/marc/.local/share/tptp/TPTP-v9.3.1/Problems/ITP/ITP196^1.p',fact_0_quasi__sturm__seq_Ops__not__Nil)).
+thf(1826,plain,((! [A:list_poly_real]: ((sturm_891428828rm_seq @ A) => (~ (A = nil_poly_real))))),inference(defexp_and_simp_and_etaexpand,[status(thm)],[290])).
+thf(1827,plain,(! [A:list_poly_real] : ((~ (sturm_891428828rm_seq @ A)) | (~ (A = nil_poly_real)))),inference(cnf,[status(esa)],[1826])).
+thf(1828,plain,(! [A:list_poly_real] : ((A != nil_poly_real) | (~ (sturm_891428828rm_seq @ A)))),inference(lifteq,[status(thm)],[1827])).
+thf(1829,plain,((~ (sturm_891428828rm_seq @ nil_poly_real))),inference(simp,[status(thm)],[1828])).
+thf(1,conjecture,((~ (sturm_891428828rm_seq @ nil_poly_real))),file('/home/marc/.local/share/tptp/TPTP-v9.3.1/Problems/ITP/ITP196^1.p',conj_0)).
+thf(2,negated_conjecture,((~ (~ (sturm_891428828rm_seq @ nil_poly_real)))),inference(neg_conjecture,[status(cth)],[1])).
+thf(352,plain,((~ (~ (sturm_891428828rm_seq @ nil_poly_real)))),inference(defexp_and_simp_and_etaexpand,[status(thm)],[2])).
+thf(353,plain,((sturm_891428828rm_seq @ nil_poly_real)),inference(polarity_switch,[status(thm)],[352])).
+thf(2175,plain,(~ (($true))),inference(rewrite,[status(thm)],[1829,353])).
+thf(2176,plain,(($false)),inference(simp,[status(thm)],[2175])).
+% SZS output end Refutation for /home/marc/.local/share/tptp/TPTP-v9.3.1/Problems/ITP/ITP196^1.p

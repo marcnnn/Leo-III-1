@@ -1,0 +1,195 @@
+{
+  "baseline": {
+    "thm_total": 237,
+    "csa_total": 60,
+    "csa_false_proofs": 0,
+    "lcf_failures": 0,
+    "external_unsound": [],
+    "strategy_wins": {
+      ":broad_breadth": 15,
+      ":full_inline_weight": 15,
+      ":goal_standard": 27,
+      ":sine_tight_unit": 25
+    },
+    "assisted_problems": [],
+    "external_unverified": 0,
+    "externally_assisted_lcf": 0,
+    "thm_solved_lcf": 82,
+    "wall_ms": 256384
+  },
+  "cooperate": {
+    "thm_total": 237,
+    "csa_total": 60,
+    "csa_false_proofs": 0,
+    "lcf_failures": 0,
+    "external_unsound": [],
+    "strategy_wins": {
+      ":broad_breadth": 8,
+      ":full_inline_weight": 18,
+      ":goal_standard": 39,
+      ":sine_tight_unit": 23
+    },
+    "assisted_problems": [
+      {
+        "problem": "AGT029^1",
+        "prover": "eprover_ho"
+      },
+      {
+        "problem": "LCL623^1",
+        "prover": "eprover_ho"
+      },
+      {
+        "problem": "LCL958^18",
+        "prover": "eprover_ho"
+      },
+      {
+        "problem": "NUM925^1",
+        "prover": "eprover_ho"
+      },
+      {
+        "problem": "PLA032^7",
+        "prover": "eprover_ho"
+      },
+      {
+        "problem": "PRO029^16",
+        "prover": "eprover_ho"
+      },
+      {
+        "problem": "SET044^23",
+        "prover": "eprover_ho"
+      },
+      {
+        "problem": "SEU640^2",
+        "prover": "eprover_ho"
+      },
+      {
+        "problem": "SEU750^2",
+        "prover": "eprover_ho"
+      },
+      {
+        "problem": "SEU787^2",
+        "prover": "eprover_ho"
+      },
+      {
+        "problem": "SWV431^2",
+        "prover": "eprover_ho"
+      },
+      {
+        "problem": "SYO068^4.020",
+        "prover": "eprover_ho"
+      },
+      {
+        "problem": "SYO463^6",
+        "prover": "eprover_ho"
+      }
+    ],
+    "external_unverified": 0,
+    "externally_assisted_lcf": 13,
+    "thm_solved_lcf": 88,
+    "wall_ms": 236753
+  },
+  "leo3": {
+    "thm_total": 237,
+    "csa_total": 60,
+    "csa_false_proofs": 0,
+    "lcf_failures": 0,
+    "external_unsound": [],
+    "strategy_wins": {},
+    "assisted_problems": [],
+    "external_unverified": 58,
+    "externally_assisted_lcf": 0,
+    "thm_solved_lcf": 0,
+    "wall_ms": 424196
+  },
+  "leo3_racer": {
+    "thm_total": 237,
+    "csa_total": 60,
+    "csa_false_proofs": 0,
+    "lcf_failures": 0,
+    "external_unsound": [],
+    "strategy_wins": {
+      ":broad_breadth": 11,
+      ":full_inline_weight": 20,
+      ":goal_standard": 33,
+      ":sine_tight_unit": 18
+    },
+    "assisted_problems": [],
+    "external_unverified": 11,
+    "externally_assisted_lcf": 0,
+    "thm_solved_lcf": 82,
+    "wall_ms": 334591
+  },
+  "racers": {
+    "thm_total": 237,
+    "csa_total": 60,
+    "csa_false_proofs": 0,
+    "lcf_failures": 0,
+    "external_unsound": [],
+    "strategy_wins": {
+      ":broad_breadth": 24,
+      ":full_inline_weight": 14,
+      ":goal_standard": 26,
+      ":sine_tight_unit": 14,
+      "{:external, :eprover_ho}": 7,
+      "{:external, :vampire}": 6
+    },
+    "assisted_problems": [
+      {
+        "problem": "AGT029^1",
+        "prover": "eprover_ho"
+      },
+      {
+        "problem": "ITP048^1",
+        "prover": "eprover_ho"
+      },
+      {
+        "problem": "ITP071^1",
+        "prover": "vampire"
+      },
+      {
+        "problem": "ITP104^1",
+        "prover": "vampire"
+      },
+      {
+        "problem": "ITP124^1",
+        "prover": "vampire"
+      },
+      {
+        "problem": "ITP127^1",
+        "prover": "vampire"
+      },
+      {
+        "problem": "ITP138^1",
+        "prover": "eprover_ho"
+      },
+      {
+        "problem": "ITP149^1",
+        "prover": "vampire"
+      },
+      {
+        "problem": "ITP150^1",
+        "prover": "eprover_ho"
+      },
+      {
+        "problem": "ITP196^1",
+        "prover": "eprover_ho"
+      },
+      {
+        "problem": "NUM925^1",
+        "prover": "vampire"
+      },
+      {
+        "problem": "PLA032^7",
+        "prover": "eprover_ho"
+      },
+      {
+        "problem": "SET926^12",
+        "prover": "eprover_ho"
+      }
+    ],
+    "external_unverified": 60,
+    "externally_assisted_lcf": 13,
+    "thm_solved_lcf": 91,
+    "wall_ms": 295255
+  }
+}

@@ -1,0 +1,58 @@
+% [INFO] 	 Parsing problem /home/marc/.local/share/tptp/TPTP-v9.3.1/Problems/NUM/NUM925^1.p ... 
+% [INFO] 	 Parsing done (231ms). 
+% [INFO] 	 Running in sequential loop mode. 
+% [INFO] 	 Scanning for conjecture ... 
+% [INFO] 	 Found a conjecture (or negated_conjecture) and 106 axioms. Running axiom selection ... 
+% [INFO] 	 Axiom selection finished. Selected 106 axioms (removed 0 axioms). 
+% [INFO] 	 Problem is higher-order (TPTP THF). 
+% [INFO] 	 Type checking passed. 
+% [CONFIG] 	 Using configuration: timeout(10) with strategy<name(default),share(1.0),primSubst(3),sos(false),unifierCount(4),uniDepth(8),boolExt(true),choice(true),renaming(true),funcspec(false), domConstr(0),specialInstances(39),restrictUniAttempts(true),termOrdering(CPO)>.  Searching for refutation ... 
+% Time passed: 4803ms (effective reasoning time: 4058ms)
+% Solved by strategy<name(default),share(1.0),primSubst(3),sos(false),unifierCount(4),uniDepth(8),boolExt(true),choice(true),renaming(true),funcspec(false), domConstr(0),specialInstances(39),restrictUniAttempts(true),termOrdering(CPO)>
+% Axioms used in derivation (4): fact_78_Pls__def, fact_7_zero__eq__power2, fact_0_n1pos, fact_36_rel__simps_I2_J
+% No. of inferences in proof: 29
+% SZS status Theorem for /home/marc/.local/share/tptp/TPTP-v9.3.1/Problems/NUM/NUM925^1.p : 4803 ms resp. 4058 ms w/o parsing
+% SZS output start Refutation for /home/marc/.local/share/tptp/TPTP-v9.3.1/Problems/NUM/NUM925^1.p
+thf(int_type, type, int: $tType).
+thf(nat_type, type, nat: $tType).
+thf(one_one_int_decl, type, one_one_int: int).
+thf(plus_plus_int_decl, type, plus_plus_int: (int > (int > int))).
+thf(zero_zero_int_decl, type, zero_zero_int: int).
+thf(bit0_decl, type, bit0: (int > int)).
+thf(bit1_decl, type, bit1: (int > int)).
+thf(pls_decl, type, pls: int).
+thf(number_number_of_nat_decl, type, number_number_of_nat: (int > nat)).
+thf(semiri1621563631at_int_decl, type, semiri1621563631at_int: (nat > int)).
+thf(ord_less_int_decl, type, ord_less_int: (int > (int > $o))).
+thf(power_power_int_decl, type, power_power_int: (int > (nat > int))).
+thf(n_decl, type, n: nat).
+thf(1,conjecture,(((power_power_int @ (plus_plus_int @ one_one_int @ (semiri1621563631at_int @ n)) @ (number_number_of_nat @ (bit0 @ (bit1 @ pls)))) != zero_zero_int)),file('/home/marc/.local/share/tptp/TPTP-v9.3.1/Problems/NUM/NUM925^1.p',conj_0)).
+thf(2,negated_conjecture,((~ ((power_power_int @ (plus_plus_int @ one_one_int @ (semiri1621563631at_int @ n)) @ (number_number_of_nat @ (bit0 @ (bit1 @ pls)))) != zero_zero_int))),inference(neg_conjecture,[status(cth)],[1])).
+thf(109,plain,((~ (~ ((power_power_int @ (plus_plus_int @ one_one_int @ (semiri1621563631at_int @ n)) @ (number_number_of_nat @ (bit0 @ (bit1 @ pls)))) = zero_zero_int)))),inference(defexp_and_simp_and_etaexpand,[status(thm)],[2])).
+thf(110,plain,(((power_power_int @ (plus_plus_int @ one_one_int @ (semiri1621563631at_int @ n)) @ (number_number_of_nat @ (bit0 @ (bit1 @ pls)))) = zero_zero_int)),inference(polarity_switch,[status(thm)],[109])).
+thf(111,plain,(((power_power_int @ (plus_plus_int @ one_one_int @ (semiri1621563631at_int @ n)) @ (number_number_of_nat @ (bit0 @ (bit1 @ pls)))) = zero_zero_int)),inference(lifteq,[status(thm)],[110])).
+thf(54,axiom,((pls = zero_zero_int)),file('/home/marc/.local/share/tptp/TPTP-v9.3.1/Problems/NUM/NUM925^1.p',fact_78_Pls__def)).
+thf(245,plain,((pls = zero_zero_int)),inference(defexp_and_simp_and_etaexpand,[status(thm)],[54])).
+thf(246,plain,((pls = zero_zero_int)),inference(lifteq,[status(thm)],[245])).
+thf(423,plain,(((power_power_int @ (plus_plus_int @ one_one_int @ (semiri1621563631at_int @ n)) @ (number_number_of_nat @ (bit0 @ (bit1 @ zero_zero_int)))) = zero_zero_int)),inference(rewrite,[status(thm)],[111,246])).
+thf(19,axiom,((! [A:int]: (((power_power_int @ A @ (number_number_of_nat @ (bit0 @ (bit1 @ pls)))) = zero_zero_int) = (A = zero_zero_int)))),file('/home/marc/.local/share/tptp/TPTP-v9.3.1/Problems/NUM/NUM925^1.p',fact_7_zero__eq__power2)).
+thf(155,plain,((! [A:int]: (((power_power_int @ A @ (number_number_of_nat @ (bit0 @ (bit1 @ pls)))) = zero_zero_int) = (A = zero_zero_int)))),inference(defexp_and_simp_and_etaexpand,[status(thm)],[19])).
+thf(156,plain,(! [A:int] : ((((power_power_int @ A @ (number_number_of_nat @ (bit0 @ (bit1 @ pls)))) = zero_zero_int) = (A = zero_zero_int)))),inference(cnf,[status(esa)],[155])).
+thf(157,plain,(! [A:int] : ((((power_power_int @ A @ (number_number_of_nat @ (bit0 @ (bit1 @ pls)))) = zero_zero_int) = (A = zero_zero_int)))),inference(lifteq,[status(thm)],[156])).
+thf(2422,plain,(! [A:int] : ((((power_power_int @ A @ (number_number_of_nat @ (bit0 @ (bit1 @ zero_zero_int)))) = zero_zero_int) = (A = zero_zero_int)))),inference(rewrite,[status(thm)],[157,246])).
+thf(2457,plain,(! [A:int] : (((zero_zero_int = zero_zero_int) = (A = zero_zero_int)) | ((power_power_int @ (plus_plus_int @ one_one_int @ (semiri1621563631at_int @ n)) @ (number_number_of_nat @ (bit0 @ (bit1 @ zero_zero_int)))) != (power_power_int @ A @ (number_number_of_nat @ (bit0 @ (bit1 @ zero_zero_int))))))),inference(paramod_ordered,[status(thm)],[423,2422])).
+thf(2458,plain,(! [A:int] : ((A = zero_zero_int) | ((power_power_int @ (plus_plus_int @ one_one_int @ (semiri1621563631at_int @ n)) @ (number_number_of_nat @ (bit0 @ (bit1 @ zero_zero_int)))) != (power_power_int @ A @ (number_number_of_nat @ (bit0 @ (bit1 @ zero_zero_int))))))),inference(simp,[status(thm)],[2457])).
+thf(2459,plain,(((plus_plus_int @ one_one_int @ (semiri1621563631at_int @ n)) = zero_zero_int)),inference(pattern_uni,[status(thm)],[2458:[bind(A, $thf(plus_plus_int @ one_one_int @ (semiri1621563631at_int @ n)))]])).
+thf(2466,plain,(((plus_plus_int @ one_one_int @ (semiri1621563631at_int @ n)) = zero_zero_int)),inference(lifteq,[status(thm)],[2459])).
+thf(58,axiom,((ord_less_int @ zero_zero_int @ (plus_plus_int @ one_one_int @ (semiri1621563631at_int @ n)))),file('/home/marc/.local/share/tptp/TPTP-v9.3.1/Problems/NUM/NUM925^1.p',fact_0_n1pos)).
+thf(256,plain,((ord_less_int @ zero_zero_int @ (plus_plus_int @ one_one_int @ (semiri1621563631at_int @ n)))),inference(defexp_and_simp_and_etaexpand,[status(thm)],[58])).
+thf(13,axiom,((~ (ord_less_int @ pls @ pls))),file('/home/marc/.local/share/tptp/TPTP-v9.3.1/Problems/NUM/NUM925^1.p',fact_36_rel__simps_I2_J)).
+thf(140,plain,((~ (ord_less_int @ pls @ pls))),inference(defexp_and_simp_and_etaexpand,[status(thm)],[13])).
+thf(141,plain,((~ (ord_less_int @ pls @ pls))),inference(polarity_switch,[status(thm)],[140])).
+thf(418,plain,((~ (ord_less_int @ zero_zero_int @ zero_zero_int))),inference(rewrite,[status(thm)],[141,246])).
+thf(625,plain,(~ (($true)) | ((ord_less_int @ zero_zero_int @ (plus_plus_int @ one_one_int @ (semiri1621563631at_int @ n))) != (ord_less_int @ zero_zero_int @ zero_zero_int))),inference(paramod_ordered,[status(thm)],[256,418])).
+thf(626,plain,(((ord_less_int @ zero_zero_int @ (plus_plus_int @ one_one_int @ (semiri1621563631at_int @ n))) != (ord_less_int @ zero_zero_int @ zero_zero_int))),inference(simp,[status(thm)],[625])).
+thf(631,plain,((zero_zero_int != zero_zero_int) | ((plus_plus_int @ one_one_int @ (semiri1621563631at_int @ n)) != zero_zero_int)),inference(simp,[status(thm)],[626])).
+thf(634,plain,(((plus_plus_int @ one_one_int @ (semiri1621563631at_int @ n)) != zero_zero_int)),inference(simp,[status(thm)],[631])).
+thf(2493,plain,(($false)),inference(simplifyReflect,[status(thm)],[2466,634])).
+% SZS output end Refutation for /home/marc/.local/share/tptp/TPTP-v9.3.1/Problems/NUM/NUM925^1.p

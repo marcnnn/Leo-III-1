@@ -1,0 +1,189 @@
+% [INFO] 	 Parsing problem /home/marc/.local/share/tptp/TPTP-v9.3.1/Problems/ITP/ITP233^1.p ... 
+% [INFO] 	 Parsing done (1376ms). 
+% [INFO] 	 Running in sequential loop mode. 
+% [INFO] 	 Scanning for conjecture ... 
+% [INFO] 	 Found a conjecture (or negated_conjecture) and 9117 axioms. Running axiom selection ... 
+% [INFO] 	 Axiom selection finished. Selected 36 axioms (removed 9081 axioms). 
+% [INFO] 	 Problem is higher-order (TPTP THF). 
+% [INFO] 	 Type checking passed. 
+% [CONFIG] 	 Using configuration: timeout(10) with strategy<name(default),share(1.0),primSubst(3),sos(false),unifierCount(4),uniDepth(8),boolExt(true),choice(true),renaming(true),funcspec(false), domConstr(0),specialInstances(39),restrictUniAttempts(true),termOrdering(CPO)>.  Searching for refutation ... 
+% Time passed: 9489ms (effective reasoning time: 7375ms)
+% Solved by strategy<name(default),share(1.0),primSubst(3),sos(false),unifierCount(4),uniDepth(8),boolExt(true),choice(true),renaming(true),funcspec(false), domConstr(0),specialInstances(39),restrictUniAttempts(true),termOrdering(CPO)>
+% Axioms used in derivation (3): fact_3__C164_C, fact_0_True, fact_1__C166_C
+% No. of inferences in proof: 20
+% SZS status Theorem for /home/marc/.local/share/tptp/TPTP-v9.3.1/Problems/ITP/ITP233^1.p : 9489 ms resp. 7375 ms w/o parsing
+% SZS output start Refutation for /home/marc/.local/share/tptp/TPTP-v9.3.1/Problems/ITP/ITP233^1.p
+thf(set_Pr1542805901266377927at_nat_type, type, set_Pr1542805901266377927at_nat: $tType).
+thf(produc4471711990508489141at_nat_type, type, produc4471711990508489141at_nat: $tType).
+thf(produc6392793444374437607at_nat_type, type, produc6392793444374437607at_nat: $tType).
+thf(list_P8469869581646625389at_nat_type, type, list_P8469869581646625389at_nat: $tType).
+thf(set_Pr8693737435421807431at_nat_type, type, set_Pr8693737435421807431at_nat: $tType).
+thf(set_Pr1916528119006554503T_VEBT_type, type, set_Pr1916528119006554503T_VEBT: $tType).
+thf(produc859450856879609959at_nat_type, type, produc859450856879609959at_nat: $tType).
+thf(produc9211091688327510695T_VEBT_type, type, produc9211091688327510695T_VEBT: $tType).
+thf(set_Pr3451248702717554689st_nat_type, type, set_Pr3451248702717554689st_nat: $tType).
+thf(set_Pr765067013931698361st_int_type, type, set_Pr765067013931698361st_int: $tType).
+thf(list_P7413028617227757229T_VEBT_type, type, list_P7413028617227757229T_VEBT: $tType).
+thf(set_Pr6192946355708809607T_VEBT_type, type, set_Pr6192946355708809607T_VEBT: $tType).
+thf(list_P6254988961118846195et_nat_type, type, list_P6254988961118846195et_nat: $tType).
+thf(set_Pr5488025237498180813et_nat_type, type, set_Pr5488025237498180813et_nat: $tType).
+thf(list_P6356568628958627295d_enat_type, type, list_P6356568628958627295d_enat: $tType).
+thf(set_Pr2457182780427864761d_enat_type, type, set_Pr2457182780427864761d_enat: $tType).
+thf(produc7248412053542808358at_nat_type, type, produc7248412053542808358at_nat: $tType).
+thf(list_P2623026923184700063T_real_type, type, list_P2623026923184700063T_real: $tType).
+thf(list_P877281246627933069T_VEBT_type, type, list_P877281246627933069T_VEBT: $tType).
+thf(produc1828647624359046049st_nat_type, type, produc1828647624359046049st_nat: $tType).
+thf(produc1186641810826059865st_int_type, type, produc1186641810826059865st_int: $tType).
+thf(set_Pr7765410600122031685T_real_type, type, set_Pr7765410600122031685T_real: $tType).
+thf(set_Pr6019664923565264691T_VEBT_type, type, set_Pr6019664923565264691T_VEBT: $tType).
+thf(list_P7037539587688870467BT_nat_type, type, list_P7037539587688870467BT_nat: $tType).
+thf(list_P4547456442757143711BT_int_type, type, list_P4547456442757143711BT_int: $tType).
+thf(list_P5647936690300460905T_VEBT_type, type, list_P5647936690300460905T_VEBT: $tType).
+thf(list_P7524865323317820941T_VEBT_type, type, list_P7524865323317820941T_VEBT: $tType).
+thf(produc8243902056947475879T_VEBT_type, type, produc8243902056947475879T_VEBT: $tType).
+thf(set_Pr7556676689462069481BT_nat_type, type, set_Pr7556676689462069481BT_nat: $tType).
+thf(set_Pr5066593544530342725BT_int_type, type, set_Pr5066593544530342725BT_int: $tType).
+thf(set_Pr6167073792073659919T_VEBT_type, type, set_Pr6167073792073659919T_VEBT: $tType).
+thf(set_Pr8044002425091019955T_VEBT_type, type, set_Pr8044002425091019955T_VEBT: $tType).
+thf(produc7819656566062154093et_nat_type, type, produc7819656566062154093et_nat: $tType).
+thf(produc7272778201969148633d_enat_type, type, produc7272778201969148633d_enat: $tType).
+thf(list_P3126845725202233233VEBT_o_type, type, list_P3126845725202233233VEBT_o: $tType).
+thf(list_P7495141550334521929T_VEBT_type, type, list_P7495141550334521929T_VEBT: $tType).
+thf(set_Pr3175402225741728619VEBT_o_type, type, set_Pr3175402225741728619VEBT_o: $tType).
+thf(set_Pr7543698050874017315T_VEBT_type, type, set_Pr7543698050874017315T_VEBT: $tType).
+thf(option4927543243414619207at_nat_type, type, option4927543243414619207at_nat: $tType).
+thf(list_P8689742595348180415l_real_type, type, list_P8689742595348180415l_real: $tType).
+thf(filter1242075044329608583at_nat_type, type, filter1242075044329608583at_nat: $tType).
+thf(set_Pr6218003697084177305l_real_type, type, set_Pr6218003697084177305l_real: $tType).
+thf(list_P6834414599653733731al_nat_type, type, list_P6834414599653733731al_nat: $tType).
+thf(list_P4344331454722006975al_int_type, type, list_P4344331454722006975al_int: $tType).
+thf(list_P6863124054624500543t_real_type, type, list_P6863124054624500543t_real: $tType).
+thf(produc5170161368751668367T_real_type, type, produc5170161368751668367T_real: $tType).
+thf(produc3757001726724277373T_VEBT_type, type, produc3757001726724277373T_VEBT: $tType).
+thf(set_Pr3510011417693777981al_nat_type, type, set_Pr3510011417693777981al_nat: $tType).
+thf(set_Pr1019928272762051225al_int_type, type, set_Pr1019928272762051225al_int: $tType).
+thf(set_Pr3538720872664544793t_real_type, type, set_Pr3538720872664544793t_real: $tType).
+thf(list_P6011104703257516679at_nat_type, type, list_P6011104703257516679at_nat: $tType).
+thf(list_P3521021558325789923at_int_type, type, list_P3521021558325789923at_int: $tType).
+thf(list_P8198026277950538467nt_nat_type, type, list_P8198026277950538467nt_nat: $tType).
+thf(list_P5707943133018811711nt_int_type, type, list_P5707943133018811711nt_int: $tType).
+thf(produc9072475918466114483BT_nat_type, type, produc9072475918466114483BT_nat: $tType).
+thf(produc4894624898956917775BT_int_type, type, produc4894624898956917775BT_int: $tType).
+thf(produc8025551001238799321T_VEBT_type, type, produc8025551001238799321T_VEBT: $tType).
+thf(produc1531783533982839933T_VEBT_type, type, produc1531783533982839933T_VEBT: $tType).
+thf(set_Pr1261947904930325089at_nat_type, type, set_Pr1261947904930325089at_nat: $tType).
+thf(set_Pr7995236796853374141at_int_type, type, set_Pr7995236796853374141at_int: $tType).
+thf(set_Pr3448869479623346877nt_nat_type, type, set_Pr3448869479623346877nt_nat: $tType).
+thf(set_Pr958786334691620121nt_int_type, type, set_Pr958786334691620121nt_int: $tType).
+thf(list_P3595434254542482545real_o_type, type, list_P3595434254542482545real_o: $tType).
+thf(list_P5232166724548748803o_real_type, type, list_P5232166724548748803o_real: $tType).
+thf(list_list_VEBT_VEBT_type, type, list_list_VEBT_VEBT: $tType).
+thf(set_Pr4936984352647145239real_o_type, type, set_Pr4936984352647145239real_o: $tType).
+thf(set_Pr6573716822653411497o_real_type, type, set_Pr6573716822653411497o_real: $tType).
+thf(set_list_list_nat_type, type, set_list_list_nat: $tType).
+thf(list_P5087981734274514673_int_o_type, type, list_P5087981734274514673_int_o: $tType).
+thf(list_P6285523579766656935_o_nat_type, type, list_P6285523579766656935_o_nat: $tType).
+thf(list_P3795440434834930179_o_int_type, type, list_P3795440434834930179_o_int: $tType).
+thf(set_list_VEBT_VEBT_type, type, set_list_VEBT_VEBT: $tType).
+thf(produc334124729049499915VEBT_o_type, type, produc334124729049499915VEBT_o: $tType).
+thf(produc2504756804600209347T_VEBT_type, type, produc2504756804600209347T_VEBT: $tType).
+thf(set_set_list_nat_type, type, set_set_list_nat: $tType).
+thf(set_Pr903927857289325719_int_o_type, type, set_Pr903927857289325719_int_o: $tType).
+thf(set_Pr2101469702781467981_o_nat_type, type, set_Pr2101469702781467981_o_nat: $tType).
+thf(set_Pr8834758594704517033_o_int_type, type, set_Pr8834758594704517033_o_int: $tType).
+thf(set_list_set_nat_type, type, set_list_set_nat: $tType).
+thf(set_set_set_nat_type, type, set_set_set_nat: $tType).
+thf(set_li5464603477888414924d_enat_type, type, set_li5464603477888414924d_enat: $tType).
+thf(produc2422161461964618553l_real_type, type, produc2422161461964618553l_real: $tType).
+thf(set_se7270636423289371942d_enat_type, type, set_se7270636423289371942d_enat: $tType).
+thf(produc3741383161447143261al_nat_type, type, produc3741383161447143261al_nat: $tType).
+thf(produc8786904178792722361al_int_type, type, produc8786904178792722361al_int: $tType).
+thf(produc679980390762269497t_real_type, type, produc679980390762269497t_real: $tType).
+thf(product_prod_nat_nat_type, type, product_prod_nat_nat: $tType).
+thf(product_prod_nat_int_type, type, product_prod_nat_int: $tType).
+thf(product_prod_int_nat_type, type, product_prod_int_nat: $tType).
+thf(product_prod_int_int_type, type, product_prod_int_int: $tType).
+thf(list_P4002435161011370285od_o_o_type, type, list_P4002435161011370285od_o_o: $tType).
+thf(set_list_complex_type, type, set_list_complex: $tType).
+thf(set_Product_prod_o_o_type, type, set_Product_prod_o_o: $tType).
+thf(set_set_complex_type, type, set_set_complex: $tType).
+thf(option_VEBT_VEBT_type, type, option_VEBT_VEBT: $tType).
+thf(set_filter_nat_type, type, set_filter_nat: $tType).
+thf(option_set_nat_type, type, option_set_nat: $tType).
+thf(product_prod_real_o_type, type, product_prod_real_o: $tType).
+thf(product_prod_o_real_type, type, product_prod_o_real: $tType).
+thf(list_list_nat_type, type, list_list_nat: $tType).
+thf(list_list_int_type, type, list_list_int: $tType).
+thf(list_VEBT_VEBT_type, type, list_VEBT_VEBT: $tType).
+thf(set_list_nat_type, type, set_list_nat: $tType).
+thf(set_list_int_type, type, set_list_int: $tType).
+thf(product_prod_int_o_type, type, product_prod_int_o: $tType).
+thf(product_prod_o_nat_type, type, product_prod_o_nat: $tType).
+thf(product_prod_o_int_type, type, product_prod_o_int: $tType).
+thf(list_set_nat_type, type, list_set_nat: $tType).
+thf(set_VEBT_VEBT_type, type, set_VEBT_VEBT: $tType).
+thf(set_set_nat_type, type, set_set_nat: $tType).
+thf(set_set_int_type, type, set_set_int: $tType).
+thf(list_Extended_enat_type, type, list_Extended_enat: $tType).
+thf(set_Extended_enat_type, type, set_Extended_enat: $tType).
+thf(list_complex_type, type, list_complex: $tType).
+thf(product_prod_o_o_type, type, product_prod_o_o: $tType).
+thf(set_complex_type, type, set_complex: $tType).
+thf(option_real_type, type, option_real: $tType).
+thf(filter_real_type, type, filter_real: $tType).
+thf(option_num_type, type, option_num: $tType).
+thf(option_nat_type, type, option_nat: $tType).
+thf(option_int_type, type, option_int: $tType).
+thf(filter_nat_type, type, filter_nat: $tType).
+thf(set_char_type, type, set_char: $tType).
+thf(list_real_type, type, list_real: $tType).
+thf(set_real_type, type, set_real: $tType).
+thf(list_num_type, type, list_num: $tType).
+thf(list_nat_type, type, list_nat: $tType).
+thf(list_int_type, type, list_int: $tType).
+thf(vEBT_VEBT_type, type, vEBT_VEBT: $tType).
+thf(set_num_type, type, set_num: $tType).
+thf(set_nat_type, type, set_nat: $tType).
+thf(set_int_type, type, set_int: $tType).
+thf(product_unit_type, type, product_unit: $tType).
+thf(option_o_type, type, option_o: $tType).
+thf(extended_enat_type, type, extended_enat: $tType).
+thf(list_o_type, type, list_o: $tType).
+thf(complex_type, type, complex: $tType).
+thf(set_o_type, type, set_o: $tType).
+thf(char_type, type, char: $tType).
+thf(real_type, type, real: $tType).
+thf(num_type, type, num: $tType).
+thf(nat_type, type, nat: $tType).
+thf(int_type, type, int: $tType).
+thf(list_u1324408373059187874T_VEBT_decl, type, list_u1324408373059187874T_VEBT: (list_VEBT_VEBT > (nat > (vEBT_VEBT > list_VEBT_VEBT)))).
+thf(nth_VEBT_VEBT_decl, type, nth_VEBT_VEBT: (list_VEBT_VEBT > (nat > vEBT_VEBT))).
+thf(vEBT_V8194947554948674370ptions_decl, type, vEBT_V8194947554948674370ptions: (vEBT_VEBT > (nat > $o))).
+thf(vEBT_VEBT_high_decl, type, vEBT_VEBT_high: (nat > (nat > nat))).
+thf(vEBT_VEBT_low_decl, type, vEBT_VEBT_low: (nat > (nat > nat))).
+thf(vEBT_vebt_insert_decl, type, vEBT_vebt_insert: (vEBT_VEBT > (nat > vEBT_VEBT))).
+thf(i_decl, type, i: nat).
+thf(na_decl, type, na: nat).
+thf(treeList_decl, type, treeList: list_VEBT_VEBT).
+thf(xa_decl, type, xa: nat).
+thf(26,axiom,(((nth_VEBT_VEBT @ (list_u1324408373059187874T_VEBT @ treeList @ (vEBT_VEBT_high @ xa @ na) @ (vEBT_vebt_insert @ (nth_VEBT_VEBT @ treeList @ (vEBT_VEBT_high @ xa @ na)) @ (vEBT_VEBT_low @ xa @ na))) @ i) = (vEBT_vebt_insert @ (nth_VEBT_VEBT @ treeList @ (vEBT_VEBT_high @ xa @ na)) @ (vEBT_VEBT_low @ xa @ na)))),file('/home/marc/.local/share/tptp/TPTP-v9.3.1/Problems/ITP/ITP233^1.p',fact_3__C164_C)).
+thf(114,plain,(((nth_VEBT_VEBT @ (list_u1324408373059187874T_VEBT @ treeList @ (vEBT_VEBT_high @ xa @ na) @ (vEBT_vebt_insert @ (nth_VEBT_VEBT @ treeList @ (vEBT_VEBT_high @ xa @ na)) @ (vEBT_VEBT_low @ xa @ na))) @ i) = (vEBT_vebt_insert @ (nth_VEBT_VEBT @ treeList @ (vEBT_VEBT_high @ xa @ na)) @ (vEBT_VEBT_low @ xa @ na)))),inference(defexp_and_simp_and_etaexpand,[status(thm)],[26])).
+thf(115,plain,(((nth_VEBT_VEBT @ (list_u1324408373059187874T_VEBT @ treeList @ (vEBT_VEBT_high @ xa @ na) @ (vEBT_vebt_insert @ (nth_VEBT_VEBT @ treeList @ (vEBT_VEBT_high @ xa @ na)) @ (vEBT_VEBT_low @ xa @ na))) @ i) = (vEBT_vebt_insert @ (nth_VEBT_VEBT @ treeList @ (vEBT_VEBT_high @ xa @ na)) @ (vEBT_VEBT_low @ xa @ na)))),inference(lifteq,[status(thm)],[114])).
+thf(31,axiom,((i = (vEBT_VEBT_high @ xa @ na))),file('/home/marc/.local/share/tptp/TPTP-v9.3.1/Problems/ITP/ITP233^1.p',fact_0_True)).
+thf(122,plain,((i = (vEBT_VEBT_high @ xa @ na))),inference(defexp_and_simp_and_etaexpand,[status(thm)],[31])).
+thf(123,plain,(((vEBT_VEBT_high @ xa @ na) = i)),inference(lifteq,[status(thm)],[122])).
+thf(1587,plain,(((nth_VEBT_VEBT @ (list_u1324408373059187874T_VEBT @ treeList @ i @ (vEBT_vebt_insert @ (nth_VEBT_VEBT @ treeList @ i) @ (vEBT_VEBT_low @ xa @ na))) @ i) = (vEBT_vebt_insert @ (nth_VEBT_VEBT @ treeList @ i) @ (vEBT_VEBT_low @ xa @ na)))),inference(rewrite,[status(thm)],[115,123])).
+thf(34,axiom,((vEBT_V8194947554948674370ptions @ (vEBT_vebt_insert @ (nth_VEBT_VEBT @ treeList @ (vEBT_VEBT_high @ xa @ na)) @ (vEBT_VEBT_low @ xa @ na)) @ (vEBT_VEBT_low @ xa @ na))),file('/home/marc/.local/share/tptp/TPTP-v9.3.1/Problems/ITP/ITP233^1.p',fact_1__C166_C)).
+thf(131,plain,((vEBT_V8194947554948674370ptions @ (vEBT_vebt_insert @ (nth_VEBT_VEBT @ treeList @ (vEBT_VEBT_high @ xa @ na)) @ (vEBT_VEBT_low @ xa @ na)) @ (vEBT_VEBT_low @ xa @ na))),inference(defexp_and_simp_and_etaexpand,[status(thm)],[34])).
+thf(166,plain,((vEBT_V8194947554948674370ptions @ (vEBT_vebt_insert @ (nth_VEBT_VEBT @ treeList @ i) @ (vEBT_VEBT_low @ xa @ na)) @ (vEBT_VEBT_low @ xa @ na))),inference(rewrite,[status(thm)],[131,123])).
+thf(1,conjecture,((? [A:nat]: (vEBT_V8194947554948674370ptions @ (nth_VEBT_VEBT @ (list_u1324408373059187874T_VEBT @ treeList @ (vEBT_VEBT_high @ xa @ na) @ (vEBT_vebt_insert @ (nth_VEBT_VEBT @ treeList @ (vEBT_VEBT_high @ xa @ na)) @ (vEBT_VEBT_low @ xa @ na))) @ i) @ A))),file('/home/marc/.local/share/tptp/TPTP-v9.3.1/Problems/ITP/ITP233^1.p',conj_0)).
+thf(2,negated_conjecture,((~ (? [A:nat]: (vEBT_V8194947554948674370ptions @ (nth_VEBT_VEBT @ (list_u1324408373059187874T_VEBT @ treeList @ (vEBT_VEBT_high @ xa @ na) @ (vEBT_vebt_insert @ (nth_VEBT_VEBT @ treeList @ (vEBT_VEBT_high @ xa @ na)) @ (vEBT_VEBT_low @ xa @ na))) @ i) @ A)))),inference(neg_conjecture,[status(cth)],[1])).
+thf(39,plain,((~ (? [A:nat]: (vEBT_V8194947554948674370ptions @ (nth_VEBT_VEBT @ (list_u1324408373059187874T_VEBT @ treeList @ (vEBT_VEBT_high @ xa @ na) @ (vEBT_vebt_insert @ (nth_VEBT_VEBT @ treeList @ (vEBT_VEBT_high @ xa @ na)) @ (vEBT_VEBT_low @ xa @ na))) @ i) @ A)))),inference(defexp_and_simp_and_etaexpand,[status(thm)],[2])).
+thf(40,plain,(! [A:nat] : ((~ (vEBT_V8194947554948674370ptions @ (nth_VEBT_VEBT @ (list_u1324408373059187874T_VEBT @ treeList @ (vEBT_VEBT_high @ xa @ na) @ (vEBT_vebt_insert @ (nth_VEBT_VEBT @ treeList @ (vEBT_VEBT_high @ xa @ na)) @ (vEBT_VEBT_low @ xa @ na))) @ i) @ A)))),inference(cnf,[status(esa)],[39])).
+thf(150,plain,(! [A:nat] : ((~ (vEBT_V8194947554948674370ptions @ (nth_VEBT_VEBT @ (list_u1324408373059187874T_VEBT @ treeList @ i @ (vEBT_vebt_insert @ (nth_VEBT_VEBT @ treeList @ i) @ (vEBT_VEBT_low @ xa @ na))) @ i) @ A)))),inference(rewrite,[status(thm)],[40,123])).
+thf(171,plain,(! [A:nat] : (~ (($true)) | ((vEBT_V8194947554948674370ptions @ (nth_VEBT_VEBT @ (list_u1324408373059187874T_VEBT @ treeList @ i @ (vEBT_vebt_insert @ (nth_VEBT_VEBT @ treeList @ i) @ (vEBT_VEBT_low @ xa @ na))) @ i) @ A) != (vEBT_V8194947554948674370ptions @ (vEBT_vebt_insert @ (nth_VEBT_VEBT @ treeList @ i) @ (vEBT_VEBT_low @ xa @ na)) @ (vEBT_VEBT_low @ xa @ na))))),inference(paramod_ordered,[status(thm)],[166,150])).
+thf(172,plain,(! [A:nat] : (((vEBT_V8194947554948674370ptions @ (nth_VEBT_VEBT @ (list_u1324408373059187874T_VEBT @ treeList @ i @ (vEBT_vebt_insert @ (nth_VEBT_VEBT @ treeList @ i) @ (vEBT_VEBT_low @ xa @ na))) @ i) @ A) != (vEBT_V8194947554948674370ptions @ (vEBT_vebt_insert @ (nth_VEBT_VEBT @ treeList @ i) @ (vEBT_VEBT_low @ xa @ na)) @ (vEBT_VEBT_low @ xa @ na))))),inference(simp,[status(thm)],[171])).
+thf(175,plain,(! [A:nat] : (((nth_VEBT_VEBT @ (list_u1324408373059187874T_VEBT @ treeList @ i @ (vEBT_vebt_insert @ (nth_VEBT_VEBT @ treeList @ i) @ (vEBT_VEBT_low @ xa @ na))) @ i) != (vEBT_vebt_insert @ (nth_VEBT_VEBT @ treeList @ i) @ (vEBT_VEBT_low @ xa @ na))) | (A != (vEBT_VEBT_low @ xa @ na)))),inference(simp,[status(thm)],[172])).
+thf(177,plain,(((nth_VEBT_VEBT @ (list_u1324408373059187874T_VEBT @ treeList @ i @ (vEBT_vebt_insert @ (nth_VEBT_VEBT @ treeList @ i) @ (vEBT_VEBT_low @ xa @ na))) @ i) != (vEBT_vebt_insert @ (nth_VEBT_VEBT @ treeList @ i) @ (vEBT_VEBT_low @ xa @ na)))),inference(simp,[status(thm)],[175])).
+thf(1588,plain,(($false)),inference(simplifyReflect,[status(thm)],[1587,177])).
+% SZS output end Refutation for /home/marc/.local/share/tptp/TPTP-v9.3.1/Problems/ITP/ITP233^1.p

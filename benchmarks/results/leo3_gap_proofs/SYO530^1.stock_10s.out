@@ -1,0 +1,43 @@
+% [INFO] 	 Parsing problem /home/marc/.local/share/tptp/TPTP-v9.3.1/Problems/SYO/SYO530^1.p ... 
+% [INFO] 	 Parsing done (245ms). 
+% [INFO] 	 Running in sequential loop mode. 
+% [INFO] 	 Scanning for conjecture ... 
+% [INFO] 	 Found a conjecture (or negated_conjecture) and 1 axioms. Running axiom selection ... 
+% [INFO] 	 Axiom selection finished. Selected 1 axioms (removed 0 axioms). 
+% [INFO] 	 Problem is higher-order (TPTP THF). 
+% [INFO] 	 Type checking passed. 
+% [CONFIG] 	 Using configuration: timeout(10) with strategy<name(default),share(1.0),primSubst(3),sos(false),unifierCount(4),uniDepth(8),boolExt(true),choice(true),renaming(true),funcspec(false), domConstr(0),specialInstances(39),restrictUniAttempts(true),termOrdering(CPO)>.  Searching for refutation ... 
+% Time passed: 2182ms (effective reasoning time: 1322ms)
+% Solved by strategy<name(default),share(1.0),primSubst(3),sos(false),unifierCount(4),uniDepth(8),boolExt(true),choice(true),renaming(true),funcspec(false), domConstr(0),specialInstances(39),restrictUniAttempts(true),termOrdering(CPO)>
+% SZS status Theorem for /home/marc/.local/share/tptp/TPTP-v9.3.1/Problems/SYO/SYO530^1.p : 2182 ms resp. 1322 ms w/o parsing
+% SZS output start Refutation for /home/marc/.local/share/tptp/TPTP-v9.3.1/Problems/SYO/SYO530^1.p
+thf(eps_decl, type, eps: (($i > $o) > $i)).
+thf(epsa_decl, type, epsa: (($i > ($i > $o)) > $i)).
+thf(epsb_decl, type, epsb: (($i > ($i > $o)) > $i)).
+thf(sk1_decl, type, sk1: ($i > ($i > $o))).
+thf(sk2_decl, type, sk2: $i).
+thf(sk3_decl, type, sk3: $i).
+thf(sk4_decl, type, sk4: ($i > ($i > $i))).
+thf(epsa_def, definition, epsa = (^ [A:($i > ($i > $o))]: (eps @ (^ [B:$i]: ? [C:$i]: (A @ B @ C)))) ).
+thf(epsb_def, definition, epsb = (^ [A:($i > ($i > $o))]: (eps @ (A @ (epsa @ A)))) ).
+thf(sk1_def, definition, sk1 = (@+ [A:($i > ($i > $o))]: ~ ((? [B:$i,C:$i]: (A @ B @ C)) => (A @ (eps @ (^ [B:$i]: ? [C:$i]: (A @ B @ C))) @ (eps @ (A @ (eps @ (^ [B:$i]: ? [C:$i]: (A @ B @ C)))))))) ).
+thf(sk2_def, definition, sk2 = (@+ [A:$i]: ? [B:$i]: (sk1 @ A @ B)) ).
+thf(sk3_def, definition, sk3 = (@+ [A:$i]: (sk1 @ sk2 @ A)) ).
+thf(sk4_def, definition, sk4 = (^ [A:$i,B:$i]: (@+ [C:$i]: (sk1 @ (eps @ (^ [D:$i]: ? [E:$i]: (sk1 @ D @ E))) @ C))) ).
+thf(1,conjecture,((! [A:($i > ($i > $o))]: ((? [B:$i,C:$i]: (A @ B @ C)) => (A @ (epsa @ A) @ (epsb @ A))))),file('/home/marc/.local/share/tptp/TPTP-v9.3.1/Problems/SYO/SYO530^1.p',conj)).
+thf(2,negated_conjecture,((~ (! [A:($i > ($i > $o))]: ((? [B:$i,C:$i]: (A @ B @ C)) => (A @ (epsa @ A) @ (epsb @ A)))))),inference(neg_conjecture,[status(cth)],[1])).
+thf(4,plain,((~ (! [A:($i > ($i > $o))]: ((? [B:$i,C:$i]: (A @ B @ C)) => (A @ (eps @ (^ [B:$i]: ? [C:$i]: (A @ B @ C))) @ (eps @ (A @ (eps @ (^ [B:$i]: ? [C:$i]: (A @ B @ C)))))))))),inference(defexp_and_simp_and_etaexpand,[status(thm)],[2])).
+thf(5,plain,(((sk1 @ sk2 @ sk3) & ~ (sk1 @ (eps @ (^ [A:$i]: ? [B:$i]: (sk1 @ A @ B))) @ (eps @ (sk1 @ (eps @ (^ [A:$i]: ? [B:$i]: (sk1 @ A @ B)))))))),inference(cnf,[status(esa)],[4])).
+thf(6,plain,((sk1 @ sk2 @ sk3)),inference(cnfConj,[status(thm)],[5])).
+thf(12,axiom,((? [A:(($i > $o) > $i)]: ! [B:($i > $o)]: ((? [C:$i]: (B @ C)) => (B @ (A @ B))))),introduced(axiom_of_choice)).
+thf(13,plain,(! [A:$i] : ((~ (? [B:$i]: (sk1 @ A @ B))) | (? [B:$i]: (sk1 @ (eps @ (^ [C:$i]: ? [D:$i]: (sk1 @ C @ D))) @ B)))),inference(choice,[status(esa)],[12])).
+thf(16,plain,(! [B:$i,A:$i] : ((~ (sk1 @ A @ B)) | (sk1 @ (eps @ (^ [C:$i]: ? [D:$i]: (sk1 @ C @ D))) @ (sk4 @ B @ A)))),inference(cnf,[status(esa)],[13])).
+thf(14,plain,(! [A:$i] : ((~ (sk1 @ (eps @ (^ [B:$i]: ? [C:$i]: (sk1 @ B @ C))) @ A)) | (sk1 @ (eps @ (^ [B:$i]: ? [C:$i]: (sk1 @ B @ C))) @ (eps @ (sk1 @ (eps @ (^ [B:$i]: ? [C:$i]: (sk1 @ B @ C)))))))),inference(choice,[status(esa)],[12])).
+thf(7,plain,((~ (sk1 @ (eps @ (^ [A:$i]: ? [B:$i]: (sk1 @ A @ B))) @ (eps @ (sk1 @ (eps @ (^ [A:$i]: ? [B:$i]: (sk1 @ A @ B)))))))),inference(cnfConj,[status(thm)],[5])).
+thf(17,plain,(! [A:$i] : ((~ (sk1 @ (eps @ (^ [B:$i]: ? [C:$i]: (sk1 @ B @ C))) @ A)) | ($false))),inference(rewrite,[status(thm)],[14,7])).
+thf(18,plain,(! [A:$i] : ((~ (sk1 @ (eps @ (^ [B:$i]: ? [C:$i]: (sk1 @ B @ C))) @ A)))),inference(simp,[status(thm)],[17])).
+thf(25,plain,(! [B:$i,A:$i] : ((~ (sk1 @ A @ B)) | ($false))),inference(rewrite,[status(thm)],[16,18])).
+thf(26,plain,(! [B:$i,A:$i] : ((~ (sk1 @ A @ B)))),inference(simp,[status(thm)],[25])).
+thf(28,plain,(($false)),inference(rewrite,[status(thm)],[6,26])).
+thf(29,plain,(($false)),inference(simp,[status(thm)],[28])).
+% SZS output end Refutation for /home/marc/.local/share/tptp/TPTP-v9.3.1/Problems/SYO/SYO530^1.p

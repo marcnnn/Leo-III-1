@@ -1,0 +1,115 @@
+{
+  "baseline": {
+    "thm_total": 34,
+    "csa_total": 15,
+    "csa_false_proofs": 0,
+    "lcf_failures": 0,
+    "external_unsound": [],
+    "strategy_wins": {
+      ":broad_breadth": 3,
+      ":full_inline_weight": 6,
+      ":goal_standard": 11,
+      ":sine_tight_unit": 7
+    },
+    "assisted_problems": [],
+    "external_unverified": 0,
+    "externally_assisted_lcf": 0,
+    "thm_solved_lcf": 27,
+    "wall_ms": 23847
+  },
+  "cooperate": {
+    "thm_total": 34,
+    "csa_total": 15,
+    "csa_false_proofs": 0,
+    "lcf_failures": 0,
+    "external_unsound": [],
+    "strategy_wins": {
+      ":broad_breadth": 3,
+      ":full_inline_weight": 6,
+      ":goal_standard": 12,
+      ":sine_tight_unit": 6
+    },
+    "assisted_problems": [
+      {
+        "problem": "ITP175^1",
+        "prover": "eprover_ho"
+      },
+      {
+        "problem": "LCL621^1",
+        "prover": "eprover_ho"
+      }
+    ],
+    "external_unverified": 0,
+    "externally_assisted_lcf": 2,
+    "thm_solved_lcf": 27,
+    "wall_ms": 23830
+  },
+  "leo3": {
+    "thm_total": 34,
+    "csa_total": 15,
+    "csa_false_proofs": 0,
+    "lcf_failures": 0,
+    "external_unsound": [],
+    "strategy_wins": {},
+    "assisted_problems": [],
+    "external_unverified": 2,
+    "externally_assisted_lcf": 0,
+    "thm_solved_lcf": 0,
+    "wall_ms": 70292
+  },
+  "leo3_racer": {
+    "thm_total": 34,
+    "csa_total": 15,
+    "csa_false_proofs": 0,
+    "lcf_failures": 0,
+    "external_unsound": [],
+    "strategy_wins": {
+      ":broad_breadth": 5,
+      ":full_inline_weight": 5,
+      ":goal_standard": 12,
+      ":sine_tight_unit": 5
+    },
+    "assisted_problems": [],
+    "external_unverified": 0,
+    "externally_assisted_lcf": 0,
+    "thm_solved_lcf": 27,
+    "wall_ms": 35054
+  },
+  "racers": {
+    "thm_total": 34,
+    "csa_total": 15,
+    "csa_false_proofs": 0,
+    "lcf_failures": 0,
+    "external_unsound": [],
+    "strategy_wins": {
+      ":broad_breadth": 5,
+      ":full_inline_weight": 5,
+      ":goal_standard": 10,
+      ":sine_tight_unit": 6,
+      "{:external, :eprover_ho}": 2,
+      "{:external, :vampire}": 2
+    },
+    "assisted_problems": [
+      {
+        "problem": "ITP117^1",
+        "prover": "eprover_ho"
+      },
+      {
+        "problem": "ITP130^1",
+        "prover": "vampire"
+      },
+      {
+        "problem": "ITP175^1",
+        "prover": "vampire"
+      },
+      {
+        "problem": "ITP202^1",
+        "prover": "eprover_ho"
+      }
+    ],
+    "external_unverified": 4,
+    "externally_assisted_lcf": 4,
+    "thm_solved_lcf": 30,
+    "wall_ms": 30166
+  }
+}
