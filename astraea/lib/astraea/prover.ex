@@ -608,11 +608,16 @@ defmodule Astraea.Prover do
         state = %{state | arena: arena}
 
         {state, evaluated} =
-          add_step(state, {:arith_eval, state.next_step_id, item.id, lits}, lits, item.depth)
+          add_step(state, {:arith_eval, state.next_step_id, item.id, lits}, lits, item.depth, item.guards)
 
-        if MapSet.size(lits) == 0,
-          do: {%{state | refuted: state.refuted || evaluated.id}, :dropped},
-          else: {state, evaluated}
+        if MapSet.size(lits) == 0 do
+          case handle_empty_clause(state, evaluated) do
+            {:proved, state, empty_id} -> {%{state | refuted: empty_id}, :dropped}
+            {:cont, state, _} -> {state, :dropped}
+          end
+        else
+          {state, evaluated}
+        end
     end
   end
 
@@ -631,11 +636,16 @@ defmodule Astraea.Prover do
           state = %{state | arena: arena}
 
           {state, evaluated} =
-            add_step(state, {:eval, state.next_step_id, item.id, lits}, lits, item.depth)
+            add_step(state, {:eval, state.next_step_id, item.id, lits}, lits, item.depth, item.guards)
 
-          if MapSet.size(lits) == 0,
-            do: {%{state | refuted: state.refuted || evaluated.id}, :dropped},
-            else: {state, evaluated}
+          if MapSet.size(lits) == 0 do
+            case handle_empty_clause(state, evaluated) do
+              {:proved, state, empty_id} -> {%{state | refuted: empty_id}, :dropped}
+              {:cont, state, _} -> {state, :dropped}
+            end
+          else
+            {state, evaluated}
+          end
       end
     else
       {state, item}
@@ -657,6 +667,9 @@ defmodule Astraea.Prover do
           case demodulate(st, item, 4) do
             {:proved, st2, empty_id} ->
               {:proved, st2, empty_id}
+
+            {:dropped, st2} ->
+              {:dropped, st2}
 
             {st2, rewritten, _fuel} ->
               if tautology_clause?(st2.arena, rewritten.lits),
@@ -933,6 +946,7 @@ defmodule Astraea.Prover do
     with {:ok, state, item} <- unit_simplify(state, item) do
       case demodulate(state, item, fuel) do
         {:proved, state, empty_id} -> {:proved, state, empty_id}
+        {:dropped, state} -> {:dropped, state}
         {state, ^item, _fuel} -> {:ok, state, item}
         {state, rewritten, 0} -> {:ok, state, rewritten}
         {state, rewritten, fuel} -> simplify(state, rewritten, fuel)
@@ -988,7 +1002,10 @@ defmodule Astraea.Prover do
 
         cond do
           MapSet.size(rewritten.lits) == 0 ->
-            handle_empty_clause(state, rewritten)
+            case handle_empty_clause(state, rewritten) do
+              {:proved, st, empty_id} -> {:proved, st, empty_id}
+              {:cont, st, _} -> {:dropped, st}
+            end
 
           tautology_clause?(state.arena, rewritten.lits) ->
             {state, rewritten, 0}
@@ -1044,6 +1061,9 @@ defmodule Astraea.Prover do
               {:proved, st, empty_id} ->
                 {%{st | refuted: st.refuted || empty_id}, acc}
 
+              {:dropped, st} ->
+                {st, [{item.id, nil} | acc]}
+
               {st, ^item, _} ->
                 {st, acc}
 
@@ -1055,7 +1075,7 @@ defmodule Astraea.Prover do
         state
         |> remove_active(Enum.map(rewritten, &elem(&1, 0)))
         |> Map.update!(:backward_rewritten, &(&1 + length(rewritten)))
-        |> enqueue_passive(Enum.map(rewritten, &elem(&1, 1)))
+        |> enqueue_passive(rewritten |> Enum.map(&elem(&1, 1)) |> Enum.reject(&is_nil/1))
     end
   end
 
