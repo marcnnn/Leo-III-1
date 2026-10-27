@@ -163,7 +163,8 @@ defmodule Astraea.Prover do
     * `:backward_subsumption`, `:demodulation` - redundancy elimination (default `true`)
     * `:index_backend` - `Astraea.Engine.FVIndex` backend (default `:auto`)
   Limits, all `:infinity` by default; a clause dropped by `:max_clause_lits` or
-  `:max_clause_weight` counts as discarded and makes the run incomplete:
+  `:max_clause_weight` counts as discarded and makes the run incomplete
+  (`stats/1` reports `:complete` and `:incomplete_reasons`):
     * `:max_iterations` - given-clause iterations
     * `:max_clause_lits`, `:max_clause_weight` - generated clauses above both limits
       (weight only for clauses with more than two literals) are discarded
@@ -1839,7 +1840,7 @@ defmodule Astraea.Prover do
   defp step_parents(step), do: ProofChecker.step_parents(step)
 
   defp stats(%__MODULE__{} = state) do
-    cutoffs = state.unification_cutoffs
+    reasons = incomplete_reasons(state)
 
     base = %{
       iterations: state.iterations,
@@ -1853,13 +1854,29 @@ defmodule Astraea.Prover do
       rewrites: state.rewrites,
       backward_rewritten: state.backward_rewritten,
       index_backend: state.active_index.backend,
-      unification_cutoffs: cutoffs,
-      complete: state.discarded_clauses == 0 and not state.sine_filtered and cutoffs == 0
+      unification_cutoffs: state.unification_cutoffs,
+      complete: reasons == [],
+      incomplete_reasons: reasons
     }
 
     if state.cooperate == [],
       do: base,
       else: Map.put(base, :external_calls, Enum.reverse(state.coop_log))
+  end
+
+  # Why a saturated run does not show satisfiability (empty: it does, relative to
+  # the calculus). A finite `:max_clause_lits` also makes paramodulation skip
+  # partners silently, so it counts even when nothing was discarded at enqueue.
+  defp incomplete_reasons(%__MODULE__{} = state) do
+    [
+      discarded: state.discarded_clauses > 0,
+      clause_lits_limit: state.max_clause_lits != :infinity,
+      sine: state.sine_filtered,
+      partial_input: Keyword.has_key?(state.opts, :seed),
+      unification_cutoffs: state.unification_cutoffs > 0
+    ]
+    |> Enum.filter(&elem(&1, 1))
+    |> Enum.map(&elem(&1, 0))
   end
 
   # ---------------------------------------------------------------------------

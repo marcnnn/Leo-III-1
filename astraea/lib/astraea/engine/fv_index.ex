@@ -19,6 +19,7 @@ defmodule Astraea.Engine.FVIndex do
   """
 
   alias Astraea.Engine.Kernels
+  alias Astraea.NxKernel
 
   @lanes 16
   @max_lane 0xFFFF
@@ -49,8 +50,8 @@ defmodule Astraea.Engine.FVIndex do
   def new(opts \\ []) do
     backend =
       case Keyword.get(opts, :backend, :auto) do
-        :auto -> if Kernels.simd_available?(), do: :nx_simd, else: :elixir
-        :nx_simd -> if Kernels.simd_available?(), do: :nx_simd, else: :elixir
+        :auto -> if NxKernel.available?(), do: :nx_simd, else: :elixir
+        :nx_simd -> if NxKernel.available?(), do: :nx_simd, else: :elixir
         :elixir -> :elixir
       end
 
@@ -217,7 +218,7 @@ defmodule Astraea.Engine.FVIndex do
 
   defp build_segment(rows, backend) do
     count = length(rows)
-    cap = capacity(count, @seal)
+    cap = NxKernel.bucket(count, @seal)
     ids = rows |> Enum.map(&elem(&1, 0)) |> List.to_tuple()
 
     tensor =
@@ -227,9 +228,6 @@ defmodule Astraea.Engine.FVIndex do
 
     %{rows: rows, ids: ids, count: count, cap: cap, tensor: tensor}
   end
-
-  defp capacity(count, cap) when cap >= count, do: cap
-  defp capacity(count, cap), do: capacity(count, cap * 2)
 
   defp soa_binary(rows, cap) do
     pad = (cap - length(rows)) * 2

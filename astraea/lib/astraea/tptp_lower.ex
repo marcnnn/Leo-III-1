@@ -107,19 +107,13 @@ defmodule Astraea.TptpLower do
       "type" ->
         lower_type_decl(state, stmt.formula)
 
-      r
-      when r in ["axiom", "hypothesis", "assumption", "lemma", "theorem", "corollary", "plain"] ->
+      r when r in ["axiom", "hypothesis", "assumption", "lemma", "theorem", "corollary", "plain"] ->
         {state, term_id} = lower_term(state, stmt.formula, [])
         %{state | axioms: [{name, r, term_id} | state.axioms]}
 
       "definition" ->
         {state, term_id} = lower_term(state, stmt.formula, [])
-
-        %{
-          state
-          | definitions: [{name, term_id} | state.definitions],
-            axioms: [{name, "definition", term_id} | state.axioms]
-        }
+        %{state | definitions: [{name, term_id} | state.definitions], axioms: [{name, "definition", term_id} | state.axioms]}
 
       r when r in ["conjecture", "negated_conjecture"] ->
         {state, term_id} = lower_term(state, stmt.formula, [])
@@ -174,8 +168,7 @@ defmodule Astraea.TptpLower do
 
   defp lower_type_expr(%__MODULE__{} = state, %Node{} = node) do
     case unwrap_unitary(node) do
-      %Node{kind: k} = leaf
-      when k in [:defined_constant, :constant, :type_constant, :system_type, :defined_type] ->
+      %Node{kind: k} = leaf when k in [:defined_constant, :constant, :type_constant, :system_type, :defined_type] ->
         name = Node.value(leaf)
 
         case Map.fetch(state.base_types, name) do
@@ -355,10 +348,7 @@ defmodule Astraea.TptpLower do
     {%{state | arena: arena}, lam2}
   end
 
-  defp collect_typed_vars(%__MODULE__{} = state, %Node{
-         kind: :thf_variable_list,
-         children: [head, tail]
-       }) do
+  defp collect_typed_vars(%__MODULE__{} = state, %Node{kind: :thf_variable_list, children: [head, tail]}) do
     {state, v1} = collect_typed_vars(state, head)
     {state, v2} = collect_typed_vars(state, tail)
     {state, v1 ++ v2}

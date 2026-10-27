@@ -2,7 +2,7 @@ defmodule Astraea.Engine.Kernels do
   @moduledoc """
   Integer `Nx.Defn` kernels of the saturation engine, the single source of truth for
   every bulk feature-vector test. They run compiled to native SIMD code by
-  `NxSimd.Compiler` when it is available (`runner/2`) and otherwise serve as the
+  `NxSimd.Compiler` when it is available (`runner/2`, via `Astraea.NxKernel`) and otherwise serve as the
   executable specification that `Astraea.Engine.FVIndex`'s plain-Elixir path is
   property-tested against.
 
@@ -12,6 +12,8 @@ defmodule Astraea.Engine.Kernels do
   fuse all 16 comparisons into one unit-stride vector loop.
   """
   import Nx.Defn
+
+  alias Astraea.NxKernel
 
   @lanes 16
 
@@ -35,58 +37,25 @@ defmodule Astraea.Engine.Kernels do
     Enum.reduce(1..(@lanes - 1), cmp[0], &Nx.logical_and(&2, cmp[&1]))
   end
 
-  @doc "Whether compiled kernels can be used in this VM."
-  @spec simd_available?() :: boolean()
-  def simd_available? do
-    Code.ensure_loaded?(NxSimd) and apply(NxSimd, :available?, []) == true
-  end
-
   @doc """
-  The NxSimd-compiled runner of `kernel` for the given argument shapes, or `nil`
-  while it is not compiled yet. Compilation (a host C++ build on first use, cached
-  on disk afterwards) runs in a background process, so a prover never blocks on it;
-  callers use the plain-Elixir path until the runner is ready.
+  The NxSimd runner of `kernel` for `:u16` arguments of the given shapes, or `nil`
+  until it is compiled (see `Astraea.NxKernel.runner/2`).
   """
-  @spec runner(atom(), [tuple()]) :: (... -> Nx.Tensor.t()) | nil
-  def runner(kernel, shapes) do
-    key = {__MODULE__, kernel, shapes}
+  @spec runner(atom(), [tuple()]) :: function() | nil
+  def runner(kernel, shapes), do: NxKernel.runner(capture(kernel), templates(shapes))
 
-    case :persistent_term.get(key, nil) do
-      fun when is_function(fun) ->
-        fun
+  @doc "Compiles `kernel` for `:u16` arguments of the given shapes synchronously."
+  @spec compile_kernel(atom(), [tuple()]) :: function()
+  def compile_kernel(kernel, shapes), do: NxKernel.compile(capture(kernel), templates(shapes))
 
-      nil ->
-        :persistent_term.put(key, :compiling)
-        spawn(fn -> :persistent_term.put(key, try_compile(kernel, shapes)) end)
-        nil
-
-      _compiling_or_failed ->
-        nil
-    end
-  end
-
-  defp try_compile(kernel, shapes) do
-    compile_kernel(kernel, shapes)
-  rescue
-    _ -> :failed
-  end
-
-  @doc "Compiles `kernel` for `shapes` synchronously (warm-up and benchmarks)."
-  @spec compile_kernel(atom(), [tuple()]) :: (... -> Nx.Tensor.t())
-  def compile_kernel(kernel, shapes) do
-    templates = Enum.map(shapes, &Nx.template(&1, :u16))
-    Nx.Defn.compile(Function.capture(__MODULE__, kernel, 2), templates, compiler: NxSimd.Compiler)
-  end
-
-  @doc "Compiles `kernels` for the given shapes now, so later runs find them cached."
+  @doc "Compiles the kernels for the given shapes now, so later runs find them cached."
   @spec warmup([{atom(), [tuple()]}]) :: :ok
-  def warmup(specs) do
-    if simd_available?() do
-      Enum.each(specs, fn {kernel, shapes} ->
-        :persistent_term.put({__MODULE__, kernel, shapes}, compile_kernel(kernel, shapes))
-      end)
-    end
+  def warmup(specs),
+    do:
+      specs
+      |> Enum.map(fn {k, shapes} -> {capture(k), templates(shapes)} end)
+      |> NxKernel.warmup()
 
-    :ok
-  end
+  defp capture(kernel), do: Function.capture(__MODULE__, kernel, 2)
+  defp templates(shapes), do: Enum.map(shapes, &Nx.template(&1, :u16))
 end
