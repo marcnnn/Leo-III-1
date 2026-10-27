@@ -41,6 +41,7 @@ defmodule Astraea.Calculus.FingerprintIndex do
 
   alias Astraea.Arena
   alias Astraea.Calculus.Terms
+  alias Astraea.NxKernel
 
   @positions [[], [0], [1], [2], [0, 0], [0, 1], [1, 0], [1, 1]]
   @width length(@positions)
@@ -222,9 +223,9 @@ defmodule Astraea.Calculus.FingerprintIndex do
     end)
   end
 
-  @doc "Returns true iff `Nx` and `NxSimd.Compiler` are available."
+  @doc "Returns true iff `NxSimd` kernels can run (`Astraea.NxKernel.available?/0`)."
   @spec nx_available?() :: boolean()
-  def nx_available?, do: Code.ensure_loaded?(Nx) and Code.ensure_loaded?(NxSimd.Compiler)
+  def nx_available?, do: Code.ensure_loaded?(Nx) and NxKernel.available?()
 
   if Code.ensure_loaded?(Nx) do
     @doc """
@@ -245,11 +246,18 @@ defmodule Astraea.Calculus.FingerprintIndex do
       end)
     end
 
+    # Until the runner for this padded shape is compiled the Elixir path answers.
     defp query_nx(index, queries, mode) do
-      cap = bucket(index.size, 1024)
-      qcap = bucket(length(queries), 8)
-      runner = runner(qcap, cap)
+      cap = NxKernel.bucket(index.size, 1024)
+      qcap = NxKernel.bucket(length(queries), 8)
 
+      case runner(qcap, cap) do
+        nil -> query_elixir(index, queries, mode)
+        runner -> run_nx(runner, index, queries, mode, cap, qcap)
+      end
+    end
+
+    defp run_nx(runner, index, queries, mode, cap, qcap) do
       targets =
         index.lanes
         |> Enum.map(&pad(&1, cap - index.size))
@@ -274,7 +282,7 @@ defmodule Astraea.Calculus.FingerprintIndex do
     end
 
     defp mask_rows(bin, cap) do
-      for <<row::binary-size(cap) <- bin>> do
+      for <<row::binary-size(^cap) <- bin>> do
         for {slot, 1} <- :binary.matches(row, <<1>>), do: slot
       end
     end
@@ -282,30 +290,14 @@ defmodule Astraea.Calculus.FingerprintIndex do
     defp pad(lane, 0), do: lane
     defp pad(lane, k), do: [lane, :binary.copy(<<@n::32-signed-little>>, k)]
 
-    # One compiled runner per padded shape, cached for the VM lifetime.
+    # One compiled runner per padded shape (`Astraea.NxKernel` cache).
     defp runner(q, n) do
-      key = {__MODULE__, :runner, q, n}
-
-      case :persistent_term.get(key, nil) do
-        nil ->
-          args = [
-            Nx.template({q, @width}, :s32),
-            Nx.template({25}, :u8),
-            Nx.template({@width, n}, :s32)
-          ]
-
-          compiled = Nx.Defn.compile(&compat_kernel/3, args, compiler: NxSimd.Compiler)
-          :persistent_term.put(key, compiled)
-          compiled
-
-        compiled ->
-          compiled
-      end
+      NxKernel.runner(&compat_kernel/3, [
+        Nx.template({q, @width}, :s32),
+        Nx.template({25}, :u8),
+        Nx.template({@width, n}, :s32)
+      ])
     end
-
-    defp bucket(n, min), do: max(min, next_pow2(n))
-    defp next_pow2(n) when n <= 1, do: 1
-    defp next_pow2(n), do: 2 * next_pow2(div(n + 1, 2))
   else
     defp query_nx(index, queries, mode), do: query_elixir(index, queries, mode)
   end
