@@ -116,6 +116,14 @@ defmodule Astraea.InputTest do
       assert_proved(src)
     end
 
+    test "alpha-equivalent polymorphic redeclarations are accepted" do
+      lower!("""
+      thf(d1, type, id: !>[A: $tType]: (A > A)).
+      thf(d2, type, id: !>[B: $tType]: (B > B)).
+      thf(c, conjecture, ![A: $tType, X: A]: ((id @ A @ X) = (id @ A @ X))).
+      """)
+    end
+
     test "type-quantified conjectures are proved for a fresh sort" do
       assert_proved("thf(c, conjecture, ![A: $tType, X: A]: (X = X)).")
     end
@@ -336,6 +344,18 @@ defmodule Astraea.InputTest do
 
       assert_proved(decreasing <> barcan, timeout_ms: 5_000)
       refute_proved(cumulative <> barcan)
+    end
+
+    test "predicate definitions are accepted only at the top of global statements" do
+      decls = "thf(p, type, p: $i > $o). thf(q, type, q: $i > $o)."
+
+      assert_proved(
+        @spec_k <>
+          decls <>
+          "thf(d, definition, p = (^[X: $i]: [.] (q @ X))). thf(c, conjecture, ![X: $i]: ((p @ X) => [.] (q @ X)))."
+      )
+
+      assert {:error, _} = TptpLower.from_string(@spec_k <> decls <> "thf(h, hypothesis, p = q).")
     end
 
     test "unsupported semantics and modal operators without a specification are rejected" do

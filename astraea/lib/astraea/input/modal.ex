@@ -22,10 +22,11 @@ defmodule Astraea.Input.Modal do
   Following Leo-III, `axiom` and `definition` statements (and lemmas) are global,
   `hypothesis`, `assumption` and conjectures local to an actual world
   `$$mactual`; `-local`/`-global` subroles override this. Equality is rigid at
-  types without `$o` and pointwise equivalence at `$o`; equality at other types
-  that contain `$o`, quantification over non-individual types with non-constant
-  domains, interpreted symbols other than `$true`/`$false`, and polymorphism are
-  rejected.
+  types without `$o` and pointwise equivalence at `$o`. Equality at other types
+  that contain `$o` is accepted only at the top of global statements, where its
+  rigid and pointwise readings coincide. Such equality elsewhere, quantification
+  over non-individual types with non-constant domains, interpreted symbols other
+  than `$true`/`$false`, and polymorphism are rejected.
   """
 
   alias Astraea.Input.IR
@@ -223,9 +224,41 @@ defmodule Astraea.Input.Modal do
       at(st, ir, @actual)
     else
       {st, w} = fresh(st, @w)
-      {st, body} = at(st, ir, w)
+      {st, body} = global(st, ir, w)
       {:var, id, _} = w
       {st, {:quant, :all, id, @w, body}}
+    end
+  end
+
+  # A global statement holds at every world `w`. At its top (below conjunctions and,
+  # with constant domains, universal quantifiers) an equation between terms whose
+  # type contains `$o` (a definition such as `godlike = ^[X]: ...`) may be read as
+  # rigid equality of the lifted terms: by extensionality, equality of the
+  # extensions at every world is equality of the intensions.
+  defp global(st, t, w) do
+    case t do
+      {:bin, :and, a, b} ->
+        {st, a} = global(st, a, w)
+        {st, b} = global(st, b, w)
+        {st, {:bin, :and, a, b}}
+
+      {:quant, :all, id, ty, body} when st.spec.domains == :constant ->
+        {st, body} = global(st, body, w)
+        {st, {:quant, :all, id, lift_ty(ty), body}}
+
+      {:eq, a, b} ->
+        ty = IR.type_of(a)
+
+        if ty != @o and IR.has_o?(ty) do
+          {st, a} = lift(st, a)
+          {st, b} = lift(st, b)
+          {st, {:eq, a, b}}
+        else
+          at(st, t, w)
+        end
+
+      _ ->
+        at(st, t, w)
     end
   end
 

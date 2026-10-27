@@ -74,7 +74,7 @@ defmodule Astraea.Input.Monomorphizer do
       Enum.reduce(schemas, state, fn schema, state ->
         schema
         |> substitutions(state.known)
-        |> Enum.reject(&MapSet.member?(state.done, {schema.name, &1}))
+        |> Stream.reject(&MapSet.member?(state.done, {schema.name, &1}))
         |> limit(state, opts)
         |> then(fn {substs, state} ->
           Enum.reduce(substs, state, &instantiate(schema, &1, &2))
@@ -85,21 +85,22 @@ defmodule Astraea.Input.Monomorphizer do
   end
 
   defp limit(substs, state, opts) do
-    room = min(opts.per_statement, opts.max_instances - state.count)
+    room = max(min(opts.per_statement, opts.max_instances - state.count), 0)
+    substs = Enum.take(substs, room + 1)
 
     cond do
       length(substs) <= room ->
         {substs, state}
 
       room < opts.per_statement ->
-        {Enum.take(substs, max(room, 0)), %{state | cut: MapSet.put(state.cut, :instance_limit)}}
+        {Enum.take(substs, room), %{state | cut: MapSet.put(state.cut, :instance_limit)}}
 
       true ->
         {Enum.take(substs, room), %{state | cut: MapSet.put(state.cut, :statement_limit)}}
     end
   end
 
-  # All combinations of the candidate types of each schematic variable.
+  # All combinations of the candidate types of each schematic variable, lazily.
   defp substitutions(schema, known) do
     candidates =
       for {c, pargs} <- schema.patterns,
@@ -119,7 +120,8 @@ defmodule Astraea.Input.Monomorphizer do
 
     if Enum.all?(schema.tvars, &Map.has_key?(candidates, &1)) do
       Enum.reduce(schema.tvars, [%{}], fn var, substs ->
-        for s <- substs, ty <- Enum.sort(candidates[var]), do: Map.put(s, var, ty)
+        tys = Enum.sort(candidates[var])
+        Stream.flat_map(substs, fn s -> Stream.map(tys, &Map.put(s, var, &1)) end)
       end)
     else
       []

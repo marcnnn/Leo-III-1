@@ -135,7 +135,10 @@ defmodule Astraea.Input.Elaborator do
 
       {:error, %Node{kind: k} = q} when k in @quantified ->
         {ctx, tvs, ty} = poly_type(ctx, q)
-        {[], ctx |> feature(:th1) |> put_sig(name, {:poly, tvs, ty})}
+        # Canonical type parameters 0..n-1, so that alpha-equivalent redeclarations agree.
+        canonical = tvs |> Enum.with_index() |> Map.new(fn {v, k} -> {v, {:tvar, k}} end)
+        scheme = {:poly, Enum.to_list(0..(length(tvs) - 1)//1), IR.subst_ty(ty, canonical)}
+        {[], ctx |> feature(:th1) |> put_sig(name, scheme)}
 
       {:error, _} ->
         {ctx, ty} = type(ctx, ty_node)
