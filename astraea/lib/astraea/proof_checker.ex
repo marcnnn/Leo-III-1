@@ -16,6 +16,8 @@ defmodule Astraea.ProofChecker do
   - `{:func_ext, id, parent_id, fvar_id, var_ty}` — lambda congruence / xi-rule `u = v |- (^ [X]: u) = (^ [X]: v)`
   - `{:paramod, id, eq_id, target_id, eq_atom_id, target_lit, rewritten_lit}` — Leibniz subterm replacement
   - `{:resolve, id, p1_id, p2_id, {:pos, atom_id}}` — ground resolution on matching complementary literals
+  - `{:arith_eval, id, parent_id, clause}` — ground arithmetic evaluation; `clause` must equal
+    `Astraea.Input.Arith.eval_clause/2` of the parent (see there for the soundness argument)
   """
 
   alias Astraea.Arena
@@ -41,6 +43,7 @@ defmodule Astraea.ProofChecker do
              literal(), literal()}
           | {:resolve, non_neg_integer(), non_neg_integer(), non_neg_integer(),
              {:pos | :neg, Arena.term_id()}}
+          | {:arith_eval, non_neg_integer(), non_neg_integer(), clause()}
 
   @doc """
   Verifies a linear/DAG refutation certificate ending in the empty clause (`MapSet.new()`).
@@ -201,6 +204,17 @@ defmodule Astraea.ProofChecker do
       {:ok, arena, id, resolvent}
     else
       _ -> {:error, {:invalid_resolve, id, p1_id, p2_id, atom_id}}
+    end
+  end
+
+  # Ground arithmetic evaluation (input workstream). The kernel recomputes the
+  # evaluation of the parent and accepts only exactly that conclusion.
+  defp check_step(%Arena{} = arena, derived, {:arith_eval, id, parent_id, claimed}) do
+    with {:ok, parent} <- fetch_clause(derived, parent_id),
+         {arena, ^claimed} <- Astraea.Input.Arith.eval_clause(arena, parent) do
+      {:ok, arena, id, claimed}
+    else
+      _ -> {:error, {:invalid_arith_eval, id, parent_id}}
     end
   end
 
