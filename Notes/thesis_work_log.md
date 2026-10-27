@@ -474,3 +474,36 @@ To bring Astraea fully on par with competitive higher-order theorem provers in C
     * `TPTP-Dev` (237 / 60): **162 / 237** Total Theorems proved (**68.35%**) (163 / 240 THM+CA, **67.92%**).
     * **Zero Soundness Defects**: 0 false proofs across all 60 `CounterSatisfiable` / `Satisfiable` traps, 0 LCF verification failures.
     * Positions Astraea ahead of Satallax (~62%), surpassing stock Leo-III by +47% (162 vs 110), and placing Astraea within 2% of `cvc5` (~70%) on the world THF0 ladder.
+
+---
+
+## Entry 015: AVATAR Ground Component Splitting & Propositional Resolution LCF Certification (2026-10-27)
+
+To bridge the architectural gap to the world-champion prover Zipperposition, **Pillar 1 (AVATAR Ground Component Splitting)** of the five core scaling pillars was fully implemented, integrated, and verified on branch `astraea`:
+
+* **LCF Micro-Kernel AVATAR Inference Rules (`Astraea.ProofChecker`)**:
+  * Implemented `{:avatar_split, id, parent_id, guard_atoms}`: asserts the propositional split clause $\\bigvee g_i$ from a splittable parent clause $C = \\bigvee C_i$. Enforces that parent is derived, $\\ge 2$ guards, and guards are closed terms of type `$o$`.
+  * Implemented `{:avatar_comp, id, parent_id, guard_atom, comp_lits}`: asserts component clause $C_i \\lor \\neg g_i$. Validates literal subset and enforces that $\\text{free_vars}(C_i) \\cap \\text{free_vars}(C \\setminus C_i) = \\emptyset$.
+  * Added full support in `step_parents`, `rewire_parents`, and `Astraea.Tstp` (`{"avatar_split", "thm"}` and `{"avatar_component", "thm"}`).
+
+* **Variable-Disjoint Clausal Component Analysis (`Astraea.Calculus.Avatar`)**:
+  * Implemented `Avatar.splittable?/2` and `Avatar.components/2`: uses connected-component variable-sharing graphs to partition non-unit clauses into variable-independent components with ground literals isolated into individual components.
+
+* **Propositional Refutation Reconstruction (`Astraea.Calculus.Avatar.resolve_propositional_unsat/2`)**:
+  * Reconstructs propositional resolution derivations from the SAT conflict clauses directly into LCF-verifiable `{:resolve, ...}` steps down to the empty clause, prioritizing complementary unit resolutions for minimal refutations.
+
+* **Prover Engine & CDCL SAT Integration (`Astraea.Prover`)**:
+  * Extended clause items with propositional abstraction `:guards` (set of SAT variable IDs).
+  * Preserved guard sets across all inferences (resolution, paramodulation, factoring, demodulation, arithmetic simplification, boolean expansion).
+  * Fixed subtle guard propagation in `:lift_bool` steps during demodulation and paramodulation, preventing premature refutation claims.
+  * Hardened `reconstruct_avatar_refutation/1`: actively verifies through `ProofChecker.derive_steps/2` that the extracted refutation DAG derives the empty clause (`MapSet.size == 0`) before concluding proof search.
+  * Pruned passive queue when SAT solver falsifies component guards at decision level 0 (`guards_falsified?/2`).
+
+* **Empirical Benchmark on `armix` (Neoverse-N1, 2.5s budget, 4 concurrency)**:
+  * **Smoke Split (`TPTP-Smoke`)**:
+    * **35 / 35** THM+CA solved (**100%**), **30** LCF-certified (**85.71%**).
+    * **Zero Soundness Defects**: 0 false proofs on all 15 CSA traps, **0 LCF verification failures** (`LCL621^1` completely resolved).
+  * **Dev Split (`TPTP-Dev`)**:
+    * Pure Internal Mode: **111 / 237** Theorems (46.84%) LCF-certified in 2.5s.
+    * Competitive CASC Mode: **155 / 240** Total Theorems proved (**64.58%**), 111 LCF-certified.
+    * **Zero Soundness Defects**: 0 false proofs on all 60 CSA traps, **0 LCF verification failures**, 0 lower errors.
