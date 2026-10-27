@@ -288,3 +288,51 @@ Across all **264 verified higher-order refutations**, [`Astraea.Compressor.compr
 * The baseline reproduces Entry 007 exactly (`82 / 237` on `TPTP-Dev`).
 * External provers find many more refutations than can currently be reconstructed (`60` unverified on `TPTP-Dev`). Reconstruction fails when the core still needs inferences `Astraea.Prover` lacks within the remaining budget, so these are a direct target list for prover improvements.
 * `TPTP-Holdout` was not run, per its blind-benchmark policy.
+
+---
+
+## Entry 009: Leo-III Feature Parity Workstreams, Leo-III Baseline & Merged Evaluation (2026-10-27)
+
+Five parallel agents (worktrees from `b63f03e0`, disjoint file ownership) ported the remaining Leo-III features. Performance follows the project rule: everything is written in Elixir; bulk tabular kernels are integer `Nx.Defn` graphs compiled by NxSimd on `armix` (with plain-Elixir fallbacks), irregular recursion (unification, matching, KBO) stays plain Elixir. No new Rust code; the Rustler NIF from Entry 004 is no longer used by the loop.
+
+* **Calculus** (`astraea/lib/astraea/calculus/`, merge `22c9dc25`): Huet pre-unification with depth/unifier/step limits (default depth 2, 2 unifiers; Leo-III's 8/4 flooded 2.5 s runs), primitive substitution (levels 1-3), search-time clausification, `BoolExt`/`FuncExt` as inferences, KBO ordering restrictions and literal selection (off by default), Hilbert choice on `$choice`. HO fingerprint indexing (Schulz FP8 sample positions; flexible heads count as variables) with an NxSimd compatibility kernel: 1.0 vs 7.6 ms for 16 queries over 1,024 rows. New kernel rules `{:cnf, ...}` (one-step literal expansion recomputed by the kernel) and `{:choice, ...}`, each with forged-step rejection tests.
+* **Interface** (`tstp.ex`, `cli.ex`, `schedule.ex`, merge `7a9bc12b`): TSTP refutations (114 of 114 checked step by step with E/Vampire via `contrib/astraea_check_tstp.exs`), SZS answers following Leo-III's `appropriateThmStatus`/`appropriateSatStatus`, a Leo-III compatible CLI as a Mix release (`bin/astraea problem.p -t 60 -p`), Leo-III's 17 `RunStrategy` definitions as data in a time-sliced schedule, StarExec packaging (`contrib/package_starexec_astraea`).
+* **Input** (`astraea/lib/astraea/input/`, merge `a51eee64`): FOF/TFF/CNF, TH1 by bounded monomorphization, arithmetic (exact rationals, new kernel rule `{:arith_eval, ...}`), `@+`/`@-`, `$let`/`$ite`, tuples, modal logic via Kripke embedding (K to S5U). Untranslatable input is rejected (e.g. 131 dependent-type CAT problems). New locked split `TPTP-Extended` (150 non-strict problems, `tptp_extended_dev.txt`, disjoint from all three tiers). Found and fixed: `negated_conjecture` in FOF/CNF was negated twice.
+* **Engine** (`astraea/lib/astraea/engine/`, merge `bfe4ef98`): priority queues with weighted round-robin (Leo-III `MultiPriorityQueue`), all limits off by default, forward/backward subsumption with variables, demodulation with ordered rewriting (existing kernel steps only), incremental NxSimd feature-vector index (Elixir tail plus sealed SoA segments; NxSimd wins on batches from 1,024 rows, no difference at loop sizes), and a `complete` flag with `incomplete_reasons` that gates model answers.
+* **Baseline** (merge `0fa578df`): Leo-III 1.8.1 built on `armix` from this tree (`scripts/leo3_build.sh`), runs on Smoke/Dev at 2.5 s and 10 s, per-problem CSVs under `benchmarks/results/`, report and gap analysis in [`Notes/leo3_baseline.md`](file:///Users/marcnickert/Projects/opensource/Leo-III/Notes/leo3_baseline.md).
+
+### 9.1 Soundness Findings During Integration
+
+* **`complete` was too optimistic** (engine agent): 8 Dev Theorems (e.g. `SYN983^1`, which needs Boolean extensionality) saturated with no counted cutoff. `complete` now holds only for first-order input without equations the calculus cannot fully use.
+* **False CounterSatisfiable on `SYO931^1`** (final evaluation, fixed in `6c672e39`): global `[.] a` entails local `a` only on reflexive frames, so under the Kripke embedding for K (also Leo-III's) the clause set saturates, while TPTP lists the problem as Theorem (rating 1.00; Leo-III answers GaveUp). Model answers are now restricted to fragments that are faithful in both directions (plain THF/TFF/FOF/CNF, `$ite`, `$let`, `$distinct`); modal, TH1, arithmetic, choice, description and tuples remain available for proofs only. Whether the TPTP status or the embedding reflects the intended semantics is open.
+* **Clausifier loop** on `A <=> A` (factoring the shared conjunct produced `$true <=> $true`, which rewrote into itself), fixed in `fd2b13c6`.
+
+### 9.2 Final Evaluation of the Merged Head (`armix`, 2.5 s per problem, 3 problems in parallel, configurations run one after another)
+
+| Split | Configuration | `THM` LCF-Verified | Externally Assisted | Unverified External | `CSA`/`SAT` Answered | Soundness Failures |
+| :--- | :--- | :---: | :---: | :---: | :---: | :---: |
+| `TPTP-Smoke` (34 / 15) | Portfolio | `27` | `0` | `0` | `0` | `0` |
+| | Schedule (4 cores) | `27` | `0` | `0` | `1` | `0` |
+| | + E-HO/Vampire/cvc5 racers | **`30`** | `4` | `4` | `0` | `0` |
+| `TPTP-Dev` (237 / 60) | Portfolio | `97` | `0` | `0` | `0` | `0` |
+| | Schedule (4 cores) | `97` | `0` | `0` | **`23`** | `0` |
+| | + racers | **`108`** | `20` | `48` | `0` | `0` |
+| `TPTP-Extended` (141 / 8) | Portfolio | `23` | `0` | `0` | `0` | `0` |
+| | Schedule (4 cores) | `24` | `0` | `0` | `0` | `0` |
+| | + racers | `24` | `3` | `10` | `0` | `0` |
+
+* `TPTP-Dev` progression: `82` (Entry 007) to `93` with racers (Entry 008) to `97` internal and `108` with racers. Model answers went from none to `23 / 60` on `TPTP-Dev`.
+* `TPTP-Holdout` was not run, read or used for tuning by any agent.
+
+### 9.3 Comparison with Leo-III 1.8.1 (`TPTP-Dev`, 237 `THM`)
+
+| Prover | 2.5 s | 10 s |
+| :--- | :---: | :---: |
+| Leo-III stock | `63` | `110` |
+| Leo-III + E | `91` (unstable: 65-91 over three passes) | `131` |
+| Astraea merged head, internal | `97` | not yet measured |
+| Astraea merged head + racers | `108` | not yet measured |
+
+* At 2.5 s Leo-III loses 0.3-0.6 s to JVM startup and 0.6-1.0 s to parsing and warm-up (no solve under 1.45 s); without that overhead stock Leo-III would reach about 78. The Leo-III and Astraea baseline runs above were measured while other agents loaded `armix`.
+* **Gap closure:** of the 58 problems Leo-III solved and the Entry 008 Astraea did not, the merged head now solves 17 internally and 24 with racers; 34 remain open. By the features of Leo-III's proofs: unit rewriting 6 / 27 closed, choice 0 / 8 (Leo-III's `ChoiceControl` detects user-axiomatized choice functions in plain THF0, Astraea's rule only fires on `$choice`), Boolean extensionality 3 / 6, pre-unification beyond patterns 2 / 6, functional extensionality 2 / 5, special instances 2 / 5, primitive substitution 1 / 2.
+* **Next targets:** choice-function detection, demodulation effectiveness on the 21 open rewriting problems, and a 10 s run of the merged head for a like-for-like comparison with Leo-III's 110 / 131.
