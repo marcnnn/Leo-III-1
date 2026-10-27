@@ -3,12 +3,13 @@ defmodule Astraea.Experiments.MacroCachingEval do
   Empirical evaluation of:
   1. Proof DAG macro-compression (compressing multi-step primitive inferences into single rules).
   2. Sub-proof / Lemma Caching across theorem proving problems:
-     - Extracting non-trivial intermediate derived lemmas from solved proofs.
+     - Analyzing conjecture-dependency of derived sub-proofs in refutations.
+     - Extracting sound, theory-derived intermediate lemmas (pure consequences of axioms).
      - Testing whether caching & seeding these lemmas helps solve previously unsolved problems.
      - Measuring the impact on search efficiency (iterations, time, active clauses, swamping effect).
   """
 
-  alias Astraea.{Compressor, External.ThfPrinter, Portfolio, ProofChecker, TptpCorpus, TptpLower}
+  alias Astraea.{Clausifier, Compressor, External.ThfPrinter, Portfolio, ProofChecker, TptpCorpus, TptpLower, Tstp}
 
   def run(split \\ :smoke, opts \\ []) do
     timeout_ms = Keyword.get(opts, :timeout_ms, 2500)
@@ -38,14 +39,16 @@ defmodule Astraea.Experiments.MacroCachingEval do
       IO.puts("  * #{macro}: #{count}")
     end
 
-    # 3. Extract Derived Lemmas (Sub-proofs) from Solved Theorems
-    IO.puts("\n--- Phase 3: Sub-Proof Lemma Extraction ---")
-    lemmas_by_domain = extract_lemmas(baseline.raw_results)
-    total_lemmas = Enum.reduce(lemmas_by_domain, 0, fn {_, l}, acc -> acc + length(l) end)
-    IO.puts("Extracted #{total_lemmas} non-trivial derived lemmas across #{map_size(lemmas_by_domain)} domains:")
-    for {dom, lemmas} <- lemmas_by_domain do
-      units = Enum.count(lemmas, & &1.is_unit)
-      IO.puts("  * Domain #{dom}: #{length(lemmas)} lemmas (#{units} unit clauses / equalities)")
+    # 3. Analyze Sub-Proof Lineage & Conjecture Dependency
+    IO.puts("\n--- Phase 3: Sub-Proof Lineage & Sound Lemma Extraction ---")
+    lineage_stats = analyze_proof_lineage(baseline.raw_results)
+    IO.puts("Total Derived Steps Across All Proofs: #{lineage_stats.total_derived}")
+    IO.puts("  * Conjecture-Dependent Steps:        #{lineage_stats.conj_dependent} (#{lineage_stats.conj_pct}%)")
+    IO.puts("  * Sound Background-Axiom Lemmas:     #{lineage_stats.pure_axiom_lemmas} (#{lineage_stats.axiom_pct}%)")
+
+    pure_lemmas_by_domain = lineage_stats.lemmas_by_domain
+    for {dom, lemmas} <- pure_lemmas_by_domain do
+      IO.puts("  Domain #{dom}: #{length(lemmas)} sound background lemmas extracted")
     end
 
     # 4. Identify Solved vs Unsolved Problems
@@ -60,13 +63,13 @@ defmodule Astraea.Experiments.MacroCachingEval do
       |> Enum.map(fn {e, {:proved, steps, stats}, dur} -> {e, steps, stats, dur} end)
 
     IO.puts("\n--- Phase 4: Cross-Problem Lemma Transfer on Unsolved Problems ---")
-    IO.puts("Evaluating if caching sub-proof lemmas from solved problems can prove unsolved problems:")
+    IO.puts("Evaluating if caching sound sub-proof lemmas from solved problems can prove unsolved problems:")
     IO.puts("Unsolved problem count: #{length(unsolved_theorems)}")
 
     unsolved_transfer_results =
       for prob <- unsolved_theorems do
         path = TptpCorpus.problem_path(prob.problem)
-        dom_lemmas = Map.get(lemmas_by_domain, prob.domain, [])
+        dom_lemmas = Map.get(pure_lemmas_by_domain, prob.domain, [])
         eval_with_cached_lemmas(path, prob, dom_lemmas, timeout_ms)
       end
 
@@ -76,7 +79,7 @@ defmodule Astraea.Experiments.MacroCachingEval do
       IO.puts("  [SUCCESS] #{res.problem.problem} solved!")
     end
     if newly_solved == [] do
-      IO.puts("  [RESULT] 0 / #{length(unsolved_theorems)} open problems solved by injecting domain cached lemmas.")
+      IO.puts("  [RESULT] 0 / #{length(unsolved_theorems)} open problems solved by injecting sound domain lemmas.")
     end
 
     # 5. Search Efficiency & Utility Problem on Solved Problems
@@ -87,8 +90,7 @@ defmodule Astraea.Experiments.MacroCachingEval do
     utility_results =
       for {prob, _steps, base_stats, base_dur} <- test_sample do
         path = TptpCorpus.problem_path(prob.problem)
-        dom_lemmas = Map.get(lemmas_by_domain, prob.domain, [])
-        # Exclude lemmas that originated from this exact problem
+        dom_lemmas = Map.get(pure_lemmas_by_domain, prob.domain, [])
         external_lemmas = Enum.reject(dom_lemmas, &(&1.source == prob.problem))
 
         eval_utility(path, prob, base_stats, base_dur, external_lemmas, timeout_ms)
@@ -109,75 +111,151 @@ defmodule Astraea.Experiments.MacroCachingEval do
     %{
       baseline: baseline,
       comp_summary: comp_summary,
-      total_lemmas: total_lemmas,
+      lineage_stats: lineage_stats,
       unsolved_transfer_results: unsolved_transfer_results,
       utility_results: utility_results
     }
   end
 
-  defp extract_lemmas(raw_results) do
-    Enum.reduce(raw_results, %{}, fn
-      {entry, {:proved, steps, stats}, _ms}, acc when is_map(entry) and entry.status == "Theorem" ->
-        arena = stats.arena
-        prob = entry.problem
-        domain = entry.domain
+  defp analyze_proof_lineage(raw_results) do
+    Enum.reduce(
+      raw_results,
+      %{total_derived: 0, conj_dependent: 0, pure_axiom_lemmas: 0, lemmas_by_domain: %{}},
+      fn
+        {entry, {:proved, steps, stats}, _ms}, acc when is_map(entry) and entry.status == "Theorem" ->
+          path = TptpCorpus.problem_path(entry.problem)
+          domain = entry.domain
 
-        if arena && steps != [] do
-          case ProofChecker.derive_steps(arena, steps) do
-            {:ok, _ar, derived_map} ->
-              # Filter non-axiom, non-empty derived clauses
-              lemmas =
-                steps
-                |> Enum.reject(&(elem(&1, 0) == :axiom))
-                |> Enum.map(fn step ->
+          case TptpLower.from_file(path) do
+            {:ok, lowered} ->
+              # Compute keys of true background axioms
+              {ax_arena, ax_clauses} = Clausifier.clausify(%{lowered | conjectures: []}, sine_limit: nil)
+              axiom_keys = MapSet.new(ax_clauses, &Tstp.clause_key(ax_arena, &1))
+
+              # Build step graph
+              steps_map = Map.new(steps, fn s -> {elem(s, 1), s} end)
+
+              # Trace ancestor axiom ids for every step
+              axiom_sources =
+                Enum.reduce(steps, %{}, fn step, m ->
                   id = elem(step, 1)
-                  clause = Map.get(derived_map, id, MapSet.new())
-                  thf_str =
-                    try do
-                      ThfPrinter.clause_to_string(arena, clause)
-                    rescue
-                      _ -> nil
+                  case step do
+                    {:axiom, _, clause} ->
+                      key = Tstp.clause_key(stats.arena, clause)
+                      is_axiom? = MapSet.member?(axiom_keys, key)
+                      Map.put(m, id, if(is_axiom?, do: :axiom, else: :conjecture))
+
+                    _other ->
+                      m
+                  end
+                end)
+
+              # Trace dependency for derived steps
+              case ProofChecker.derive_steps(stats.arena, steps) do
+                {:ok, _ar, derived_map} ->
+                  derived_steps = Enum.reject(steps, &(elem(&1, 0) == :axiom))
+
+                  {c_dep, p_lemmas} =
+                    Enum.reduce(derived_steps, {0, []}, fn step, {cd, pl} ->
+                      id = elem(step, 1)
+                      clause = Map.get(derived_map, id, MapSet.new())
+
+                      if MapSet.size(clause) == 0 do
+                        {cd + 1, pl}
+                      else
+                        ancestors = collect_ancestors(steps_map, [id], MapSet.new())
+                        touches_conj? =
+                          Enum.any?(ancestors, fn anc_id ->
+                            Map.get(axiom_sources, anc_id) == :conjecture
+                          end)
+
+                        if touches_conj? do
+                          {cd + 1, pl}
+                        else
+                          thf_str =
+                            try do
+                              ThfPrinter.clause_to_string(stats.arena, clause)
+                            rescue
+                              _ -> nil
+                            end
+
+                          if thf_str do
+                            lemma = %{
+                              id: id,
+                              clause: clause,
+                              thf: thf_str,
+                              is_unit: MapSet.size(clause) == 1,
+                              source: entry.problem
+                            }
+                            {cd, [lemma | pl]}
+                          else
+                            {cd, pl}
+                          end
+                        end
+                      end
+                    end)
+
+                  new_lemmas_by_domain =
+                    if p_lemmas != [] do
+                      Map.update(acc.lemmas_by_domain, domain, p_lemmas, &(&1 ++ p_lemmas))
+                    else
+                      acc.lemmas_by_domain
                     end
 
                   %{
-                    id: id,
-                    rule: elem(step, 0),
-                    clause: clause,
-                    thf: thf_str,
-                    is_unit: MapSet.size(clause) == 1,
-                    source: prob
+                    acc
+                    | total_derived: acc.total_derived + length(derived_steps),
+                      conj_dependent: acc.conj_dependent + c_dep,
+                      pure_axiom_lemmas: acc.pure_axiom_lemmas + length(p_lemmas),
+                      lemmas_by_domain: new_lemmas_by_domain
                   }
-                end)
-                |> Enum.reject(&(MapSet.size(&1.clause) == 0 or is_nil(&1.thf)))
-                # Keep small lemmas (at most 2 literals)
-                |> Enum.filter(&(MapSet.size(&1.clause) <= 2))
 
-              Map.update(acc, domain, lemmas, &(&1 ++ lemmas))
+                _ ->
+                  acc
+              end
 
             _ ->
               acc
           end
-        else
-          acc
-        end
 
-      _other, acc ->
-        acc
-    end)
+        _other, acc ->
+          acc
+      end
+    )
+    |> finalize_lineage_stats()
+  end
+
+  defp finalize_lineage_stats(st) do
+    tot = max(st.total_derived, 1)
+    Map.merge(st, %{
+      conj_pct: Float.round(st.conj_dependent * 100.0 / tot, 2),
+      axiom_pct: Float.round(st.pure_axiom_lemmas * 100.0 / tot, 2)
+    })
+  end
+
+  defp collect_ancestors(_steps_map, [], visited), do: visited
+
+  defp collect_ancestors(steps_map, [id | rest], visited) do
+    if MapSet.member?(visited, id) do
+      collect_ancestors(steps_map, rest, visited)
+    else
+      step = Map.get(steps_map, id)
+      parents = if step, do: ProofChecker.step_parents(step), else: []
+      collect_ancestors(steps_map, parents ++ rest, MapSet.put(visited, id))
+    end
   end
 
   defp eval_with_cached_lemmas(path, prob, dom_lemmas, timeout_ms) do
     original_source = File.read!(path)
 
-    # Filter unit lemmas with valid THF strings
     candidate_lemmas =
       dom_lemmas
       |> Enum.filter(& &1.is_unit)
       |> Enum.take(10)
 
     if candidate_lemmas == [] do
-      IO.puts("  #{prob.problem}: No compatible domain lemmas available in cache.")
-      %{problem: prob, proved: false, note: "No domain lemmas"}
+      IO.puts("  #{prob.problem}: No compatible sound domain lemmas in cache.")
+      %{problem: prob, proved: false, note: "No sound domain lemmas"}
     else
       lemma_lines =
         candidate_lemmas
@@ -197,8 +275,9 @@ defmodule Astraea.Experiments.MacroCachingEval do
 
           case res do
             {:proved, steps, stats} ->
-              IO.puts("  #{prob.problem}: PROVED with #{length(candidate_lemmas)} cached lemmas in #{stats.strategy}! (#{dur}ms)")
-              %{problem: prob, proved: true, duration_ms: dur, iterations: stats.iterations, steps: length(steps)}
+              strat = Map.get(stats, :winning_strategy, Map.get(stats, :strategy, :unknown))
+              IO.puts("  #{prob.problem}: PROVED with #{length(candidate_lemmas)} cached lemmas in #{strat}! (#{dur}ms)")
+              %{problem: prob, proved: true, duration_ms: dur, iterations: Map.get(stats, :iterations, 0), steps: length(steps)}
 
             _ ->
               IO.puts("  #{prob.problem}: Still unsolved with #{length(candidate_lemmas)} cached lemmas.")
@@ -222,8 +301,8 @@ defmodule Astraea.Experiments.MacroCachingEval do
       |> Enum.take(5)
 
     if candidate_lemmas == [] do
-      IO.puts("  #{prob.problem}: No external lemmas in domain to inject.")
-      %{problem: prob.problem, iter_diff: 0, time_diff: 0.0, note: "No external lemmas"}
+      IO.puts("  #{prob.problem}: No sound external lemmas in domain to inject.")
+      %{problem: prob.problem, iter_diff: 0, time_diff: 0.0, note: "No sound external lemmas"}
     else
       lemma_lines =
         candidate_lemmas
@@ -243,10 +322,11 @@ defmodule Astraea.Experiments.MacroCachingEval do
 
           case res do
             {:proved, _steps, stats} ->
-              iter_diff = stats.iterations - base_iters
+              iters = Map.get(stats, :iterations, 0)
+              iter_diff = iters - base_iters
               time_diff = dur - (base_dur * 1000.0)
 
-              IO.puts("  #{prob.problem}: iters #{base_iters} -> #{stats.iterations} (#{format_diff(iter_diff)}), time #{Float.round(base_dur * 1000.0, 1)}ms -> #{dur}ms (#{format_diff(time_diff)}ms)")
+              IO.puts("  #{prob.problem}: iters #{base_iters} -> #{iters} (#{format_diff(iter_diff)}), time #{Float.round(base_dur * 1000.0, 1)}ms -> #{dur}ms (#{format_diff(time_diff)}ms)")
               %{problem: prob.problem, iter_diff: iter_diff, time_diff: time_diff}
 
             {:saturated, _stats} ->
