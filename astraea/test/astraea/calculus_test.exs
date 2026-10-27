@@ -3,7 +3,7 @@ defmodule Astraea.CalculusTest do
   use ExUnitProperties
 
   alias Astraea.{Arena, ProofChecker, Prover}
-  alias Astraea.Calculus.{Cnf, FingerprintIndex, Ordering, PrimSubst, Terms, Unify}
+  alias Astraea.Calculus.{Choice, Cnf, FingerprintIndex, Ordering, PrimSubst, Terms, Unify}
 
   # ---------------------------------------------------------------------------
   # Random terms over a small higher-order signature:
@@ -405,6 +405,36 @@ defmodule Astraea.CalculusTest do
 
     assert {:saturated, _} =
              Prover.prove_clauses(arena, clauses, timeout_ms: 1_000, choice: false)
+  end
+
+  test "user-defined choice axiom detection and instantiation" do
+    {arena, s} = prop_sig()
+    # Define a choice operator constant: eps: (i > $o) > i
+    {arena, eps} = Arena.mk_const(arena, "eps", {:arrow, s.io, :i})
+
+    # Choice axiom: ~ (P @ X) | P @ (eps @ P)
+    # P: i > $o (fvar 10), X: i (fvar 11)
+    {arena, p_var} = Arena.mk_fvar(arena, 10, s.io)
+    {arena, x_var} = Arena.mk_fvar(arena, 11, :i)
+    {arena, px} = Arena.mk_app(arena, p_var, x_var)
+    {arena, eps_p} = Arena.mk_app(arena, eps, p_var)
+    {arena, p_eps} = Arena.mk_app(arena, p_var, eps_p)
+
+    choice_ax = MapSet.new([{:neg, px}, {:pos, p_eps}])
+
+    assert {:ok, info} = Choice.detect_axiom(arena, choice_ax)
+    assert info.choice_head == eps
+    assert info.pred_fvar_id == 10
+    assert info.witness_fvar_id == 11
+
+    # Goal: p(a), ~ p(eps @ p), plus choice axiom
+    {arena, eps_sp} = Arena.mk_app(arena, eps, s.p)
+    {arena, sp_eps} = Arena.mk_app(arena, s.p, eps_sp)
+
+    clauses = [choice_ax, MapSet.new([{:pos, s.pa}]), MapSet.new([{:neg, sp_eps}])]
+
+    assert {:proved, steps, _} = Prover.prove_clauses(arena, clauses, timeout_ms: 2_000)
+    assert :subst in kinds(steps)
   end
 
   test "soundness trap: an invalid higher-order goal is not proved" do

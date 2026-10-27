@@ -101,7 +101,8 @@ defmodule Astraea.Prover do
             coop_log: [],
             unification_cutoffs: 0,
             fp_index: nil,
-            choice_done: MapSet.new()
+            choice_done: MapSet.new(),
+            choice_axioms: %{}
 
   @type result ::
           {:proved, [ProofChecker.step()], map()}
@@ -338,6 +339,20 @@ defmodule Astraea.Prover do
             id -> {st, clause_item(st, id, clause, 0)}
           end
 
+        st =
+          if calculus_opt(st, :choice, true) do
+            case Choice.detect_axiom(st.arena, c_item.lits) do
+              {:ok, info} ->
+                info = Map.put(info, :ax_item, c_item)
+                %{st | choice_axioms: Map.put(st.choice_axioms, info.choice_head, info)}
+
+              :none ->
+                st
+            end
+          else
+            st
+          end
+
         {add_unit(st, c_item), [c_item | acc]}
       end)
 
@@ -345,7 +360,14 @@ defmodule Astraea.Prover do
 
     # Pass 2: Condense, unit-simplify, and equality-resolve initial clauses
     Enum.reduce_while(axiom_items, {:cont, state}, fn c_item, {:cont, st} ->
-      if MapSet.size(c_item.lits) == 0 do
+      choice_ax? =
+        calculus_opt(st, :choice, true) and
+          Enum.any?(st.choice_axioms, fn {_head, info} -> info.ax_item.id == c_item.id end)
+
+      if choice_ax? do
+        {:cont, {:cont, st}}
+      else
+        if MapSet.size(c_item.lits) == 0 do
         {:halt, {:proved, st, c_item.id}}
       else
         {st, cond_item} = condense_clause(st, c_item)
@@ -364,6 +386,7 @@ defmodule Astraea.Prover do
                 {:cont, {:cont, st4}}
             end
         end
+      end
       end
     end)
   end
@@ -1443,34 +1466,54 @@ defmodule Astraea.Prover do
     end
   end
 
-  # 8. Hilbert choice instances for `$choice @ P` occurring in the given clause
+  # 8. Hilbert choice instances for `$choice @ P` or user choice `F @ P` occurring in the given clause
   defp try_choice(%__MODULE__{} = state, given) do
-    preds =
+    choice_heads = Map.keys(state.choice_axioms)
+
+    targets =
       if calculus_opt(state, :choice, true),
         do:
           state.arena
-          |> Choice.predicates(given.lits)
+          |> Choice.predicates(given.lits, choice_heads)
           |> Enum.reject(&MapSet.member?(state.choice_done, &1)),
         else: []
 
-    each_inference(state, preds, fn st, pred ->
-      fvar = st.next_fvar_id
-      st = %{st | next_fvar_id: fvar + 1, choice_done: MapSet.put(st.choice_done, pred)}
+    each_inference(state, targets, fn st, {op, pred} ->
+      st = %{st | choice_done: MapSet.put(st.choice_done, {op, pred})}
 
-      case ProofChecker.choice_instance(st.arena, pred, fvar) do
-        {:ok, arena, clause} ->
-          {st, item} =
-            add_step(
-              %{st | arena: arena},
-              {:choice, st.next_step_id, pred, fvar},
-              clause,
-              given.depth
-            )
+      case op do
+        :builtin ->
+          fvar = st.next_fvar_id
+          st = %{st | next_fvar_id: fvar + 1}
 
-          {:cont, st, [item]}
+          case ProofChecker.choice_instance(st.arena, pred, fvar) do
+            {:ok, arena, clause} ->
+              {st, item} =
+                add_step(
+                  %{st | arena: arena},
+                  {:choice, st.next_step_id, pred, fvar},
+                  clause,
+                  given.depth
+                )
 
-        :error ->
-          {:cont, st, []}
+              {:cont, st, [item]}
+
+            :error ->
+              {:cont, st, []}
+          end
+
+        user_head ->
+          case Map.fetch(st.choice_axioms, user_head) do
+            {:ok, info} ->
+              {arena, fresh_witness} = Arena.mk_fvar(st.arena, st.next_fvar_id, info.dom_ty)
+              subst = %{info.pred_fvar_id => pred, info.witness_fvar_id => fresh_witness}
+              st = %{st | arena: arena, next_fvar_id: st.next_fvar_id + 1}
+              {st, item} = emit_subst_step(st, info.ax_item, subst, given.depth)
+              {:cont, st, [item]}
+
+            :error ->
+              {:cont, st, []}
+          end
       end
     end)
   end
