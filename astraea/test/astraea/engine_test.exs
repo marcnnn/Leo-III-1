@@ -112,7 +112,7 @@ defmodule Astraea.EngineTest do
       assert PassiveQueue.size(q) == length(live)
 
       {popped, _} =
-        Enum.map_reduce(1..length(live), {q, live}, fn n, {q, left} ->
+        Enum.map_reduce(1..length(live)//1, {q, live}, fn n, {q, left} ->
           {item, q} = PassiveQueue.pop(q)
 
           expected =
@@ -333,5 +333,22 @@ defmodule Astraea.EngineTest do
     assert {:saturated, capped} = Prover.prove_string(@sat_src, max_clause_lits: 1)
     refute capped.complete
     assert :clause_lits_limit in capped.incomplete_reasons
+  end
+
+  @boolean_src """
+  thf(a_const, type, a: $o).
+  thf(b_const, type, b: $o).
+  thf(p_const, type, p: $o > $o).
+  thf(thm, conjecture, ((p @ a) & (p @ b)) => (p @ (a & b))).
+  """
+
+  # A theorem the calculus cannot refute (it needs Boolean extensionality): its
+  # saturation must not count as a model.
+  test "a higher-order saturation is never complete" do
+    case Prover.prove_string(@boolean_src, timeout_ms: 1_000) do
+      {:saturated, stats} -> assert :higher_order in stats.incomplete_reasons
+      {tag, _} -> assert tag == :resource_out
+      {:proved, _, _} -> :ok
+    end
   end
 end

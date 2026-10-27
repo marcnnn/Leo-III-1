@@ -34,7 +34,7 @@ defmodule Astraea.Prover do
   """
 
   alias Astraea.{Arena, Clausifier, External, ProofChecker, TptpCorpus, TptpLower}
-  alias Astraea.Engine.{Demodulator, FVIndex, HeadIndex, PassiveQueue, Subsumption}
+  alias Astraea.Engine.{Demodulator, Fragment, FVIndex, HeadIndex, PassiveQueue, Subsumption}
   alias Astraea.External.Reconstruct
   alias Astraea.Input.Arith
   alias Astraea.Calculus.{Choice, Cnf, FingerprintIndex, Ordering, PrimSubst, Terms, Unify}
@@ -88,6 +88,7 @@ defmodule Astraea.Prover do
             backward_rewritten: 0,
             wide_equations: false,
             arith: false,
+            higher_order: false,
             refuted: nil,
             deadline_ms: nil,
             opts: [],
@@ -198,6 +199,7 @@ defmodule Astraea.Prover do
       active_index: FVIndex.new(index_opts),
       fp_index: new_fingerprints(opts),
       arith: arithmetic?(arena),
+      higher_order: not Fragment.first_order?(arena, input_clauses),
       passive: PassiveQueue.new(Keyword.get(opts, :pick_ratio, score: 3, age: 1)),
       passive_index: FVIndex.new(index_opts),
       max_iterations: Keyword.get(opts, :max_iterations, :infinity),
@@ -447,15 +449,18 @@ defmodule Astraea.Prover do
       else: state
   end
 
-  # `paramod_directed/3` only paramodulates from clauses of at most two literals.
+  # Positive equations the calculus cannot fully use: `paramod_directed/3` only
+  # paramodulates from clauses of at most two literals, and there is no equality
+  # factoring for clauses with two positive equations.
   defp note_wide_equation(%__MODULE__{} = state, item) do
-    wide? =
-      MapSet.size(item.lits) > 2 and
-        Enum.any?(item.lits, fn {pol, atom} ->
-          pol == :pos and match?({@tag_eq, _, _, _, _}, Arena.get_node(state.arena, atom))
-        end)
+    pos_eqs =
+      Enum.count(item.lits, fn {pol, atom} ->
+        pol == :pos and match?({@tag_eq, _, _, _, _}, Arena.get_node(state.arena, atom))
+      end)
 
-    if wide?, do: %{state | wide_equations: true}, else: state
+    if pos_eqs >= 2 or (pos_eqs == 1 and MapSet.size(item.lits) > 2),
+      do: %{state | wide_equations: true},
+      else: state
   end
 
   defp add_unit(%__MODULE__{} = state, item) do
@@ -1921,7 +1926,8 @@ defmodule Astraea.Prover do
   # Why a saturated run does not show satisfiability (empty: it does, relative to
   # the calculus). A finite `:max_clause_lits` also makes paramodulation skip
   # partners silently, so it counts even when nothing was discarded at enqueue;
-  # so does an active equation in a clause of more than two literals. Subsumption,
+  # so does an active equation the calculus cannot fully use (`note_wide_equation/2`),
+  # and input outside the first-order fragment (`Engine.Fragment`). Subsumption,
   # condensation, unit simplification and tautology deletion only remove clauses an
   # instance of a kept clause covers, which every lifted inference of this calculus
   # preserves (blocked flex inferences count as unification cutoffs). Demodulation
@@ -1931,6 +1937,7 @@ defmodule Astraea.Prover do
     [
       discarded: state.discarded_clauses > 0,
       clause_lits_limit: state.max_clause_lits != :infinity,
+      higher_order: state.higher_order,
       wide_equations: state.wide_equations,
       demodulation: state.rewrites > 0,
       sine: state.sine_filtered,
