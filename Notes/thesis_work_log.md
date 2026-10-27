@@ -422,3 +422,28 @@ To close the remaining gap toward state-of-the-art HO-superposition provers (Vam
   * `TPTP-Smoke` (34 / 15): **`27 / 34`** Theorems proved (`79.41%`), **0** false proofs across all 15 CSA traps, **0** LCF verification failures.
   * `TPTP-Dev` (237 / 60): **`109 / 237`** Theorems proved (**`45.99%`**), advancing the pure internal solver past Leo-III stock's 10 s wall count (`110`) while running strictly within **2.5 s**.
   * **Soundness Guarantee:** **0** false theorems on `CounterSatisfiable` / `Satisfiable` traps, **0** LCF verification failures.
+
+---
+
+## Entry 013: Persistent Theory Sessions, Sound Lineage Harvesting, and Dual Interactive/LTB Protocol Engine (2026-10-27)
+
+Following the empirical evaluation of sub-proof caching on branch `experiment/subproof-macro-caching` (showing that 78.7% of refutation steps are conjecture-dependent and naive caching introduces contradictory axioms), we implemented a persistent, stateful theory coordination engine tailored for real-world automated reasoning workflows (Isabelle Sledgehammer, Lean 4 hammers, Dafny verification conditions, and CASC LTB batches):
+
+* **Persistent Theory Session Coordinator (`Astraea.Session`)**:
+  * Implemented `Astraea.Session`: a stateful OTP GenServer that parses, type-checks, definition-inlines, and clausifies massive shared background theories once.
+  * Dispatches queries against the pre-warmed theory without re-parsing or re-clausifying background axioms, eliminating 300ms–1,000ms cold-start latency per verification query.
+
+* **Sound Refutation Lineage Analyzer (`Astraea.Session.Lineage`)**:
+  * Implemented `Lineage.harvest_theory_lemmas/3`: leverages `Astraea.ProofChecker.derive_steps/2` to inspect refutation DAGs and trace ancestor dependencies to input clauses.
+  * Filters out conjecture-dependent clauses and extracts exclusively pure background-theory consequences ($Axioms \vdash L$).
+
+* **Oriented Rewrite Rule Indexing (`Astraea.Session.DemodCache`)**:
+  * Implemented `Astraea.Session.DemodCache`: converts harvested unit equational lemmas ($s = t$) into KBO-oriented rewrite rules ($s \succ_{KBO} t \implies s \to t$).
+  * Directly integrates rules into `Astraea.Engine.Demodulator`, avoiding the "utility problem" (passive queue combinatorial swamping) by ensuring derived lemmas act exclusively as deterministic simplifiers.
+
+* **Dual Interface Protocol Engines**:
+  1. **Streaming JSON-RPC Protocol (`Astraea.Session.Interactive`)**: Bi-directional JSON-RPC 2.0 streaming engine supporting `init_theory`, `prove_goal`, and `session_stats` for interactive proof assistants (Isabelle, Lean, Coq).
+  2. **CASC LTB Batch Runner (`Astraea.Session.Ltb`)**: Ingests standard CASC Large Theory Batch specifications (`BatchConfiguration`, `BatchIncludes`, `BatchProblems`), maintaining warm theory and demodulator state across problem streams.
+
+* **Verification**:
+  * Added test suite [`Astraea.SessionTest`](file:///Users/marcnickert/Projects/opensource/Leo-III/astraea/test/astraea/session_test.exs): 100% pass rate locally and on `armix` (148 tests: 11 properties, 137 unit tests, 0 failures).

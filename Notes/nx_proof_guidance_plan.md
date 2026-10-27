@@ -150,91 +150,143 @@ end
 
 ---
 
-## 4. Proof Recording & Ground-Truth Extraction
+## 4. Teaching the Model What a "Good Proof Search" Looks Like
 
-To train the guidance heads without manual supervision, Astraea leverages the **self-supervised refutation loop**: every successful refutation produces an exact ground-truth certificate.
+Treating proof guidance as naive binary classification ($y \in \{0, 1\}$) fails: it cannot distinguish an **optimal 10-step refutation** from a **bloated 3,000-step detour** that stumbled across `$false$` by accident.
+
+A rigorous guidance model requires learning four core dimensions of search quality:
 
 ```
-                         Successful Saturation Refutation
-                                        │
-                                        ▼
-                         TSTP Derivation DAG ($false)
-                                        │
-                    ┌───────────────────┴───────────────────┐
-                    ▼                                       ▼
-         Positive Ancestor Set                   Negative Trajectory Set
-          (All nodes in DAG)                   (Processed clauses not in DAG)
-               Label: 1                                   Label: 0
-                    │                                       │
-                    └───────────────────┬───────────────────┘
-                                        ▼
-                        Balanced Pairwise Training Set
-                      (1 Positive : 4 Hard Negatives)
+                  [Axiom 1]          [Axiom 2]
+                      │                  │
+                      ▼                  ▼
+               [Bridge Lemma L] ◄─── (High Centrality: Fan-Out = 4)
+                /     │      \
+               ▼      ▼       ▼
+             [C1]   [C2]     [C3]   (Intermediate derivation)
+               \      │       /
+                ▼     ▼      ▼
+                  [$false]          (Distance = 0, Highest Proximity)
 ```
 
-### 4.1. Sound Lineage Extraction
-1. **Positive Clauses ($y = 1$):** Traverse the refutation DAG backwards from the empty clause `$false` via parent annotations (`ClauseAnnotation.InferredFrom`). Every clause in this transitive closure was strictly necessary for the proof.
-2. **Hard Negatives ($y = 0$):** Clauses that were selected as the Given Clause and expanded into the active set during the search, but do not belong to the refutation DAG.
-3. **Easy Negatives (Pruning Targets):** Clauses generated into the passive queue that were never selected before the proof finished.
+### 4.1. Formal Metrics of Search Quality
+1. **Contraction / Information Efficiency ($\eta$):**
+   $$\eta = \frac{|\text{Refutation DAG Ancestors}|}{|\text{Total Processed Clauses}|}$$
+   A weak heuristic achieves $\eta \approx 0.01$ (99% wasted derivations). A model trained on high-quality search drives $\eta \to 0.50$–$0.80$.
+2. **Derivation Depth to Goal:** Minimizing the length of the longest path from any input clause to `$false$`.
+3. **Explosion Avoidance:** Penalizing clauses that generate large sets of un-subsumable children without closing goals.
 
-### 4.2. Feature Extraction Schema
-Each clause is serialized to an integer feature vector $\mathbf{v} \in \mathbb{N}^{16}$:
-1. Total symbol weight.
-2. Number of literals.
-3. Maximum literal depth.
-4. Number of positive literals.
-5. Number of negative literals.
-6. Number of free higher-order variables.
-7. Number of applied $\lambda$-abstractions / combinator applications.
-8. Maximum term order (base type = 1, predicate on individuals = 2, etc.).
-9. Presence of primitive equality (`=`).
-10. Presence of higher-order choice operators (`@+`, `@-`).
-11. Presence of Boolean extensionality literals.
-12. Number of de Bruijn bound occurrences.
-13. Content-addressed Skolem dependency hash.
-14. Depth in inference tree from input axioms.
-15. Age (generation timestamp bucket).
-16. Unification complexity class (0: first-order, 1: pattern, 2: general flex-rigid).
+### 4.2. Continuous Topological DAG Valuation
+Instead of binary labels, each clause in a refutation is assigned a continuous target score $V(C) \in [0.0, 1.0]$ based on the topology of the derivation DAG:
+
+1. **Refutation Proximity (Discounted Proximity):**
+   $$V_{\text{dist}}(C) = \gamma^{\text{depth}(C \to \$false)}, \quad \gamma = 0.90$$
+   Clauses 1 step from `$false$` receive $V \approx 0.90$; clauses 10 steps away receive $V \approx 0.35$.
+2. **Graph Centrality (Fan-Out / Keystone Impact):**
+   Clauses that serve as premises for multiple downstream refutation branches are **keystone lemmas**:
+   $$V_{\text{impact}}(C) = \log_2\left(1 + |\text{Descendants}(C) \cap \text{ProofDAG}|\right)$$
+3. **Combined Target Valuation:**
+   $$y(C) = \mu \cdot V_{\text{dist}}(C) + (1 - \mu) \cdot \frac{V_{\text{impact}}(C)}{\max_{C'} V_{\text{impact}}(C')}$$
+4. **Redundancy Penalty for Hard Negatives:**
+   Clauses expanded during the search that did not appear in the DAG receive target $y = 0.0$, weighted by the number of fruitless children they spawned.
+
+### 4.3. Contrastive Pairwise / Margin Ranking Loss
+At any given step in the saturation loop, the prover faces a pool of candidate passive clauses. The model must learn **relative progress**: ranking the refutation clause higher than all simultaneous distractors.
+
+We train using **Pairwise Margin Ranking Loss**:
+$$\mathcal{L}_{\text{rank}} = \frac{1}{|N^-|} \sum_{C^- \in N^-} \max\left(0, \Delta - S(C^+) + S(C^-)\right)$$
+where $C^+$ is the true refutation ancestor, $N^-$ is the set of distractor clauses available in the passive queue at that exact step, and $\Delta = 0.20$ is the target separation margin.
+
+### 4.4. Proof Distillation via Compression Filters
+Raw ATP refutations frequently contain circular rewrites, subsumed detours, and trivial normalization steps. Training directly on raw traces reinforces heuristic bloat.
+
+Astraea applies proof compression ([`CompressProof.scala`](file:///Users/marcnickert/Projects/opensource/Leo-III/src/main/scala/leo/modules/proof_object/CompressProof.scala) / [`Astraea.Compressor`](file:///Users/marcnickert/Projects/opensource/Leo-III/astraea/lib/astraea/compressor.ex)) prior to dataset extraction:
+* Tautological inference cycles are eliminated.
+* Linear single-premise normalization chains are collapsed into derived macro-rules.
+* Intermediate clauses superseded by forward subsumers are pruned.
 
 ---
 
-## 5. Native Training Pipeline with `Axon`
+## 5. The Iterative Curriculum Loop ("ATP DAgger" / Bootstrapped Self-Play)
 
-Training is executed natively within the BEAM ecosystem using `Axon` and `EXLA`, completely removing external Python/PyTorch dependencies.
+Training on a static corpus of existing proofs leads to distribution shift: when the guided prover explores new areas of the search space, it encounters unfamiliar clause distributions and fails.
+
+To overcome this, Astraea implements an **iterative re-proving curriculum** (analogous to DAgger and AlphaZero):
+
+```
+                       ┌───────────────────────────────┐
+                       │   TPTP Training Split (Dev)   │
+                       └──────────────┬────────────────┘
+                                      │
+                                      ▼
+                        Run Baseline Heuristic Prover
+                                      │
+                                      ▼
+                       Extract Proofs & Initial Dataset D_0
+                                      │
+                                      ▼
+               ┌──────────────► Train Nx Model M_i
+               │                      │
+               │                      ▼
+               │          Run Prover Guided by Model M_i
+               │          - Solves problems with 40-70% fewer steps
+               │          - Solves NEW problems previously timed out
+               │                      │
+               │                      ▼
+               │          Extract New, Cleaner Refutations
+               │                      │
+               │                      ▼
+               └───────── Aggregate Dataset: D_{i+1} = D_i ∪ NewProofs
+                          (Discard bloated proofs in favor of tighter runs)
+```
+
+1. **Iteration 0 (Bootstrap):** Run baseline Astraea/Leo-III across [`tptp_thf0_dev.txt`](file:///Users/marcnickert/Projects/opensource/Leo-III/benchmarks/manifests/tptp_thf0_dev.txt) with a 10s timeout. Extract initial derivation DAGs ($D_0$).
+2. **Train Model $M_0$:** Train the `Nx` decision head using margin ranking loss on $D_0$.
+3. **Iteration 1 (Re-proving):** Run Astraea with $M_0$ guidance:
+   * Previously solved problems are solved in significantly fewer steps (higher $\eta$).
+   * A fraction of previously timed-out problems are solved due to reduced search bloat.
+4. **Dataset Distillation:** For each problem, if $M_0$ found a shorter refutation than the baseline, **replace the old trace with the shorter trace**. Add newly unlocked problems to the corpus.
+5. **Iterate:** Retrain $M_{i+1}$ on $D_{i+1}$. The model progressively refines its representation of what economical, purposeful deduction looks like.
+
+---
+
+## 6. Native Training & Loss Implementation in `Nx` / `Axon`
 
 ```elixir
-defmodule Astraea.Guidance.Model do
+defmodule Astraea.Guidance.SearchQualityLoss do
   @moduledoc """
-  Axon model definitions for proof guidance.
+  Differentiable loss functions in Nx.Defn enforcing search efficiency.
   """
-  require Axon
+  import Nx.Defn
 
-  def build_scorer do
-    # Input: Concatenated conjecture features and candidate features: {batch, 32}
-    Axon.input("features", shape: {nil, 32})
-    |> Axon.dense(64, activation: :mish)
-    |> Axon.layer_norm()
-    |> Axon.dropout(rate: 0.1)
-    |> Axon.dense(32, activation: :mish)
-    |> Axon.dense(1, activation: :sigmoid)
+  @doc """
+  Pairwise Margin Ranking Loss:
+  Enforces that the true refutation clause (pos_score) is ranked
+  at least `margin` higher than each negative candidate (neg_scores).
+  """
+  defn margin_ranking_loss(pos_score, neg_scores, margin \\ 0.2) do
+    # pos_score: {batch, 1}
+    # neg_scores: {batch, num_negatives}
+    diff = neg_scores - pos_score + margin
+    relu_diff = Nx.max(diff, 0.0)
+    Nx.mean(relu_diff)
   end
 
-  def train_from_proof_logs(dataset_stream, epochs \\ 10) do
-    model = build_scorer()
-    loss = &Axon.Losses.binary_cross_entropy/2
-    optimizer = Polaris.Optimizers.adamw(learning_rate: 1e-3, weight_decay: 1e-4)
-
-    model
-    |> Axon.Loop.trainer(loss, optimizer)
-    |> Axon.Loop.metric(&Axon.Metrics.accuracy(&1, &2, threshold: 0.5), "accuracy")
-    |> Axon.Loop.run(dataset_stream, %{}, epochs: epochs, compiler: EXLA)
+  @doc """
+  Topological Value Loss:
+  Predicts continuous DAG valuation score y(C) with quadratic penalty
+  weighted by keystone lemma centrality.
+  """
+  defn weighted_value_loss(pred_scores, target_values, impact_weights) do
+    squared_error = Nx.pow(pred_scores - target_values, 2)
+    Nx.mean(squared_error * impact_weights)
   end
 end
 ```
 
 ---
 
-## 6. Runtime Integration into `Astraea.Engine.PassiveQueue`
+## 7. Runtime Integration into `Astraea.Engine.PassiveQueue`
 
 To integrate guidance with zero per-clause synchronization overhead:
 
@@ -282,7 +334,7 @@ end
 
 ---
 
-## 7. Empirical Evaluation & Verification Protocol
+## 8. Empirical Evaluation & Verification Protocol
 
 The evaluation adheres to the anti-leakage manifests locked in [`benchmarks/manifests/manifest_lock.json`](file:///Users/marcnickert/Projects/opensource/Leo-III/benchmarks/manifests/manifest_lock.json):
 

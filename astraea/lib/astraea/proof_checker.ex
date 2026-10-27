@@ -95,29 +95,43 @@ defmodule Astraea.ProofChecker do
           | :lift_bool
 
   @doc """
+  Replays all `steps` through the kernel and returns `{:ok, arena, derived_map}`
+  where `derived_map` maps each step ID to its verified clause, or `{:error, reason}`.
+  """
+  @spec derive_steps(Arena.t(), [step()]) ::
+          {:ok, Arena.t(), %{non_neg_integer() => clause()}} | {:error, term()}
+  def derive_steps(%Arena{} = arena, steps) when is_list(steps) do
+    Enum.reduce_while(steps, {:ok, arena, %{}}, fn step, {:ok, ar, derived} ->
+      case check_step(ar, derived, step) do
+        {:ok, ar2, id, clause} ->
+          {:cont, {:ok, ar2, Map.put(derived, id, clause)}}
+
+        {:error, _} = err ->
+          {:halt, err}
+      end
+    end)
+  end
+
+  @doc """
   Verifies a linear/DAG refutation certificate ending in the empty clause (`MapSet.new()`).
   Returns `:ok` if every inference step is sound and the final step derives `$false`,
   or `{:error, reason}` if any step is invalid.
   """
   @spec verify_refutation(Arena.t(), [step()]) :: :ok | {:error, term()}
   def verify_refutation(%Arena{} = arena, steps) when is_list(steps) do
-    case Enum.reduce_while(steps, {:ok, arena, %{}, nil}, fn step, {:ok, ar, derived, _last} ->
-           case check_step(ar, derived, step) do
-             {:ok, ar2, id, clause} ->
-               {:cont, {:ok, ar2, Map.put(derived, id, clause), clause}}
+    case derive_steps(arena, steps) do
+      {:ok, _ar, derived} when map_size(derived) > 0 ->
+        last_step = List.last(steps)
+        last_id = elem(last_step, 1)
+        last_clause = Map.get(derived, last_id)
 
-             {:error, _} = err ->
-               {:halt, err}
-           end
-         end) do
-      {:ok, _ar, _derived, last_clause} when not is_nil(last_clause) ->
-        if MapSet.size(last_clause) == 0 do
+        if last_clause && MapSet.size(last_clause) == 0 do
           :ok
         else
           {:error, {:not_empty_clause, last_clause}}
         end
 
-      {:ok, _ar, _derived, nil} ->
+      {:ok, _ar, _empty_derived} ->
         {:error, :empty_proof}
 
       {:error, _} = err ->

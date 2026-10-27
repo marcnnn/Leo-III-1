@@ -1584,6 +1584,9 @@ defmodule Astraea.Prover do
         acc = collect_subterms(arena, left, acc)
         collect_subterms(arena, right, acc)
 
+      @tag_lam ->
+        collect_subterms(arena, right, acc)
+
       _ ->
         acc
     end
