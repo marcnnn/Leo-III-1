@@ -81,24 +81,24 @@ defmodule Astraea.Portfolio do
          sine_limit: 55,
          inline_bridges: false,
          scoring_mode: :goal_directed,
-         max_clause_lits: 6,
-         max_clause_weight: 45
+         max_clause_lits: 8,
+         max_clause_weight: 60
        ]},
       {:sine_tight_unit,
        [
          sine_limit: 16,
          inline_bridges: false,
          scoring_mode: :unit_focused,
-         max_clause_lits: 6,
-         max_clause_weight: 50
+         max_clause_lits: 7,
+         max_clause_weight: 55
        ]},
       {:full_inline_weight,
        [
          sine_limit: 40,
          inline_bridges: true,
          scoring_mode: :weight_first,
-         max_clause_lits: 7,
-         max_clause_weight: 55,
+         max_clause_lits: 8,
+         max_clause_weight: 65,
          funcspec: true
        ]},
       {:broad_breadth,
@@ -106,8 +106,8 @@ defmodule Astraea.Portfolio do
          sine_limit: 90,
          inline_bridges: false,
          scoring_mode: :breadth_first,
-         max_clause_lits: 8,
-         max_clause_weight: 60,
+         max_clause_lits: 10,
+         max_clause_weight: 75,
          special_instances: true,
          funcspec: true
        ]}

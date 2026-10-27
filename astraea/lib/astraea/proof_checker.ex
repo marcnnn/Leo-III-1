@@ -95,11 +95,11 @@ defmodule Astraea.ProofChecker do
           | :lift_bool
 
   @doc """
-  Reconstructs and verifies every intermediate clause derived by `steps`,
-  returning `{:ok, arena, %{id => clause}}` or `{:error, reason}`.
+  Replays all `steps` through the kernel and returns `{:ok, arena, derived_map}`
+  where `derived_map` maps each step ID to its verified clause, or `{:error, reason}`.
   """
   @spec derive_steps(Arena.t(), [step()]) ::
-          {:ok, Arena.t(), %{non_neg_integer() => MapSet.t()}} | {:error, term()}
+          {:ok, Arena.t(), %{non_neg_integer() => clause()}} | {:error, term()}
   def derive_steps(%Arena{} = arena, steps) when is_list(steps) do
     Enum.reduce_while(steps, {:ok, arena, %{}}, fn step, {:ok, ar, derived} ->
       case check_step(ar, derived, step) do
