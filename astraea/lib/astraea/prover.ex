@@ -37,7 +37,7 @@ defmodule Astraea.Prover do
   alias Astraea.Engine.{Demodulator, Fragment, FVIndex, HeadIndex, PassiveQueue, Subsumption}
   alias Astraea.External.Reconstruct
   alias Astraea.Input.Arith
-  alias Astraea.Calculus.{Choice, Cnf, FingerprintIndex, FuncSpec, Ordering, PrimSubst, SpecialInstances, Terms, Unify}
+  alias Astraea.Calculus.{ArgCong, Choice, Cnf, EqFact, FingerprintIndex, FuncSpec, Ordering, PrimSubst, SpecialInstances, Terms, Unify}
 
   # Below this remaining budget an external call cannot finish in time.
   @min_external_ms 300
@@ -995,9 +995,11 @@ defmodule Astraea.Prover do
       with {:cont, state, items0} <- try_func_ext_unit(state, given),
            {:cont, state, items1} <- try_immediate_eq_resolution(state, given),
            {:cont, state, items2} <- try_factoring(state, given),
+           {:cont, state, items2b} <- try_eq_fact(state, given),
            {:cont, state, items3} <- try_ho_pred_instantiation(state, given),
            {:cont, state, items4} <- try_binary_resolution(state, given),
            {:cont, state, items5} <- try_superposition(state, given),
+           {:cont, state, items5b} <- try_arg_cong(state, given),
            {:cont, state, items6} <- try_prim_subst(state, given),
            {:cont, state, items7} <- try_extensionality(state, given),
            {:cont, state, items8} <- try_func_spec(state, given),
@@ -1005,7 +1007,7 @@ defmodule Astraea.Prover do
            {:cont, state, items10} <- try_choice(state, given) do
         clausify_items(
           state,
-          items0 ++ items1 ++ items2 ++ items3 ++ items4 ++ items5 ++ items6 ++ items7 ++ items8 ++ items9 ++ items10
+          items0 ++ items1 ++ items2 ++ items2b ++ items3 ++ items4 ++ items5 ++ items5b ++ items6 ++ items7 ++ items8 ++ items9 ++ items10
         )
       end
     else
@@ -1697,6 +1699,101 @@ defmodule Astraea.Prover do
       end)
     else
       {:cont, state, []}
+    end
+  end
+
+# 11. Higher-Order Superposition: Argument Congruence (`Calculus.ArgCong`)
+  defp try_arg_cong(%__MODULE__{} = state, given) do
+    if state.higher_order and given.depth <= calculus_opt(state, :arg_cong_depth, 2) do
+      candidates = ArgCong.candidates(state.arena, given)
+
+      each_inference(state, candidates, fn st, {eq_id, lhs, rhs, dom_ty} ->
+        next_fvar = st.next_fvar_id
+        {arena, x_var} = Arena.mk_fvar(st.arena, next_fvar, dom_ty)
+        {arena, fa} = Arena.mk_app(arena, lhs, x_var)
+        {arena, ga} = Arena.mk_app(arena, rhs, x_var)
+        {arena, fa_norm} = Arena.beta_eta_norm(arena, fa)
+        {arena, ga_norm} = Arena.beta_eta_norm(arena, ga)
+        {arena, new_eq} = Arena.mk_eq(arena, fa_norm, ga_norm)
+
+        new_lits =
+          given.lits
+          |> MapSet.delete({:pos, eq_id})
+          |> MapSet.put({:pos, new_eq})
+
+        st = %{st | arena: arena, next_fvar_id: next_fvar + 1}
+        step = {:cong, st.next_step_id, given.id, eq_id, x_var}
+        {st, item} = add_step(st, step, new_lits, given.depth + 1)
+        {st2, fresh_item} = freshen_clause_item(st, item)
+        {:cont, st2, [fresh_item]}
+      end)
+    else
+      {:cont, state, []}
+    end
+  end
+
+  # 12. Higher-Order Superposition: Equality Factoring (`Calculus.EqFact`)
+  defp try_eq_fact(%__MODULE__{} = state, given) do
+    if MapSet.size(given.lits) >= 2 and given.depth <= calculus_opt(state, :eq_fact_depth, 3) do
+      pairs = EqFact.candidate_pairs(state.arena, given)
+
+      each_inference(state, pairs, fn st, {eq1_id, eq2_id, side1, side2, _rem1, _rem2} ->
+        {st, substs} = unifiers(st, [{side1, side2}])
+
+        each_inference(st, substs, fn s, subst ->
+          {s, sub_item, {eq1_sub, eq2_sub}} =
+            apply_subst_to_pair(s, given, subst, eq1_id, eq2_id)
+
+          {@tag_eq, _, _, l1, r1} = Arena.get_node(s.arena, eq1_sub)
+          {@tag_eq, _, _, l2, r2} = Arena.get_node(s.arena, eq2_sub)
+
+          case ProofChecker.match_eq_sides(l1, r1, l2, r2) do
+            {_common, rem_a, rem_b} ->
+              {arena, neg_eq} = Arena.mk_eq(s.arena, rem_a, rem_b)
+              s = %{s | arena: arena}
+
+              new_lits =
+                sub_item.lits
+                |> MapSet.delete({:pos, eq1_sub})
+                |> MapSet.put({:neg, neg_eq})
+
+              step = {:eq_fact, s.next_step_id, sub_item.id, eq1_sub, eq2_sub}
+              {s, fact_item} = add_step(s, step, new_lits, sub_item.depth + 1)
+
+              case try_immediate_eq_resolution(s, fact_item) do
+                {:proved, _, _} = proved ->
+                  proved
+
+                {:cont, s2, eq_items} ->
+                  {s3, fresh_item} = freshen_clause_item(s2, fact_item)
+                  {:cont, s3, [fresh_item | eq_items]}
+              end
+
+            nil ->
+              {:cont, s, []}
+          end
+        end)
+      end)
+    else
+      {:cont, state, []}
+    end
+  end
+
+  defp apply_subst_to_pair(%__MODULE__{} = state, clause_item, subst, term1, term2) do
+    relevant_subst =
+      Map.filter(subst, fn {fvar_id, _rep} ->
+        MapSet.member?(clause_item.fvar_ids, fvar_id)
+      end)
+
+    {arena, t1_inst} = Arena.subst_fvar(state.arena, term1, subst)
+    {arena, t2_inst} = Arena.subst_fvar(arena, term2, subst)
+    state = %{state | arena: arena}
+
+    if map_size(relevant_subst) == 0 do
+      {state, clause_item, {t1_inst, t2_inst}}
+    else
+      {state, sub_item} = emit_subst_step(state, clause_item, relevant_subst, clause_item.depth)
+      {state, sub_item, {t1_inst, t2_inst}}
     end
   end
 

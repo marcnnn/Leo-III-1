@@ -81,6 +81,7 @@ defmodule Astraea.ProofChecker do
           | {:choice, non_neg_integer(), Arena.term_id(), non_neg_integer()}
           | {:arith_eval, non_neg_integer(), non_neg_integer(), clause()}
           | {:eval, non_neg_integer(), non_neg_integer(), clause()}
+          | {:eq_fact, non_neg_integer(), non_neg_integer(), Arena.term_id(), Arena.term_id()}
 
   @type cnf_rule ::
           :not
@@ -295,6 +296,43 @@ defmodule Astraea.ProofChecker do
     end
   end
 
+  defp check_step(%Arena{} = arena, derived, {:eq_fact, id, parent_id, eq1_id, eq2_id}) do
+    with {:ok, parent} <- fetch_clause(derived, parent_id),
+         true <- MapSet.member?(parent, {:pos, eq1_id}),
+         true <- MapSet.member?(parent, {:pos, eq2_id}),
+         true <- eq1_id != eq2_id,
+         {@tag_eq, _, _, lhs1, rhs1} <- Arena.get_node(arena, eq1_id),
+         {@tag_eq, _, _, lhs2, rhs2} <- Arena.get_node(arena, eq2_id),
+         {_common, rem1, rem2} <- match_eq_sides(lhs1, rhs1, lhs2, rhs2) do
+      {arena, neg_eq} = Arena.mk_eq(arena, rem1, rem2)
+
+      new_clause =
+        parent
+        |> MapSet.delete({:pos, eq1_id})
+        |> MapSet.put({:neg, neg_eq})
+
+      {:ok, arena, id, new_clause}
+    else
+      _ -> {:error, {:invalid_eq_fact, id, parent_id}}
+    end
+  end
+
+  @doc """
+  Checks if any side of equation 1 matches any side of equation 2 modulo symmetry.
+  Returns `{common, remainder1, remainder2}` or `nil`.
+  """
+  @spec match_eq_sides(Arena.term_id(), Arena.term_id(), Arena.term_id(), Arena.term_id()) ::
+          {Arena.term_id(), Arena.term_id(), Arena.term_id()} | nil
+  def match_eq_sides(l1, r1, l2, r2) do
+    cond do
+      l1 == l2 -> {l1, r1, r2}
+      l1 == r2 -> {l1, r1, l2}
+      r1 == l2 -> {r1, l1, r2}
+      r1 == r2 -> {r1, l1, l2}
+      true -> nil
+    end
+  end
+
   @doc """
   Premise step ids of `step` (for proof extraction and compression).
   """
@@ -303,6 +341,7 @@ defmodule Astraea.ProofChecker do
   def step_parents({:choice, _id, _pred, _fv}), do: []
   def step_parents({:arith_eval, _id, p, _clause}), do: [p]
   def step_parents({:eval, _id, p, _clause}), do: [p]
+  def step_parents({:eq_fact, _id, p, _eq1, _eq2}), do: [p]
   def step_parents({:axiom, _id, _c}), do: []
   def step_parents({:refl, _id, _t}), do: []
   def step_parents({:symm, _id, p}), do: [p]
@@ -327,6 +366,9 @@ defmodule Astraea.ProofChecker do
 
   def rewire_parents({:eval, id, p, clause}, remap),
     do: {:eval, id, Map.get(remap, p, p), clause}
+
+  def rewire_parents({:eq_fact, id, p, eq1, eq2}, remap),
+    do: {:eq_fact, id, Map.get(remap, p, p), eq1, eq2}
 
   @doc """
   One-step clausal expansion of a non-atomic literal under `rule` (the `:cnf` kernel

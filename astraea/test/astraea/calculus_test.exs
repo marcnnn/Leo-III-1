@@ -3,7 +3,7 @@ defmodule Astraea.CalculusTest do
   use ExUnitProperties
 
   alias Astraea.{Arena, ProofChecker, Prover}
-  alias Astraea.Calculus.{Choice, Cnf, FingerprintIndex, FuncSpec, Ordering, PrimSubst, SpecialInstances, Terms, Unify}
+  alias Astraea.Calculus.{ArgCong, Choice, Cnf, EqFact, FingerprintIndex, FuncSpec, Ordering, PrimSubst, SpecialInstances, Terms, Unify}
 
   # ---------------------------------------------------------------------------
   # Random terms over a small higher-order signature:
@@ -525,5 +525,96 @@ defmodule Astraea.CalculusTest do
     assert length(cand_map[10]) == 2
     assert length(cand_map[11]) == 1
     assert length(cand_map[12]) == 1
+  end
+  test "argument congruence detects functional equalities and kernel verifies :cong" do
+    {arena, s} = signature()
+    {arena, eq_fg} = Arena.mk_eq(arena, s.f, s[:F])
+
+    clause = %{
+      id: 1,
+      lits: MapSet.new([{:pos, eq_fg}]),
+      fvars: MapSet.new([{3, Arena.type_of(arena, s[:F])}]),
+      depth: 0
+    }
+
+    candidates = ArgCong.candidates(arena, clause)
+    assert [{^eq_fg, lhs, rhs, dom_ty}] = candidates
+    assert lhs == s.f
+    assert rhs == s[:F]
+    assert dom_ty == Arena.ty_i()
+
+    # Kernel check
+    {arena, x_var} = Arena.mk_fvar(arena, 99, :i)
+    {arena, fx} = Arena.mk_app(arena, s.f, x_var)
+    {arena, f_cap_x} = Arena.mk_app(arena, s[:F], x_var)
+    {arena, eq_fx_Fx} = Arena.mk_eq(arena, fx, f_cap_x)
+
+    proof = [
+      {:axiom, 1, MapSet.new([{:pos, eq_fg}])},
+      {:axiom, 2, MapSet.new([{:neg, eq_fx_Fx}])},
+      {:cong, 3, 1, eq_fg, x_var},
+      {:resolve, 4, 3, 2, {:pos, eq_fx_Fx}}
+    ]
+
+    assert :ok == ProofChecker.verify_refutation(arena, proof)
+  end
+
+  test "equality factoring detects candidate pairs and derives negative equality" do
+    {arena, s} = signature()
+    # Clause: f(x) = a | f(x) = b
+    {arena, fx} = Arena.mk_app(arena, s.f, s.x)
+    {arena, eq1} = Arena.mk_eq(arena, fx, s.a)
+    {arena, eq2} = Arena.mk_eq(arena, fx, s.b)
+    {arena, eq_ab} = Arena.mk_eq(arena, s.a, s.b)
+
+    clause = %{
+      id: 1,
+      lits: MapSet.new([{:pos, eq1}, {:pos, eq2}]),
+      fvars: MapSet.new([{1, :i}]),
+      depth: 0
+    }
+
+    pairs = EqFact.candidate_pairs(arena, clause)
+    assert length(pairs) >= 1
+    assert Enum.any?(pairs, fn {e1, e2, s1, s2, _r1, _r2} ->
+      (e1 == eq1 and e2 == eq2) and (s1 == fx and s2 == fx)
+    end)
+
+    # Kernel verification of sound refutation using :eq_fact
+    proof = [
+      {:axiom, 1, MapSet.new([{:pos, eq1}, {:pos, eq2}])},
+      {:axiom, 2, MapSet.new([{:pos, eq_ab}])},
+      {:axiom, 3, MapSet.new([{:neg, eq2}])},
+      {:eq_fact, 4, 1, eq1, eq2},
+      {:resolve, 5, 2, 4, {:pos, eq_ab}},
+      {:resolve, 6, 5, 3, {:pos, eq2}}
+    ]
+
+    assert :ok == ProofChecker.verify_refutation(arena, proof)
+
+    # Forgery rejection: non-matching sides rejected
+    {arena, other_c} = Arena.mk_const(arena, "c", :i)
+    {arena, eq3} = Arena.mk_eq(arena, other_c, s.b)
+    forged_proof = [
+      {:axiom, 1, MapSet.new([{:pos, eq1}, {:pos, eq3}])},
+      {:eq_fact, 2, 1, eq1, eq3}
+    ]
+    assert {:error, {:invalid_eq_fact, 2, 1}} = ProofChecker.verify_refutation(arena, forged_proof)
+  end
+
+  test "equality factoring and argument congruence in end-to-end refutation" do
+    arena = Arena.new()
+    {arena, ii} = Arena.intern_type(arena, {:arrow, :i, :i})
+    {arena, f} = Arena.mk_const(arena, "f", ii)
+    {arena, g} = Arena.mk_const(arena, "g", ii)
+    {arena, a} = Arena.mk_const(arena, "a", :i)
+    {arena, fa} = Arena.mk_app(arena, f, a)
+    {arena, ga} = Arena.mk_app(arena, g, a)
+    {arena, eq_fg} = Arena.mk_eq(arena, f, g)
+    {arena, eq_faga} = Arena.mk_eq(arena, fa, ga)
+
+    clauses = [MapSet.new([{:pos, eq_fg}]), MapSet.new([{:neg, eq_faga}])]
+    assert {:proved, steps, _} = Prover.prove_clauses(arena, clauses, timeout_ms: 2_000)
+    assert length(steps) > 0
   end
 end

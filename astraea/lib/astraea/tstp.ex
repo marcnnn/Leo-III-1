@@ -226,8 +226,23 @@ defmodule Astraea.Tstp do
   # Ground arithmetic evaluation (input workstream): the step states its conclusion.
   defp conclusion(arena, _derived, {:arith_eval, _id, _p, clause}), do: {arena, clause}
 
-  # Ground lambda / combinator / boolean evaluation
+# Ground lambda / combinator / boolean evaluation
   defp conclusion(arena, _derived, {:eval, _id, _p, clause}), do: {arena, clause}
+
+  defp conclusion(arena, derived, {:eq_fact, _id, p, eq1_id, eq2_id}) do
+    parent = derived[p]
+    {@tag_eq, _, _, lhs1, rhs1} = Arena.get_node(arena, eq1_id)
+    {@tag_eq, _, _, lhs2, rhs2} = Arena.get_node(arena, eq2_id)
+    {_common, rem1, rem2} = ProofChecker.match_eq_sides(lhs1, rhs1, lhs2, rhs2)
+    {arena, neg_eq} = Arena.mk_eq(arena, rem1, rem2)
+
+    new_clause =
+      parent
+      |> MapSet.delete({:pos, eq1_id})
+      |> MapSet.put({:neg, neg_eq})
+
+    {arena, new_clause}
+  end
 
   defp conclusion(arena, derived, {:resolve, _id, p1, p2, {:pos, atom}}) do
     {c1, c2} = {derived[p1], derived[p2]}
@@ -294,7 +309,8 @@ defmodule Astraea.Tstp do
   defp rule({:refl, _, _}), do: {"refl", "thm"}
   defp rule({:symm, _, _}), do: {"symmetry", "thm"}
   defp rule({:trans, _, _, _}), do: {"transitivity", "thm"}
-  defp rule({:cong, _, _, _, _}), do: {"arg_cong", "thm"}
+defp rule({:cong, _, _, _, _}), do: {"arg_cong", "thm"}
+  defp rule({:eq_fact, _, _, _, _}), do: {"eq_fact", "thm"}
   defp rule({:func_ext, _, _, _, _}), do: {"func_ext", "thm"}
   defp rule({:paramod, _, _, _, _, _, _}), do: {"paramod", "thm"}
   defp rule({:resolve, _, _, _, _}), do: {"resolution", "thm"}
