@@ -15,25 +15,22 @@ defmodule Astraea.Schedule do
   schedule is re-planned before every slice with the time actually remaining.
 
   Strategies are data (`%{name:, share:, opts:}`). `leo3_strategies/0` holds
-  Leo-III's 17 `RunStrategy` definitions, translated by `leo3_opts/1` into
-  Astraea options. Parameters the engine does not implement yet are passed
-  through under the names below, so they take effect once the calculus supports
-  them (until then such strategies differ only in their Astraea base options):
+  Leo-III's 17 `RunStrategy` definitions, translated by `leo3_opts/1` into the
+  calculus options of `Astraea.Prover`:
 
   | Leo-III `RunStrategy` | Astraea option |
   |---|---|
-  | `primSubst` | `:primsubst_level` |
-  | `sos` | `:sos` |
+  | `primSubst` | `:prim_subst` |
   | `unifierCount` | `:unifier_count` |
-  | `uniDepth` | `:unification_depth` |
-  | `boolExt` | `:bool_ext` |
+  | `uniDepth` | `:unify_depth` |
+  | `boolExt` | `:ext_inferences` |
   | `choice` | `:choice` |
-  | `renaming` | `:renaming` |
-  | `funcspec` | `:funcspec` |
-  | `domConstr` | `:dom_constr` |
-  | `specialInstances` | `:special_instances` |
-  | `restrictUniAttempts` | `:restrict_uni_attempts` |
-  | `ordering` | `:term_ordering` (`:cpo_naive` or `:none`) |
+  | `ordering` | `:ordered` (`false` for Leo-III's `NO_ORDERING`) |
+  | `restrictUniAttempts` | `:flex_resolution` (`:ground` when restricted, else `:all`) |
+
+  Leo-III parameters without an Astraea counterpart yet (`sos`, `renaming`,
+  `funcspec`, `domConstr`, `specialInstances`) are passed through under their
+  snake_case names and ignored by the engine.
   """
 
   alias Astraea.{Portfolio, TptpLower}
@@ -108,18 +105,18 @@ defmodule Astraea.Schedule do
   @spec leo3_opts(map()) :: keyword()
   def leo3_opts(params) do
     [
-      primsubst_level: params.prim_subst,
-      sos: params.sos,
+      prim_subst: params.prim_subst,
       unifier_count: params.unifier_count,
-      unification_depth: params.uni_depth,
-      bool_ext: params.bool_ext,
+      unify_depth: params.uni_depth,
+      ext_inferences: params.bool_ext,
       choice: params.choice,
+      ordered: params.ordering != :none,
+      flex_resolution: if(params.restrict_uni_attempts, do: :ground, else: :all),
+      sos: params.sos,
       renaming: params.renaming,
       funcspec: params.funcspec,
       dom_constr: params.dom_constr,
-      special_instances: params.special_instances,
-      restrict_uni_attempts: params.restrict_uni_attempts,
-      term_ordering: params.ordering
+      special_instances: params.special_instances
     ]
   end
 
@@ -128,8 +125,8 @@ defmodule Astraea.Schedule do
   (`Astraea.Portfolio.default_strategies/0`), then Leo-III's strategies (in the
   order of Leo-III's preferred `s1, s1a` schedule and its commented-out extension
   `s3bb, s2, s1b, s6, s3b`, then the rest) on rotating Astraea bases with deeper
-  iteration limits, then the four portfolio strategies with unrestricted
-  premises and the deepest limits.
+  iteration limits, then the four portfolio strategies with twice the SInE
+  window, negative literal selection, flex paramodulation and the deepest limits.
   """
   @spec strategies() :: [strategy()]
   def strategies do
@@ -166,7 +163,11 @@ defmodule Astraea.Schedule do
           opts:
             opts
             |> Keyword.update!(:sine_limit, &(&1 * 2))
-            |> Keyword.put(:max_iterations, @deeper_iterations)
+            |> Keyword.merge(
+              max_iterations: @deeper_iterations,
+              literal_selection: :neg_max,
+              paramod_flex: true
+            )
         }
       end)
 

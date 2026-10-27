@@ -45,17 +45,17 @@ defmodule Astraea.CLI do
     "leo" => :leo2
   }
 
-  # Leo-III strategy parameters passed through to every strategy (see
-  # `Astraea.Schedule`), with their value parser.
+  # Leo-III calculus flags applied to every strategy, as `Astraea.Prover` options
+  # (see `Astraea.Schedule`), with their value parser.
   @strategy_flags %{
-    "primsubst" => {:primsubst_level, :integer},
-    "unidepth" => {:unification_depth, :integer},
+    "primsubst" => {:prim_subst, :integer},
+    "unidepth" => {:unify_depth, :integer},
     "unifiers" => {:unifier_count, :integer},
     "matchingdepth" => {:matching_depth, :integer},
     "sos" => {:sos, :switch},
     "funcspec" => {:funcspec, :switch},
     "nochoice" => {:choice, :negated_switch},
-    "restrict-uni-attempts" => {:restrict_uni_attempts, :boolean}
+    "restrict-uni-attempts" => {:flex_resolution, :restricted}
   }
 
   @switches ~w(p s h sos funcspec nochoice noaxiomselection consistency-only atp-race
@@ -342,11 +342,9 @@ defmodule Astraea.CLI do
         {:negated_switch, _} ->
           {:cont, {:ok, Keyword.put(acc, opt, false)}}
 
-        {:boolean, [value | _]} ->
-          {:cont, {:ok, Keyword.put(acc, opt, value not in ["false", "0"])}}
-
-        {:boolean, []} ->
-          {:cont, {:ok, Keyword.put(acc, opt, true)}}
+        {:restricted, values} ->
+          restricted? = values == [] or hd(values) not in ["false", "0"]
+          {:cont, {:ok, Keyword.put(acc, opt, if(restricted?, do: :ground, else: :all))}}
 
         {:integer, _} ->
           case int(params, flag, nil) do

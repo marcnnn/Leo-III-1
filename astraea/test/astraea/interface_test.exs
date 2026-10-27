@@ -154,6 +154,40 @@ defmodule Astraea.InterfaceTest do
       assert {:ok, _derivation, []} = Tptp.Derivation.from_string(tstp)
     end
 
+    test "search-time clausification and choice instances are rendered" do
+      alias Astraea.{Arena, Prover}
+
+      arena = Arena.new()
+      {arena, io} = Arena.intern_type(arena, {:arrow, :i, :o})
+      {arena, p} = Arena.mk_const(arena, "p", io)
+      {arena, q} = Arena.mk_const(arena, "q", io)
+      {arena, a} = Arena.mk_const(arena, "a", :i)
+      {arena, choice} = Arena.mk_const(arena, "$choice", {:arrow, io, :i})
+      {arena, pa} = Arena.mk_app(arena, p, a)
+      {arena, qa} = Arena.mk_app(arena, q, a)
+      {arena, eps_p} = Arena.mk_app(arena, choice, p)
+      {arena, p_eps} = Arena.mk_app(arena, p, eps_p)
+      {arena, bool_eq} = Arena.mk_eq(arena, pa, qa)
+      lowered = %TptpLower{arena: arena}
+
+      for {clauses, kind, rendered} <- [
+            {[[{:pos, pa}], [{:neg, p_eps}]], :choice, "introduced(axiom_of_choice, [], [])"},
+            {[[{:neg, bool_eq}], [{:pos, pa}], [{:pos, qa}]], :cnf, "status(thm)"}
+          ] do
+        clauses = Enum.map(clauses, &MapSet.new/1)
+        assert {:proved, steps, stats} = Prover.prove_clauses(arena, clauses, timeout_ms: 2_000)
+        assert Enum.any?(steps, &(elem(&1, 0) == kind))
+
+        {_arena, derived} = Tstp.replay(stats.arena, steps)
+        assert derived[elem(List.last(steps), 1)] == MapSet.new()
+
+        tstp = Tstp.derivation(lowered, steps, stats, problem: "p.p")
+        assert tstp =~ rendered
+        assert {:ok, derivation, []} = Tptp.Derivation.from_string(tstp)
+        assert Tptp.Derivation.acyclic?(derivation)
+      end
+    end
+
     test "replay recomputes the clause of every kernel step" do
       {_lowered, {:proved, steps, stats}} = prove!(@thm_src)
       {_arena, clauses} = Tstp.replay(stats.arena, steps)
@@ -248,9 +282,15 @@ defmodule Astraea.InterfaceTest do
 
       opts = Schedule.leo3_opts(s3b.params)
       assert opts[:sos] == true
-      assert opts[:primsubst_level] == 3
+      assert opts[:prim_subst] == 3
       assert opts[:unifier_count] == 3
-      assert opts[:unification_depth] == 8
+      assert opts[:unify_depth] == 8
+      assert opts[:ordered] == true
+      assert opts[:flex_resolution] == :ground
+
+      funcspec = Enum.find(strategies, &(&1.name == :funcspec))
+      assert Schedule.leo3_opts(funcspec.params)[:ordered] == false
+      assert Schedule.leo3_opts(funcspec.params)[:flex_resolution] == :all
     end
 
     test "the default strategy order starts with the portfolio strategies" do

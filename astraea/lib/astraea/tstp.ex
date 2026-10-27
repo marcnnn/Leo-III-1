@@ -12,7 +12,9 @@ defmodule Astraea.Tstp do
       `inference(cnf, [status(esa)], ...)`
     * one `thf(c_<id>, plain, Clause, inference(Rule, [status(thm)], Parents))`
       per kernel step (`Astraea.ProofChecker`), with `bind/2` parent details
-      for instantiations, ending in `$false`
+      for instantiations, ending in `$false`; search-time Skolemization
+      (`:cnf` with `:skolem`) has `status(esa)` and Hilbert choice instances are
+      `introduced(axiom_of_choice, [], [])`
 
   Terms are printed by `Astraea.External.ThfPrinter`. Every clause is closed by
   universally quantifying its free variables `V<id>`.
@@ -131,8 +133,8 @@ defmodule Astraea.Tstp do
                inference("cnf", "esa", Enum.map(parents, &name/1)), syms}
 
             _ ->
-              {rule, parents, syms} = rule(arena, step, syms)
-              {"plain", inference(rule, "thm", parents), syms}
+              {source, syms} = source(arena, step, syms)
+              {"plain", source, syms}
           end
 
         {["thf(", step_name(id), ", ", role, ", ", body, ",\n    ", source, ").\n"], syms}
@@ -211,6 +213,16 @@ defmodule Astraea.Tstp do
     {arena, clause}
   end
 
+  defp conclusion(arena, derived, {:cnf, _id, p, lit, rule}) do
+    {:ok, arena, lits} = ProofChecker.expand_literal(arena, lit, rule)
+    {arena, derived[p] |> MapSet.delete(lit) |> MapSet.union(MapSet.new(lits))}
+  end
+
+  defp conclusion(arena, _derived, {:choice, _id, pred, fvar}) do
+    {:ok, arena, clause} = ProofChecker.choice_instance(arena, pred, fvar)
+    {arena, clause}
+  end
+
   defp conclusion(arena, derived, {:resolve, _id, p1, p2, {:pos, atom}}) do
     {c1, c2} = {derived[p1], derived[p2]}
 
@@ -246,47 +258,45 @@ defmodule Astraea.Tstp do
     Arena.beta_eta_norm(arena, lam)
   end
 
-  # Inference rule names and parents (with `bind/2` details for instantiations).
-  defp rule(arena, step, syms) do
-    case step do
-      {:refl, _, _} ->
-        {"refl", [], syms}
+  # The TSTP source of a kernel step: its rule, SZS status and parents (with
+  # `bind/2` details for instantiations). Choice instances are introduced axioms.
+  defp source(_arena, {:choice, _, _, _}, syms),
+    do: {"introduced(axiom_of_choice, [], [])", syms}
 
-      {:symm, _, p} ->
-        {"symmetry", [step_name(p)], syms}
+  defp source(arena, {:subst, _, p, subst}, syms) do
+    {binds, syms} =
+      subst
+      |> Enum.sort()
+      |> Enum.map_reduce(syms, fn {var, term}, syms ->
+        {t, syms} = ThfPrinter.formula(arena, term, syms)
+        {["bind(V", Integer.to_string(var), ", $thf(", t, "))"], syms}
+      end)
 
-      {:trans, _, p1, p2} ->
-        {"transitivity", [step_name(p1), step_name(p2)], syms}
+    parent =
+      if binds == [],
+        do: step_name(p),
+        else: [step_name(p), ":[", Enum.intersperse(binds, ", "), "]"]
 
-      {:cong, _, p, _, _} ->
-        {"arg_cong", [step_name(p)], syms}
-
-      {:func_ext, _, p, _, _} ->
-        {"func_ext", [step_name(p)], syms}
-
-      {:paramod, _, p1, p2, _, _, _} ->
-        {"paramod", [step_name(p1), step_name(p2)], syms}
-
-      {:resolve, _, p1, p2, _} ->
-        {"resolution", [step_name(p1), step_name(p2)], syms}
-
-      {:subst, _, p, subst} ->
-        {binds, syms} =
-          subst
-          |> Enum.sort()
-          |> Enum.map_reduce(syms, fn {var, term}, syms ->
-            {t, syms} = ThfPrinter.formula(arena, term, syms)
-            {["bind(V", Integer.to_string(var), ", $thf(", t, "))"], syms}
-          end)
-
-        parent =
-          if binds == [],
-            do: step_name(p),
-            else: [step_name(p), ":[", Enum.intersperse(binds, ", "), "]"]
-
-        {"instantiate", [parent], syms}
-    end
+    {inference("instantiate", "thm", [parent]), syms}
   end
+
+  defp source(_arena, step, syms) do
+    {rule, status} = rule(step)
+    {inference(rule, status, step |> ProofChecker.step_parents() |> Enum.map(&step_name/1)), syms}
+  end
+
+  defp rule({:refl, _, _}), do: {"refl", "thm"}
+  defp rule({:symm, _, _}), do: {"symmetry", "thm"}
+  defp rule({:trans, _, _, _}), do: {"transitivity", "thm"}
+  defp rule({:cong, _, _, _, _}), do: {"arg_cong", "thm"}
+  defp rule({:func_ext, _, _, _, _}), do: {"func_ext", "thm"}
+  defp rule({:paramod, _, _, _, _, _, _}), do: {"paramod", "thm"}
+  defp rule({:resolve, _, _, _, _}), do: {"resolution", "thm"}
+  defp rule({:cnf, _, _, _, :skolem}), do: {"skolemize", "esa"}
+  defp rule({:cnf, _, _, _, :ext}), do: {"func_ext", "thm"}
+  defp rule({:cnf, _, _, _, {:bool_eq, _}}), do: {"bool_ext", "thm"}
+  defp rule({:cnf, _, _, _, {:forall, _}}), do: {"instantiate", "thm"}
+  defp rule({:cnf, _, _, _, _rule}), do: {"cnf", "thm"}
 
   defp inference(rule, status, parents) do
     ["inference(", rule, ", [status(", status, ")], [", Enum.intersperse(parents, ", "), "])"]
