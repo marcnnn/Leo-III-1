@@ -1,105 +1,138 @@
 defmodule Mix.Tasks.Gate.Four do
   @moduledoc """
-  Gate 4 Hardware Telemetry & Throughput Benchmark on `armix` (14-core ARM64 Neoverse-N1).
+  Gate 4 throughput benchmark of the saturation engine's feature-vector index
+  (`Astraea.Engine.FVIndex`) on `armix`.
 
-  Compares:
-    1. Pure Elixir Reference (`Astraea.Arena`)
-    2. `Nx.Defn.Evaluator` (uncompiled Nx tensor baseline)
-    3. `Astraea.Native` (hand-written Rustler AoS NIF)
-    4. `NxSimd.Compiler` (`Astraea.NxSimdIndex` fused Structure-of-Arrays `#pragma omp simd` C++20 kernel)
-       + `NxSimd.Quantized` (`int8` PGO/ENIGMA clause utility scoring layer)
+  The index is filled with the subsumption feature vectors of clauses clausified
+  from `TPTP-Smoke` problems, at the sizes the given-clause loop reaches (active set
+  hundreds to a few thousand clauses, passive set up to tens of thousands), and
+  queried through every available backend:
+
+    1. plain Elixir (`backend: :elixir`, the reference),
+    2. the same `defn` kernels on the default Nx backend (`Nx.Defn.Evaluator`),
+    3. `NxSimd.Compiler` native SIMD code (`backend: :nx_simd`), when available,
+
+  for single queries (forward subsumption of a given clause, backward subsumption)
+  and batches of 32 queries (forward subsumption of newly generated clauses). All
+  backends must return identical answers before timing starts.
+
+      mix gate.four [--sizes 256,1024,4096,16384]
   """
   use Mix.Task
 
-  alias Astraea.{Arena, Native, NxSimdIndex, TptpCorpus, TptpLower}
+  alias Astraea.{Clausifier, NxKernel, TptpCorpus, TptpLower}
+  alias Astraea.Engine.{FVIndex, Kernels, Subsumption}
 
-  @shortdoc "Runs Gate 4 Benchee throughput comparison (Elixir vs Rust NIF vs NxSimd)"
+  @shortdoc "Benchmarks FVIndex backends (Elixir, Nx evaluator, NxSimd) at loop sizes"
 
   @impl Mix.Task
-  def run(_args) do
+  def run(args) do
     Mix.Task.run("app.start")
+    {opts, _} = OptionParser.parse!(args, strict: [sizes: :string])
 
-    smoke = TptpCorpus.load_split(:smoke)
-    tptp_root = TptpCorpus.default_tptp_root()
+    sizes =
+      opts
+      |> Keyword.get(:sizes, "256,1024,4096,16384")
+      |> String.split(",")
+      |> Enum.map(&String.to_integer/1)
 
-    {arena, roots} =
-      smoke
-      |> Enum.take(15)
-      |> Enum.reduce({Arena.new(), []}, fn stem, {ar_acc, roots_acc} ->
-        path = TptpCorpus.problem_path(stem, tptp_root)
-        {:ok, lowered} = TptpLower.from_file(path, tptp_root: tptp_root)
+    fvs = smoke_feature_vectors()
+    Mix.shell().info("#{length(fvs)} distinct clause feature vectors from TPTP-Smoke")
+    queries = fvs |> Enum.shuffle() |> Enum.take(32)
+    simd? = NxKernel.available?()
 
-        new_roots =
-          Enum.map(lowered.axioms, &elem(&1, 2)) ++
-            Enum.map(lowered.conjectures, &elem(&1, 1))
+    Enum.each(sizes, fn n ->
+      rows = fvs |> Stream.cycle() |> Enum.take(n) |> Enum.with_index(fn fv, id -> {id, fv} end)
+      elixir = build(rows, :elixir)
+      simd = if simd?, do: build(rows, :nx_simd)
+      if simd, do: warm(simd)
 
-        if map_size(lowered.arena.nodes) > map_size(ar_acc.nodes) do
-          {lowered.arena, new_roots}
-        else
-          {ar_acc, roots_acc}
-        end
-      end)
+      check!(elixir, simd, queries, n)
 
-    sample_roots = Enum.take(Stream.cycle(roots), 64)
-    fvs = Enum.map(sample_roots, &Arena.feature_vector(arena, &1))
-    cand_fv = hd(fvs)
+      jobs =
+        %{
+          "Elixir      1 query" => fn -> FVIndex.subsumers(elixir, hd(queries)) end,
+          "Elixir     32 queries" => fn -> FVIndex.subsumers_batch(elixir, queries) end
+        }
+        |> Map.merge(evaluator_jobs(rows, hd(queries)))
+        |> Map.merge(simd_jobs(simd, queries))
 
-    # Test both 1,024 clauses and 16,384 clauses (typical active+passive clause set size in saturation)
-    fvs_1k = Enum.take(Stream.cycle(fvs), 1_024)
-    fvs_16k = Enum.take(Stream.cycle(fvs), 16_384)
+      Mix.shell().info(
+        "\n== #{n} indexed clauses (#{length(elixir.segments)} sealed segments) =="
+      )
 
-    targets_bin_1k = Native.pack_feature_vectors(fvs_1k)
-    targets_bin_16k = Native.pack_feature_vectors(fvs_16k)
+      Benchee.run(jobs,
+        time: 1.5,
+        warmup: 0.5,
+        print: [fast_warning: false, configuration: false]
+      )
+    end)
+  end
 
-    {cand_t, soa_1k, _} = NxSimdIndex.pack_soa_tensors(cand_fv, fvs_1k)
-    {_, soa_16k, _} = NxSimdIndex.pack_soa_tensors(cand_fv, fvs_16k)
+  defp smoke_feature_vectors do
+    root = TptpCorpus.default_tptp_root()
 
-    {nx_simd_1k_runner, _cpp_1k} = NxSimdIndex.compile_soa_subsumption(cand_t, soa_1k)
-    {nx_simd_16k_runner, _cpp_16k} = NxSimdIndex.compile_soa_subsumption(cand_t, soa_16k)
+    :smoke
+    |> TptpCorpus.load_split()
+    |> Enum.take(20)
+    |> Enum.flat_map(fn stem ->
+      {:ok, lowered} = TptpLower.from_file(TptpCorpus.problem_path(stem, root), tptp_root: root)
+      {arena, clauses} = Clausifier.clausify(lowered)
+      Enum.map(clauses, &Subsumption.clause_fv(arena, &1))
+    end)
+    |> Enum.uniq()
+  end
 
-    # Verify exact bitwise agreement between Rustler NIF and NxSimd SoA kernel before benchmarking
-    rust_matches_1k = Native.nif_fv_subsumes_batch(cand_fv, targets_bin_1k)
-    nx_mask_1k = nx_simd_1k_runner.(cand_t, soa_1k) |> Nx.to_flat_list()
+  defp build(rows, backend) do
+    Enum.reduce(rows, FVIndex.new(backend: backend), fn {id, fv}, idx ->
+      FVIndex.insert(idx, id, fv)
+    end)
+  end
 
-    nx_matches_1k =
-      nx_mask_1k
-      |> Enum.with_index()
-      |> Enum.filter(fn {bit, _idx} -> bit == 1 end)
-      |> Enum.map(&elem(&1, 1))
+  # Compiles the kernels for every sealed segment shape before timing.
+  defp warm(index) do
+    for seg <- index.segments do
+      Kernels.warmup(
+        subsumers: [{16}, {16, seg.cap}],
+        subsumed: [{16}, {16, seg.cap}],
+        subsumers_batch: [{16, 32}, {16, seg.cap}]
+      )
+    end
+  end
 
-    if rust_matches_1k != nx_matches_1k do
-      raise "Gate 2/4 mismatch between Rustler NIF and NxSimd.Compiler!"
+  defp check!(elixir, simd, queries, n) do
+    for idx <- [simd], idx != nil, dir <- [:subsumers, :subsumed] do
+      batch = :"#{dir}_batch"
+
+      unless sorted(apply(FVIndex, batch, [idx, queries])) ==
+               sorted(apply(FVIndex, batch, [elixir, queries])) do
+        Mix.raise("Gate 4: NxSimd and Elixir FVIndex answers differ (#{dir}, #{n} clauses)")
+      end
     end
 
-    IO.puts(
-      "\n✓ Verified 100% agreement between Elixir Reference, Rustler NIF, and NxSimd.Compiler (#{length(nx_matches_1k)}/1024 matches)"
-    )
+    Mix.shell().info("\n✓ backends agree on #{n} clauses")
+  end
 
-    Benchee.run(
-      %{
-        "1. FVIndex (1,024 clauses)  - Elixir Reference" => fn ->
-          Enum.filter(fvs_1k, &Arena.fv_subsumes?(cand_fv, &1))
-        end,
-        "2. FVIndex (1,024 clauses)  - Rustler NIF (AoS)" => fn ->
-          Native.nif_fv_subsumes_batch(cand_fv, targets_bin_1k)
-        end,
-        "3. FVIndex (1,024 clauses)  - NxSimd.Compiler (SoA)" => fn ->
-          nx_simd_1k_runner.(cand_t, soa_1k)
-        end,
-        "4. FVIndex (16,384 clauses) - Elixir Reference" => fn ->
-          Enum.filter(fvs_16k, &Arena.fv_subsumes?(cand_fv, &1))
-        end,
-        "5. FVIndex (16,384 clauses) - Rustler NIF (AoS)" => fn ->
-          Native.nif_fv_subsumes_batch(cand_fv, targets_bin_16k)
-        end,
-        "6. FVIndex (16,384 clauses) - NxSimd.Compiler (SoA)" => fn ->
-          nx_simd_16k_runner.(cand_t, soa_16k)
-        end
-      },
-      time: 1.5,
-      warmup: 0.5,
-      memory_time: 0.5,
-      print: [fast_warning: false]
-    )
+  defp sorted(lists), do: Enum.map(lists, &Enum.sort/1)
+
+  # The `defn` itself on the default backend, one segment of at most 4096 columns:
+  # it is the executable specification, far too slow for the loop.
+  defp evaluator_jobs(rows, q) when length(rows) <= 4_096 do
+    block =
+      rows |> Enum.map(&Tuple.to_list(elem(&1, 1))) |> Nx.tensor(type: :u16) |> Nx.transpose()
+
+    q = Nx.tensor(Tuple.to_list(q), type: :u16)
+    %{"Nx evaluator 1 query" => fn -> Kernels.subsumers(q, block) end}
+  end
+
+  defp evaluator_jobs(_rows, _q), do: %{}
+
+  defp simd_jobs(nil, _queries), do: %{}
+
+  defp simd_jobs(simd, queries) do
+    %{
+      "NxSimd      1 query" => fn -> FVIndex.subsumers(simd, hd(queries)) end,
+      "NxSimd     32 queries" => fn -> FVIndex.subsumers_batch(simd, queries) end
+    }
   end
 end
