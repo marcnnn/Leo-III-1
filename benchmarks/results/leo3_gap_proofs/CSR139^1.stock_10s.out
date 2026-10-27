@@ -1,0 +1,41 @@
+% [INFO] 	 Parsing problem /home/marc/.local/share/tptp/TPTP-v9.3.1/Problems/CSR/CSR139^1.p ... 
+% [INFO] 	 Parsing done (259ms). 
+% [INFO] 	 Running in sequential loop mode. 
+% [INFO] 	 Scanning for conjecture ... 
+% [INFO] 	 Found a conjecture (or negated_conjecture) and 10 axioms. Running axiom selection ... 
+% [INFO] 	 Axiom selection finished. Selected 10 axioms (removed 0 axioms). 
+% [INFO] 	 Problem is higher-order (TPTP THF). 
+% [INFO] 	 Type checking passed. 
+% [CONFIG] 	 Using configuration: timeout(10) with strategy<name(default),share(1.0),primSubst(3),sos(false),unifierCount(4),uniDepth(8),boolExt(true),choice(true),renaming(true),funcspec(false), domConstr(0),specialInstances(39),restrictUniAttempts(true),termOrdering(CPO)>.  Searching for refutation ... 
+% Time passed: 5002ms (effective reasoning time: 4110ms)
+% Solved by strategy<name(default),share(1.0),primSubst(3),sos(false),unifierCount(4),uniDepth(8),boolExt(true),choice(true),renaming(true),funcspec(false), domConstr(0),specialInstances(39),restrictUniAttempts(true),termOrdering(CPO)>
+% Axioms used in derivation (2): ax_005, ax_003
+% No. of inferences in proof: 18
+% SZS status Theorem for /home/marc/.local/share/tptp/TPTP-v9.3.1/Problems/CSR/CSR139^1.p : 5002 ms resp. 4110 ms w/o parsing
+% SZS output start Refutation for /home/marc/.local/share/tptp/TPTP-v9.3.1/Problems/CSR/CSR139^1.p
+thf(num_type, type, num: $tType).
+thf(lAnna_THFTYPE_i_decl, type, lAnna_THFTYPE_i: $i).
+thf(lBen_THFTYPE_i_decl, type, lBen_THFTYPE_i: $i).
+thf(lBill_THFTYPE_i_decl, type, lBill_THFTYPE_i: $i).
+thf(lBob_THFTYPE_i_decl, type, lBob_THFTYPE_i: $i).
+thf(lMary_THFTYPE_i_decl, type, lMary_THFTYPE_i: $i).
+thf(parent_THFTYPE_IiioI_decl, type, parent_THFTYPE_IiioI: ($i > ($i > $o))).
+thf(8,axiom,((~ (parent_THFTYPE_IiioI @ lBob_THFTYPE_i @ lBen_THFTYPE_i))),file('/home/marc/.local/share/tptp/TPTP-v9.3.1/Problems/CSR/CSR139^1.p',ax_005)).
+thf(22,plain,((~ (parent_THFTYPE_IiioI @ lBob_THFTYPE_i @ lBen_THFTYPE_i))),inference(defexp_and_simp_and_etaexpand,[status(thm)],[8])).
+thf(23,plain,((~ (parent_THFTYPE_IiioI @ lBob_THFTYPE_i @ lBen_THFTYPE_i))),inference(polarity_switch,[status(thm)],[22])).
+thf(6,axiom,((parent_THFTYPE_IiioI @ lMary_THFTYPE_i @ lBen_THFTYPE_i)),file('/home/marc/.local/share/tptp/TPTP-v9.3.1/Problems/CSR/CSR139^1.p',ax_003)).
+thf(20,plain,((parent_THFTYPE_IiioI @ lMary_THFTYPE_i @ lBen_THFTYPE_i)),inference(defexp_and_simp_and_etaexpand,[status(thm)],[6])).
+thf(1,conjecture,((? [A:($i > ($i > $o)),B:($i > ($i > $o)),C:$i]: ((B @ C @ lBill_THFTYPE_i) & (A @ C @ lAnna_THFTYPE_i) & ~ (B = A)))),file('/home/marc/.local/share/tptp/TPTP-v9.3.1/Problems/CSR/CSR139^1.p',con)).
+thf(2,negated_conjecture,((~ (? [A:($i > ($i > $o)),B:($i > ($i > $o)),C:$i]: ((B @ C @ lBill_THFTYPE_i) & (A @ C @ lAnna_THFTYPE_i) & ~ (B = A))))),inference(neg_conjecture,[status(cth)],[1])).
+thf(13,plain,((~ (? [A:($i > ($i > $o)),B:($i > ($i > $o)),C:$i]: ((B @ C @ lBill_THFTYPE_i) & (A @ C @ lAnna_THFTYPE_i) & ~ ((B) = (A)))))),inference(defexp_and_simp_and_etaexpand,[status(thm)],[2])).
+thf(14,plain,(! [C:$i,B:($i > ($i > $o)),A:($i > ($i > $o))] : ((~ (B @ C @ lBill_THFTYPE_i)) | (~ (A @ C @ lAnna_THFTYPE_i)) | ((B) = (A)))),inference(cnf,[status(esa)],[13])).
+thf(15,plain,(! [C:$i,B:($i > ($i > $o)),A:($i > ($i > $o))] : (((B) = (A)) | (~ (B @ C @ lBill_THFTYPE_i)) | (~ (A @ C @ lAnna_THFTYPE_i)))),inference(lifteq,[status(thm)],[14])).
+thf(45,plain,(! [C:$i,B:($i > ($i > $o)),A:($i > ($i > $o))] : (((B) = (A)) | ~ (($true)) | (~ (A @ C @ lAnna_THFTYPE_i)) | ((parent_THFTYPE_IiioI @ lMary_THFTYPE_i @ lBen_THFTYPE_i) != (B @ C @ lBill_THFTYPE_i)))),inference(paramod_ordered,[status(thm)],[20,15])).
+thf(46,plain,(! [C:$i,B:($i > ($i > $o)),A:($i > ($i > $o))] : (((B) = (A)) | (~ (A @ C @ lAnna_THFTYPE_i)) | ((parent_THFTYPE_IiioI @ lMary_THFTYPE_i @ lBen_THFTYPE_i) != (B @ C @ lBill_THFTYPE_i)))),inference(simp,[status(thm)],[45])).
+thf(86,plain,(! [A:($i > ($i > $o))] : (((^ [B:$i,C:$i]: (parent_THFTYPE_IiioI @ B @ lBen_THFTYPE_i)) = (A)) | (~ (A @ lMary_THFTYPE_i @ lAnna_THFTYPE_i)))),inference(pre_uni,[status(thm)],[46:[bind(A, $thf(A)),bind(B, $thf(^ [D:$i,E:$i]: (parent_THFTYPE_IiioI @ D @ lBen_THFTYPE_i))),bind(C, $thf(lMary_THFTYPE_i))]])).
+thf(154,plain,(((^ [A:$i,B:$i]: (parent_THFTYPE_IiioI @ A @ lBen_THFTYPE_i)) = (^ [A:$i,B:$i]: (($true)))) | ~ (($true))),inference(prim_subst,[status(thm)],[86:[bind(A, $thf(^ [B:$i,C:$i]: (($true))))]])).
+thf(173,plain,(((^ [A:$i,B:$i]: (parent_THFTYPE_IiioI @ A @ lBen_THFTYPE_i)) = (^ [A:$i,B:$i]: (($true))))),inference(simp,[status(thm)],[154])).
+thf(279,plain,(! [A:$i] : ((parent_THFTYPE_IiioI @ A @ lBen_THFTYPE_i))),inference(func_ext,[status(esa)],[173])).
+thf(607,plain,(~ (($true))),inference(rewrite,[status(thm)],[23,279])).
+thf(608,plain,(($false)),inference(simp,[status(thm)],[607])).
+% SZS output end Refutation for /home/marc/.local/share/tptp/TPTP-v9.3.1/Problems/CSR/CSR139^1.p

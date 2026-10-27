@@ -1,0 +1,490 @@
+split,config,timeout_s,problem,domain,features,rules
+dev,e,10,AGT031^1,AGT,external cooperation (E),defexp_and_simp_and_etaexpand:40;e:1;neg_conjecture:1
+dev,e,10,ALG248^3,ALG,external cooperation (E),defexp_and_simp_and_etaexpand:1;e:1;neg_conjecture:1
+dev,e,10,ALG254^1,ALG,external cooperation (E),defexp_and_simp_and_etaexpand:1;e:1;neg_conjecture:1
+dev,e,10,ALG258^2,ALG,external cooperation (E),defexp_and_simp_and_etaexpand:1;e:1;neg_conjecture:1
+dev,e,10,ALG285^5,ALG,external cooperation (E),defexp_and_simp_and_etaexpand:1;e:1;neg_conjecture:1
+dev,e,10,CAT038^2,CAT,choice;pre-unification beyond patterns,choice:2;cnf:3;cnfConj:2;defexp_and_simp_and_etaexpand:1;eqfactor_ordered:1;lifteq:3;neg_conjecture:1;pre_uni:1;simp:3;simplifyReflect:3
+dev,e,10,CSR127^1,CSR,unit rewriting (demodulation),cnf:2;defexp_and_simp_and_etaexpand:3;neg_conjecture:1;paramod_ordered:1;pattern_uni:1;rewrite:1;simp:2
+dev,e,10,CSR133^1,CSR,pre-unification beyond patterns;functional extensionality;unit rewriting (demodulation),cnf:5;defexp_and_simp_and_etaexpand:7;func_ext:6;lifteq:4;neg_conjecture:1;paramod_ordered:20;pattern_uni:1;pre_uni:9;rewrite:11;simp:47
+dev,e,10,CSR138^1,CSR,pre-unification beyond patterns;external cooperation (E),cnf:3;defexp_and_simp_and_etaexpand:10;e:1;lifteq:1;miniscope:2;neg_conjecture:1;paramod_ordered:3;pre_uni:1;simp:5
+dev,e,10,CSR139^1,CSR,pre-unification beyond patterns;external cooperation (E),cnf:1;defexp_and_simp_and_etaexpand:11;e:1;lifteq:1;neg_conjecture:1;paramod_ordered:2;polarity_switch:3;pre_uni:1;simp:4
+dev,e,10,CSR140^2,CSR,external cooperation (E),defexp_and_simp_and_etaexpand:36;e:1;neg_conjecture:1
+dev,e,10,CSR142^1,CSR,external cooperation (E),defexp_and_simp_and_etaexpand:4;e:1;neg_conjecture:1
+dev,e,10,CSR151^3,CSR,Boolean extensionality;unit rewriting (demodulation),bool_ext:1;cnf:1;cnfConj:1;defexp_and_simp_and_etaexpand:2;neg_conjecture:1;paramod_ordered:1;rewrite:1;simp:5
+dev,e,10,ITP001^2,ITP,,defexp_and_simp_and_etaexpand:1;neg_conjecture:1;simp:1
+dev,e,10,ITP138^1,ITP,external cooperation (E),defexp_and_simp_and_etaexpand:353;e:1;neg_conjecture:1
+dev,e,10,ITP150^1,ITP,external cooperation (E),defexp_and_simp_and_etaexpand:214;e:1;neg_conjecture:1
+dev,e,10,ITP209^1,ITP,external cooperation (E),defexp_and_simp_and_etaexpand:11;e:1;neg_conjecture:1
+dev,e,10,ITP233^1,ITP,external cooperation (E),defexp_and_simp_and_etaexpand:37;e:1;neg_conjecture:1
+dev,e,10,LCL584^1,LCL,external cooperation (E),defexp_and_simp_and_etaexpand:1;e:1;neg_conjecture:1
+dev,e,10,LCL585^1,LCL,external cooperation (E),defexp_and_simp_and_etaexpand:1;e:1;neg_conjecture:1
+dev,e,10,LCL612^1,LCL,external cooperation (E),defexp_and_simp_and_etaexpand:1;e:1;neg_conjecture:1
+dev,e,10,LCL623^1,LCL,external cooperation (E),defexp_and_simp_and_etaexpand:2;e:1;neg_conjecture:1
+dev,e,10,LCL701^1,LCL,external cooperation (E),defexp_and_simp_and_etaexpand:1;e:1;neg_conjecture:1
+dev,e,10,LCL704^1,LCL,external cooperation (E),defexp_and_simp_and_etaexpand:1;e:1;neg_conjecture:1
+dev,e,10,LCL735^5,LCL,special instances;external cooperation (E),cnf:2;cnfConj:4;defexp_and_simp_and_etaexpand:1;e:1;instance:2;neg_conjecture:1;paramod_ordered:1;simp:2
+dev,e,10,LCL736^5,LCL,special instances;external cooperation (E),cnf:2;cnfConj:3;defexp_and_simp_and_etaexpand:1;e:1;instance:2;miniscope:2;neg_conjecture:1
+dev,e,10,LCL958^18,LCL,external cooperation (E),defexp_and_simp_and_etaexpand:4;e:1;neg_conjecture:1
+dev,e,10,NLP267^1,NLP,external cooperation (E),defexp_and_simp_and_etaexpand:7;e:1;neg_conjecture:1
+dev,e,10,NUM416^1,NUM,,defexp_and_simp_and_etaexpand:1;neg_conjecture:1;simp:1
+dev,e,10,NUM635^1,NUM,external cooperation (E),defexp_and_simp_and_etaexpand:3;e:1;neg_conjecture:1
+dev,e,10,NUM742^1,NUM,unit rewriting (demodulation),cnf:5;defexp_and_simp_and_etaexpand:7;miniscope:2;neg_conjecture:1;paramod_ordered:6;pattern_uni:6;rewrite:2;simp:9
+dev,e,10,NUM767^1,NUM,external cooperation (E),defexp_and_simp_and_etaexpand:6;e:1;neg_conjecture:1
+dev,e,10,NUM808^5,NUM,pre-unification beyond patterns;external cooperation (E),cnf:1;cnfConj:4;defexp_and_simp_and_etaexpand:1;e:1;eqfactor_ordered:1;lifteq:2;neg_conjecture:1;paramod_ordered:7;pattern_uni:4;pre_uni:3;replace_leibeq:1;simp:13
+dev,e,10,NUM925^1,NUM,external cooperation (E),defexp_and_simp_and_etaexpand:107;e:1;neg_conjecture:1
+dev,e,10,NUN023^2,NUN,pre-unification beyond patterns;special instances,cnf:3;cnfConj:4;defexp_and_simp_and_etaexpand:1;eqfactor_ordered:1;instance:3;lifteq:6;neg_conjecture:1;paramod_ordered:4;pattern_uni:1;pre_uni:2;simp:11;simplifyReflect:1
+dev,e,10,PLA032^7,PLA,external cooperation (E),defexp_and_simp_and_etaexpand:8;e:1;neg_conjecture:1
+dev,e,10,PLA053^2,PLA,external cooperation (E),defexp_and_simp_and_etaexpand:5;e:1;neg_conjecture:1
+dev,e,10,PRO029^16,PRO,external cooperation (E),defexp_and_simp_and_etaexpand:11;e:1;neg_conjecture:1
+dev,e,10,PUZ090^5,PUZ,external cooperation (E),defexp_and_simp_and_etaexpand:1;e:1;neg_conjecture:1
+dev,e,10,PUZ091^5,PUZ,external cooperation (E),defexp_and_simp_and_etaexpand:1;e:1;neg_conjecture:1
+dev,e,10,PUZ146^1,PUZ,external cooperation (E),defexp_and_simp_and_etaexpand:7;e:1;neg_conjecture:1
+dev,e,10,SET010^5,SET,Boolean extensionality;functional extensionality;unit rewriting (demodulation),bool_ext:2;cnf:3;cnfConj:2;defexp_and_simp_and_etaexpand:1;func_ext:1;lifteq:1;neg_conjecture:1;rewrite:2;simp:4
+dev,e,10,SET017^1,SET,external cooperation (E),defexp_and_simp_and_etaexpand:1;e:1;neg_conjecture:1
+dev,e,10,SET044^23,SET,external cooperation (E),defexp_and_simp_and_etaexpand:5;e:1;neg_conjecture:1
+dev,e,10,SET046^5,SET,external cooperation (E),defexp_and_simp_and_etaexpand:1;e:1;neg_conjecture:1
+dev,e,10,SET047^1,SET,external cooperation (E),defexp_and_simp_and_etaexpand:2;e:1;neg_conjecture:1
+dev,e,10,SET055^12,SET,external cooperation (E),defexp_and_simp_and_etaexpand:85;e:1;neg_conjecture:1
+dev,e,10,SET143^3,SET,Boolean extensionality;functional extensionality;unit rewriting (demodulation),bool_ext:1;cnf:2;cnfConj:1;defexp_and_simp_and_etaexpand:1;func_ext:1;lifteq:1;neg_conjecture:1;rewrite:1;simp:2
+dev,e,10,SET162^5,SET,,defexp_and_simp_and_etaexpand:1;neg_conjecture:1;simp:1
+dev,e,10,SET169^5,SET,Boolean extensionality;functional extensionality;unit rewriting (demodulation),bool_ext:1;cnf:2;cnfConj:1;defexp_and_simp_and_etaexpand:1;func_ext:1;lifteq:1;neg_conjecture:1;rewrite:1;simp:2
+dev,e,10,SET580^5,SET,external cooperation (E),defexp_and_simp_and_etaexpand:1;e:1;neg_conjecture:1
+dev,e,10,SET647^3,SET,external cooperation (E),defexp_and_simp_and_etaexpand:1;e:1;neg_conjecture:1
+dev,e,10,SET651^3,SET,external cooperation (E),defexp_and_simp_and_etaexpand:1;e:1;neg_conjecture:1
+dev,e,10,SET716^4,SET,external cooperation (E),defexp_and_simp_and_etaexpand:1;e:1;neg_conjecture:1
+dev,e,10,SET753^4,SET,external cooperation (E),defexp_and_simp_and_etaexpand:1;e:1;neg_conjecture:1
+dev,e,10,SET926^12,SET,external cooperation (E),defexp_and_simp_and_etaexpand:17;e:1;neg_conjecture:1
+dev,e,10,SEU499^1,SEU,,defexp_and_simp_and_etaexpand:1;neg_conjecture:1;simp:1
+dev,e,10,SEU503^2,SEU,primitive substitution,cnf:1;cnfConj:2;defexp_and_simp_and_etaexpand:1;miniscope:1;neg_conjecture:1;paramod_ordered:1;pattern_uni:1;prim_subst:1;simp:3
+dev,e,10,SEU518^1,SEU,external cooperation (E),defexp_and_simp_and_etaexpand:1;e:1;neg_conjecture:1
+dev,e,10,SEU520^1,SEU,,defexp_and_simp_and_etaexpand:1;neg_conjecture:1;simp:1
+dev,e,10,SEU537^1,SEU,external cooperation (E),defexp_and_simp_and_etaexpand:1;e:1;neg_conjecture:1
+dev,e,10,SEU541^2,SEU,,defexp_and_simp_and_etaexpand:1;neg_conjecture:1;simp:1
+dev,e,10,SEU544^1,SEU,,defexp_and_simp_and_etaexpand:1;neg_conjecture:1;simp:1
+dev,e,10,SEU552^2,SEU,unit rewriting (demodulation),cnf:1;cnfConj:3;defexp_and_simp_and_etaexpand:1;lifteq:3;neg_conjecture:1;rewrite:1;simp:1
+dev,e,10,SEU557^1,SEU,unit rewriting (demodulation),cnf:1;cnfConj:2;defexp_and_simp_and_etaexpand:1;lifteq:2;miniscope:1;neg_conjecture:1;rewrite:1;simp:3
+dev,e,10,SEU575^1,SEU,external cooperation (E),defexp_and_simp_and_etaexpand:1;e:1;neg_conjecture:1
+dev,e,10,SEU582^2,SEU,external cooperation (E),defexp_and_simp_and_etaexpand:1;e:1;neg_conjecture:1
+dev,e,10,SEU595^2,SEU,external cooperation (E),defexp_and_simp_and_etaexpand:1;e:1;neg_conjecture:1
+dev,e,10,SEU598^2,SEU,external cooperation (E),defexp_and_simp_and_etaexpand:1;e:1;neg_conjecture:1
+dev,e,10,SEU640^2,SEU,,defexp_and_simp_and_etaexpand:1;neg_conjecture:1;simp:1
+dev,e,10,SEU646^2,SEU,external cooperation (E),defexp_and_simp_and_etaexpand:1;e:1;neg_conjecture:1
+dev,e,10,SEU668^2,SEU,primitive substitution;pre-unification beyond patterns;external cooperation (E),cnf:7;cnfConj:11;defexp_and_simp_and_etaexpand:1;detectInverse:2;e:1;eqfactor_ordered:1;lifteq:5;miniscope:1;neg_conjecture:1;paramod_ordered:17;pattern_uni:3;pre_uni:5;prim_subst:4;simp:40
+dev,e,10,SEU705^2,SEU,external cooperation (E),defexp_and_simp_and_etaexpand:1;e:1;neg_conjecture:1
+dev,e,10,SEU716^2,SEU,external cooperation (E),defexp_and_simp_and_etaexpand:1;e:1;neg_conjecture:1
+dev,e,10,SEU723^2,SEU,external cooperation (E),defexp_and_simp_and_etaexpand:1;e:1;neg_conjecture:1
+dev,e,10,SEU727^2,SEU,external cooperation (E),defexp_and_simp_and_etaexpand:1;e:1;neg_conjecture:1
+dev,e,10,SEU738^2,SEU,external cooperation (E),defexp_and_simp_and_etaexpand:1;e:1;neg_conjecture:1
+dev,e,10,SEU742^2,SEU,external cooperation (E),defexp_and_simp_and_etaexpand:1;e:1;neg_conjecture:1
+dev,e,10,SEU750^2,SEU,external cooperation (E),defexp_and_simp_and_etaexpand:1;e:1;neg_conjecture:1
+dev,e,10,SEU769^2,SEU,external cooperation (E),defexp_and_simp_and_etaexpand:1;e:1;neg_conjecture:1
+dev,e,10,SEU781^2,SEU,external cooperation (E),defexp_and_simp_and_etaexpand:1;e:1;neg_conjecture:1
+dev,e,10,SEU787^2,SEU,external cooperation (E),defexp_and_simp_and_etaexpand:1;e:1;neg_conjecture:1
+dev,e,10,SEU811^2,SEU,external cooperation (E),cnf:1;cnfConj:7;defexp_and_simp_and_etaexpand:1;e:1;eqfactor_ordered:2;lifteq:3;neg_conjecture:1;paramod_ordered:16;pattern_uni:10;simp:36;simplifyReflect:1
+dev,e,10,SEU821^1,SEU,unit rewriting (demodulation),cnf:1;cnfConj:2;defexp_and_simp_and_etaexpand:1;miniscope:1;neg_conjecture:1;rewrite:1;simp:2
+dev,e,10,SEU826^1,SEU,external cooperation (E),defexp_and_simp_and_etaexpand:1;e:1;neg_conjecture:1
+dev,e,10,SEU829^1,SEU,Boolean extensionality;functional extensionality;unit rewriting (demodulation),bool_ext:2;cnf:3;defexp_and_simp_and_etaexpand:1;func_ext:3;lifteq:3;neg_conjecture:1;paramod_ordered:8;pattern_uni:8;rewrite:1;simp:9
+dev,e,10,SEU930^5,SEU,external cooperation (E),defexp_and_simp_and_etaexpand:1;e:1;neg_conjecture:1
+dev,e,10,SEU969^5,SEU,pre-unification beyond patterns;external cooperation (E),cnf:1;cnfConj:8;defexp_and_simp_and_etaexpand:1;e:1;eqfactor_ordered:2;lifteq:2;neg_conjecture:1;paramod_ordered:34;pattern_uni:20;pre_uni:6;replace_andrewseq:2;simp:51
+dev,e,10,SEV047^5,SEV,,defexp_and_simp_and_etaexpand:1;neg_conjecture:1;simp:1
+dev,e,10,SEV162^5,SEV,pre-unification beyond patterns;Boolean extensionality,bool_ext:2;cnf:3;defexp_and_simp_and_etaexpand:1;eqfactor_ordered:1;lifteq:1;neg_conjecture:1;paramod_ordered:2;pre_uni:3;simp:3
+dev,e,10,SEV229^5,SEV,Boolean extensionality;functional extensionality;external cooperation (E),bool_ext:2;cnf:2;cnfConj:9;defexp_and_simp_and_etaexpand:1;e:1;eqfactor_ordered:9;func_ext:1;lifteq:1;neg_conjecture:1;paramod_ordered:11;pattern_uni:12;simp:22
+dev,e,10,SWW470^1,SWW,external cooperation (E),e:1
+dev,e,10,SYN364^5,SYN,external cooperation (E),defexp_and_simp_and_etaexpand:1;e:1;neg_conjecture:1
+dev,e,10,SYN915^4,SYN,,defexp_and_simp_and_etaexpand:1;neg_conjecture:1;simp:1
+dev,e,10,SYN983^1,SYN,Boolean extensionality;unit rewriting (demodulation),bool_ext:1;cnf:2;cnfConj:4;defexp_and_simp_and_etaexpand:1;neg_conjecture:1;paramod_ordered:2;rewrite:1;simp:6
+dev,e,10,SYN999^1,SYN,unit rewriting (demodulation),cnf:1;cnfConj:3;defexp_and_simp_and_etaexpand:1;lifteq:1;neg_conjecture:1;paramod_ordered:1;replace_leibeq:1;rewrite:1;simp:4
+dev,e,10,SYO026^1,SYO,Boolean extensionality;functional extensionality;unit rewriting (demodulation),bool_ext:6;cnf:2;cnfConj:5;defexp_and_simp_and_etaexpand:1;func_ext:4;neg_conjecture:1;paramod_ordered:15;pattern_uni:4;rewrite:3;simp:31
+dev,e,10,SYO029^1,SYO,special instances,defexp_and_simp_and_etaexpand:1;instance:1;neg_conjecture:1;simp:1
+dev,e,10,SYO044^1,SYO,,defexp_and_simp_and_etaexpand:1;neg_conjecture:1;simp:1
+dev,e,10,SYO045^1,SYO,external cooperation (E),defexp_and_simp_and_etaexpand:1;e:1;neg_conjecture:1
+dev,e,10,SYO048^1,SYO,external cooperation (E),defexp_and_simp_and_etaexpand:1;e:1;neg_conjecture:1
+dev,e,10,SYO068^4.020,SYO,external cooperation (E),defexp_and_simp_and_etaexpand:24;e:1;neg_conjecture:1
+dev,e,10,SYO107^5,SYO,external cooperation (E),defexp_and_simp_and_etaexpand:1;e:1;neg_conjecture:1
+dev,e,10,SYO111^5,SYO,external cooperation (E),defexp_and_simp_and_etaexpand:1;e:1;neg_conjecture:1
+dev,e,10,SYO131^5,SYO,unit rewriting (demodulation),cnf:1;cnfConj:2;defexp_and_simp_and_etaexpand:1;neg_conjecture:1;rewrite:1;simp:1
+dev,e,10,SYO170^5,SYO,external cooperation (E),defexp_and_simp_and_etaexpand:1;e:1;neg_conjecture:1
+dev,e,10,SYO194^5,SYO,pre-unification beyond patterns,cnf:1;defexp_and_simp_and_etaexpand:1;lifteq:1;neg_conjecture:1;pre_uni:1
+dev,e,10,SYO199^5,SYO,special instances,defexp_and_simp_and_etaexpand:1;instance:1;neg_conjecture:1;simp:1
+dev,e,10,SYO233^5,SYO,unit rewriting (demodulation),cnf:1;cnfConj:2;defexp_and_simp_and_etaexpand:1;lifteq:2;neg_conjecture:1;replace_leibeq:1;rewrite:1;simp:2
+dev,e,10,SYO259^5,SYO,primitive substitution;external cooperation (E),cnf:1;cnfConj:2;defexp_and_simp_and_etaexpand:1;e:1;neg_conjecture:1;prim_subst:1;simp:1
+dev,e,10,SYO295^5,SYO,choice,choice:2;cnf:3;cnfConj:3;defexp_and_simp_and_etaexpand:1;lifteq:3;neg_conjecture:1;simp:3;simplifyReflect:3
+dev,e,10,SYO301^5,SYO,external cooperation (E),cnf:1;cnfConj:2;defexp_and_simp_and_etaexpand:1;e:1;lifteq:1;neg_conjecture:1;replace_leibeq:1;simp:1
+dev,e,10,SYO349^5,SYO,unit rewriting (demodulation),cnf:1;cnfConj:4;defexp_and_simp_and_etaexpand:1;neg_conjecture:1;rewrite:3;simp:1
+dev,e,10,SYO364^5,SYO,functional extensionality;unit rewriting (demodulation),cnf:1;cnfConj:4;defexp_and_simp_and_etaexpand:1;func_ext:1;lifteq:2;neg_conjecture:1;paramod_ordered:1;replace_leibeq:2;rewrite:2;simp:5
+dev,e,10,SYO367^5,SYO,,defexp_and_simp_and_etaexpand:1;neg_conjecture:1;simp:1
+dev,e,10,SYO380^5,SYO,external cooperation (E),defexp_and_simp_and_etaexpand:1;e:1;neg_conjecture:1
+dev,e,10,SYO396^1,SYO,,defexp_and_simp_and_etaexpand:1;neg_conjecture:1;simp:1
+dev,e,10,SYO422^1,SYO,external cooperation (E),defexp_and_simp_and_etaexpand:2;e:1;neg_conjecture:1
+dev,e,10,SYO447^1,SYO,external cooperation (E),defexp_and_simp_and_etaexpand:4;e:1;neg_conjecture:1
+dev,e,10,SYO463^6,SYO,external cooperation (E),defexp_and_simp_and_etaexpand:4;e:1;neg_conjecture:1
+dev,e,10,SYO464^4,SYO,external cooperation (E),defexp_and_simp_and_etaexpand:3;e:1;neg_conjecture:1
+dev,e,10,SYO530^1,SYO,external cooperation (E),defexp_and_simp_and_etaexpand:2;e:1;neg_conjecture:1
+dev,e,10,SYO537^1,SYO,external cooperation (E),defexp_and_simp_and_etaexpand:2;e:1;neg_conjecture:1
+dev,e,10,SYO539^1,SYO,choice;unit rewriting (demodulation),choice:1;cnf:2;cnfConj:4;defexp_and_simp_and_etaexpand:1;lifteq:4;neg_conjecture:1;rewrite:2;simp:4;simplifyReflect:2
+dev,e,10,SYO540^1,SYO,choice;unit rewriting (demodulation),choice:2;cnf:2;cnfConj:1;defexp_and_simp_and_etaexpand:1;lifteq:3;neg_conjecture:1;rewrite:1;simp:3;simplifyReflect:2
+dev,e,10,SYO549^1,SYO,unit rewriting (demodulation),defexp_and_simp_and_etaexpand:2;neg_conjecture:1;rewrite:1;simp:1
+dev,e,10,SYO553^1,SYO,pre-unification beyond patterns,cnf:1;defexp_and_simp_and_etaexpand:1;lifteq:1;neg_conjecture:1;pre_uni:1
+dev,e,10,SYO570^7,SYO,external cooperation (E),defexp_and_simp_and_etaexpand:5;e:1;neg_conjecture:1
+dev,e,10,SYO572^7,SYO,external cooperation (E),defexp_and_simp_and_etaexpand:5;e:1;neg_conjecture:1
+dev,e,10,SYO902^8,SYO,external cooperation (E),defexp_and_simp_and_etaexpand:2;e:1;neg_conjecture:1
+dev,e,2.5,ALG285^5,ALG,external cooperation (E),defexp_and_simp_and_etaexpand:1;e:1;neg_conjecture:1
+dev,e,2.5,CSR127^1,CSR,unit rewriting (demodulation),cnf:2;defexp_and_simp_and_etaexpand:3;neg_conjecture:1;paramod_ordered:1;pattern_uni:1;rewrite:1;simp:2
+dev,e,2.5,CSR142^1,CSR,external cooperation (E),defexp_and_simp_and_etaexpand:4;e:1;neg_conjecture:1
+dev,e,2.5,ITP001^2,ITP,,defexp_and_simp_and_etaexpand:1;neg_conjecture:1;simp:1
+dev,e,2.5,LCL584^1,LCL,external cooperation (E),defexp_and_simp_and_etaexpand:1;e:1;neg_conjecture:1
+dev,e,2.5,LCL585^1,LCL,external cooperation (E),defexp_and_simp_and_etaexpand:1;e:1;neg_conjecture:1
+dev,e,2.5,LCL612^1,LCL,external cooperation (E),defexp_and_simp_and_etaexpand:1;e:1;neg_conjecture:1
+dev,e,2.5,LCL623^1,LCL,external cooperation (E),defexp_and_simp_and_etaexpand:2;e:1;neg_conjecture:1
+dev,e,2.5,LCL701^1,LCL,external cooperation (E),defexp_and_simp_and_etaexpand:1;e:1;neg_conjecture:1
+dev,e,2.5,LCL704^1,LCL,external cooperation (E),defexp_and_simp_and_etaexpand:1;e:1;neg_conjecture:1
+dev,e,2.5,LCL735^5,LCL,external cooperation (E),e:1
+dev,e,2.5,LCL958^18,LCL,external cooperation (E),defexp_and_simp_and_etaexpand:4;e:1;neg_conjecture:1
+dev,e,2.5,NLP267^1,NLP,external cooperation (E),defexp_and_simp_and_etaexpand:7;e:1;neg_conjecture:1
+dev,e,2.5,NUM416^1,NUM,,defexp_and_simp_and_etaexpand:1;neg_conjecture:1;simp:1
+dev,e,2.5,NUM635^1,NUM,external cooperation (E),defexp_and_simp_and_etaexpand:3;e:1;neg_conjecture:1
+dev,e,2.5,NUM767^1,NUM,external cooperation (E),defexp_and_simp_and_etaexpand:6;e:1;neg_conjecture:1
+dev,e,2.5,PLA032^7,PLA,external cooperation (E),defexp_and_simp_and_etaexpand:8;e:1;neg_conjecture:1
+dev,e,2.5,PLA053^2,PLA,external cooperation (E),defexp_and_simp_and_etaexpand:5;e:1;neg_conjecture:1
+dev,e,2.5,PRO029^16,PRO,external cooperation (E),defexp_and_simp_and_etaexpand:11;e:1;neg_conjecture:1
+dev,e,2.5,PUZ090^5,PUZ,external cooperation (E),defexp_and_simp_and_etaexpand:1;e:1;neg_conjecture:1
+dev,e,2.5,PUZ091^5,PUZ,external cooperation (E),defexp_and_simp_and_etaexpand:1;e:1;neg_conjecture:1
+dev,e,2.5,PUZ146^1,PUZ,external cooperation (E),defexp_and_simp_and_etaexpand:7;e:1;neg_conjecture:1
+dev,e,2.5,SET010^5,SET,Boolean extensionality;functional extensionality;unit rewriting (demodulation),bool_ext:2;cnf:3;cnfConj:2;defexp_and_simp_and_etaexpand:1;func_ext:1;lifteq:1;neg_conjecture:1;rewrite:2;simp:4
+dev,e,2.5,SET017^1,SET,external cooperation (E),defexp_and_simp_and_etaexpand:1;e:1;neg_conjecture:1
+dev,e,2.5,SET044^23,SET,external cooperation (E),defexp_and_simp_and_etaexpand:5;e:1;neg_conjecture:1
+dev,e,2.5,SET046^5,SET,external cooperation (E),defexp_and_simp_and_etaexpand:1;e:1;neg_conjecture:1
+dev,e,2.5,SET047^1,SET,external cooperation (E),defexp_and_simp_and_etaexpand:2;e:1;neg_conjecture:1
+dev,e,2.5,SET143^3,SET,Boolean extensionality;functional extensionality;unit rewriting (demodulation),bool_ext:1;cnf:2;cnfConj:1;defexp_and_simp_and_etaexpand:1;func_ext:1;lifteq:1;neg_conjecture:1;rewrite:1;simp:2
+dev,e,2.5,SET162^5,SET,,defexp_and_simp_and_etaexpand:1;neg_conjecture:1;simp:1
+dev,e,2.5,SET169^5,SET,Boolean extensionality;functional extensionality;unit rewriting (demodulation),bool_ext:1;cnf:2;cnfConj:1;defexp_and_simp_and_etaexpand:1;func_ext:1;lifteq:1;neg_conjecture:1;rewrite:1;simp:2
+dev,e,2.5,SET580^5,SET,external cooperation (E),defexp_and_simp_and_etaexpand:1;e:1;neg_conjecture:1
+dev,e,2.5,SET647^3,SET,external cooperation (E),defexp_and_simp_and_etaexpand:1;e:1;neg_conjecture:1
+dev,e,2.5,SET651^3,SET,external cooperation (E),defexp_and_simp_and_etaexpand:1;e:1;neg_conjecture:1
+dev,e,2.5,SET716^4,SET,external cooperation (E),defexp_and_simp_and_etaexpand:1;e:1;neg_conjecture:1
+dev,e,2.5,SET753^4,SET,external cooperation (E),defexp_and_simp_and_etaexpand:1;e:1;neg_conjecture:1
+dev,e,2.5,SET926^12,SET,external cooperation (E),defexp_and_simp_and_etaexpand:17;e:1;neg_conjecture:1
+dev,e,2.5,SEU499^1,SEU,,defexp_and_simp_and_etaexpand:1;neg_conjecture:1;simp:1
+dev,e,2.5,SEU503^2,SEU,primitive substitution,cnf:1;cnfConj:2;defexp_and_simp_and_etaexpand:1;miniscope:1;neg_conjecture:1;paramod_ordered:1;pattern_uni:1;prim_subst:1;simp:3
+dev,e,2.5,SEU520^1,SEU,,defexp_and_simp_and_etaexpand:1;neg_conjecture:1;simp:1
+dev,e,2.5,SEU541^2,SEU,,defexp_and_simp_and_etaexpand:1;neg_conjecture:1;simp:1
+dev,e,2.5,SEU544^1,SEU,,defexp_and_simp_and_etaexpand:1;neg_conjecture:1;simp:1
+dev,e,2.5,SEU552^2,SEU,unit rewriting (demodulation),cnf:1;cnfConj:3;defexp_and_simp_and_etaexpand:1;lifteq:3;neg_conjecture:1;rewrite:1;simp:1
+dev,e,2.5,SEU582^2,SEU,external cooperation (E),defexp_and_simp_and_etaexpand:1;e:1;neg_conjecture:1
+dev,e,2.5,SEU595^2,SEU,external cooperation (E),defexp_and_simp_and_etaexpand:1;e:1;neg_conjecture:1
+dev,e,2.5,SEU598^2,SEU,external cooperation (E),defexp_and_simp_and_etaexpand:1;e:1;neg_conjecture:1
+dev,e,2.5,SEU640^2,SEU,,defexp_and_simp_and_etaexpand:1;neg_conjecture:1;simp:1
+dev,e,2.5,SEU646^2,SEU,external cooperation (E),defexp_and_simp_and_etaexpand:1;e:1;neg_conjecture:1
+dev,e,2.5,SEU705^2,SEU,external cooperation (E),defexp_and_simp_and_etaexpand:1;e:1;neg_conjecture:1
+dev,e,2.5,SEU716^2,SEU,external cooperation (E),defexp_and_simp_and_etaexpand:1;e:1;neg_conjecture:1
+dev,e,2.5,SEU723^2,SEU,external cooperation (E),defexp_and_simp_and_etaexpand:1;e:1;neg_conjecture:1
+dev,e,2.5,SEU727^2,SEU,external cooperation (E),defexp_and_simp_and_etaexpand:1;e:1;neg_conjecture:1
+dev,e,2.5,SEU738^2,SEU,external cooperation (E),defexp_and_simp_and_etaexpand:1;e:1;neg_conjecture:1
+dev,e,2.5,SEU742^2,SEU,external cooperation (E),defexp_and_simp_and_etaexpand:1;e:1;neg_conjecture:1
+dev,e,2.5,SEU750^2,SEU,external cooperation (E),defexp_and_simp_and_etaexpand:1;e:1;neg_conjecture:1
+dev,e,2.5,SEU781^2,SEU,external cooperation (E),e:1
+dev,e,2.5,SEU787^2,SEU,external cooperation (E),defexp_and_simp_and_etaexpand:1;e:1;neg_conjecture:1
+dev,e,2.5,SEU826^1,SEU,external cooperation (E),defexp_and_simp_and_etaexpand:1;e:1;neg_conjecture:1
+dev,e,2.5,SEU930^5,SEU,external cooperation (E),defexp_and_simp_and_etaexpand:1;e:1;neg_conjecture:1
+dev,e,2.5,SEV047^5,SEV,,defexp_and_simp_and_etaexpand:1;neg_conjecture:1;simp:1
+dev,e,2.5,SYN364^5,SYN,external cooperation (E),defexp_and_simp_and_etaexpand:1;e:1;neg_conjecture:1
+dev,e,2.5,SYN915^4,SYN,,defexp_and_simp_and_etaexpand:1;neg_conjecture:1;simp:1
+dev,e,2.5,SYN983^1,SYN,Boolean extensionality;unit rewriting (demodulation),bool_ext:1;cnf:2;cnfConj:4;defexp_and_simp_and_etaexpand:1;neg_conjecture:1;paramod_ordered:2;rewrite:1;simp:6
+dev,e,2.5,SYN999^1,SYN,unit rewriting (demodulation),cnf:1;cnfConj:3;defexp_and_simp_and_etaexpand:1;lifteq:1;neg_conjecture:1;paramod_ordered:1;replace_leibeq:1;rewrite:1;simp:4
+dev,e,2.5,SYO029^1,SYO,special instances,defexp_and_simp_and_etaexpand:1;instance:1;neg_conjecture:1;simp:1
+dev,e,2.5,SYO044^1,SYO,,defexp_and_simp_and_etaexpand:1;neg_conjecture:1;simp:1
+dev,e,2.5,SYO107^5,SYO,external cooperation (E),defexp_and_simp_and_etaexpand:1;e:1;neg_conjecture:1
+dev,e,2.5,SYO111^5,SYO,unit rewriting (demodulation),cnf:1;cnfConj:4;defexp_and_simp_and_etaexpand:1;miniscope:1;neg_conjecture:1;rewrite:3;simp:6
+dev,e,2.5,SYO131^5,SYO,unit rewriting (demodulation),cnf:1;cnfConj:2;defexp_and_simp_and_etaexpand:1;neg_conjecture:1;rewrite:1;simp:1
+dev,e,2.5,SYO170^5,SYO,external cooperation (E),defexp_and_simp_and_etaexpand:1;e:1;neg_conjecture:1
+dev,e,2.5,SYO194^5,SYO,pre-unification beyond patterns,cnf:1;defexp_and_simp_and_etaexpand:1;lifteq:1;neg_conjecture:1;pre_uni:1
+dev,e,2.5,SYO199^5,SYO,special instances,defexp_and_simp_and_etaexpand:1;instance:1;neg_conjecture:1;simp:1
+dev,e,2.5,SYO233^5,SYO,unit rewriting (demodulation),cnf:1;cnfConj:2;defexp_and_simp_and_etaexpand:1;lifteq:2;neg_conjecture:1;replace_leibeq:1;rewrite:1;simp:2
+dev,e,2.5,SYO259^5,SYO,external cooperation (E),e:1
+dev,e,2.5,SYO301^5,SYO,external cooperation (E),cnf:1;cnfConj:2;defexp_and_simp_and_etaexpand:1;e:1;lifteq:1;neg_conjecture:1;replace_leibeq:1;simp:1
+dev,e,2.5,SYO349^5,SYO,unit rewriting (demodulation),cnf:1;cnfConj:4;defexp_and_simp_and_etaexpand:1;neg_conjecture:1;rewrite:3;simp:1
+dev,e,2.5,SYO367^5,SYO,,defexp_and_simp_and_etaexpand:1;neg_conjecture:1;simp:1
+dev,e,2.5,SYO380^5,SYO,unit rewriting (demodulation),cnf:1;cnfConj:2;defexp_and_simp_and_etaexpand:1;miniscope:1;neg_conjecture:1;rewrite:1;simp:2
+dev,e,2.5,SYO396^1,SYO,,defexp_and_simp_and_etaexpand:1;neg_conjecture:1;simp:1
+dev,e,2.5,SYO422^1,SYO,external cooperation (E),defexp_and_simp_and_etaexpand:2;e:1;neg_conjecture:1
+dev,e,2.5,SYO447^1,SYO,external cooperation (E),defexp_and_simp_and_etaexpand:4;e:1;neg_conjecture:1
+dev,e,2.5,SYO463^6,SYO,external cooperation (E),defexp_and_simp_and_etaexpand:4;e:1;neg_conjecture:1
+dev,e,2.5,SYO464^4,SYO,external cooperation (E),defexp_and_simp_and_etaexpand:3;e:1;neg_conjecture:1
+dev,e,2.5,SYO530^1,SYO,external cooperation (E),defexp_and_simp_and_etaexpand:2;e:1;neg_conjecture:1
+dev,e,2.5,SYO537^1,SYO,external cooperation (E),defexp_and_simp_and_etaexpand:2;e:1;neg_conjecture:1
+dev,e,2.5,SYO539^1,SYO,choice;unit rewriting (demodulation),choice:1;cnf:2;cnfConj:4;defexp_and_simp_and_etaexpand:1;lifteq:4;neg_conjecture:1;rewrite:2;simp:4;simplifyReflect:2
+dev,e,2.5,SYO540^1,SYO,choice;unit rewriting (demodulation),choice:2;cnf:2;cnfConj:1;defexp_and_simp_and_etaexpand:1;lifteq:3;neg_conjecture:1;rewrite:1;simp:3;simplifyReflect:2
+dev,e,2.5,SYO549^1,SYO,unit rewriting (demodulation),defexp_and_simp_and_etaexpand:2;neg_conjecture:1;rewrite:1;simp:1
+dev,e,2.5,SYO553^1,SYO,pre-unification beyond patterns,cnf:1;defexp_and_simp_and_etaexpand:1;lifteq:1;neg_conjecture:1;pre_uni:1
+dev,e,2.5,SYO570^7,SYO,external cooperation (E),defexp_and_simp_and_etaexpand:5;e:1;neg_conjecture:1
+dev,e,2.5,SYO572^7,SYO,external cooperation (E),defexp_and_simp_and_etaexpand:5;e:1;neg_conjecture:1
+dev,e,2.5,SYO902^8,SYO,external cooperation (E),defexp_and_simp_and_etaexpand:2;e:1;neg_conjecture:1
+dev,stock,10,AGT031^1,AGT,unit rewriting (demodulation),cnf:5;cnfConj:2;defexp_and_simp_and_etaexpand:5;miniscope:2;neg_conjecture:1;paramod_ordered:5;pattern_uni:5;rewrite:1;simp:9
+dev,stock,10,ALG248^3,ALG,unit rewriting (demodulation),cnf:1;cnfConj:4;defexp_and_simp_and_etaexpand:1;lifteq:2;miniscope:1;neg_conjecture:1;paramod_ordered:2;pattern_uni:1;rewrite:1;simp:4
+dev,stock,10,ALG254^1,ALG,unit rewriting (demodulation),cnf:1;cnfConj:4;defexp_and_simp_and_etaexpand:1;lifteq:4;miniscope:1;neg_conjecture:1;rewrite:2;simp:5
+dev,stock,10,ALG258^2,ALG,unit rewriting (demodulation),cnf:2;cnfConj:7;defexp_and_simp_and_etaexpand:1;detectInverse:1;lifteq:8;neg_conjecture:1;paramod_ordered:7;pattern_uni:6;rewrite:2;simp:10
+dev,stock,10,ALG285^5,ALG,unit rewriting (demodulation),cnf:1;cnfConj:4;defexp_and_simp_and_etaexpand:1;lifteq:4;miniscope:1;neg_conjecture:1;paramod_ordered:9;pattern_uni:8;rewrite:4;simp:14
+dev,stock,10,CAT038^2,CAT,choice;pre-unification beyond patterns,choice:2;cnf:3;cnfConj:2;defexp_and_simp_and_etaexpand:1;eqfactor_ordered:1;lifteq:3;neg_conjecture:1;pre_uni:1;simp:3;simplifyReflect:3
+dev,stock,10,CSR127^1,CSR,unit rewriting (demodulation),cnf:2;defexp_and_simp_and_etaexpand:3;neg_conjecture:1;paramod_ordered:1;pattern_uni:1;rewrite:1;simp:2
+dev,stock,10,CSR133^1,CSR,pre-unification beyond patterns;functional extensionality;unit rewriting (demodulation),cnf:5;defexp_and_simp_and_etaexpand:7;func_ext:6;lifteq:4;neg_conjecture:1;paramod_ordered:20;pattern_uni:1;pre_uni:9;rewrite:11;simp:47
+dev,stock,10,CSR139^1,CSR,primitive substitution;pre-unification beyond patterns;functional extensionality;unit rewriting (demodulation),cnf:1;defexp_and_simp_and_etaexpand:3;func_ext:1;lifteq:1;neg_conjecture:1;paramod_ordered:1;polarity_switch:1;pre_uni:1;prim_subst:1;rewrite:1;simp:3
+dev,stock,10,CSR140^2,CSR,pre-unification beyond patterns;unit rewriting (demodulation),cnf:1;defexp_and_simp_and_etaexpand:3;miniscope:1;neg_conjecture:1;paramod_ordered:1;polarity_switch:1;pre_uni:1;rewrite:1;simp:3
+dev,stock,10,CSR142^1,CSR,unit rewriting (demodulation),cnf:2;defexp_and_simp_and_etaexpand:4;lifteq:1;neg_conjecture:1;paramod_ordered:1;pattern_uni:1;rewrite:2;simp:3
+dev,stock,10,CSR151^3,CSR,Boolean extensionality;unit rewriting (demodulation),bool_ext:1;cnf:1;cnfConj:1;defexp_and_simp_and_etaexpand:2;neg_conjecture:1;paramod_ordered:1;rewrite:1;simp:5
+dev,stock,10,ITP001^2,ITP,,defexp_and_simp_and_etaexpand:1;neg_conjecture:1;simp:1
+dev,stock,10,ITP196^1,ITP,unit rewriting (demodulation),cnf:1;defexp_and_simp_and_etaexpand:2;lifteq:1;neg_conjecture:1;polarity_switch:1;rewrite:1;simp:2
+dev,stock,10,ITP209^1,ITP,unit rewriting (demodulation),cnf:3;defexp_and_simp_and_etaexpand:4;lifteq:4;neg_conjecture:1;paramod_ordered:1;pattern_uni:1;rewrite:1;simplifyReflect:1
+dev,stock,10,ITP233^1,ITP,unit rewriting (demodulation),cnf:1;defexp_and_simp_and_etaexpand:4;lifteq:2;neg_conjecture:1;paramod_ordered:1;rewrite:3;simp:3;simplifyReflect:1
+dev,stock,10,LCL584^1,LCL,unit rewriting (demodulation),cnf:1;cnfConj:10;defexp_and_simp_and_etaexpand:1;miniscope:1;neg_conjecture:1;paramod_ordered:9;pattern_uni:9;rewrite:6;simp:17
+dev,stock,10,LCL585^1,LCL,unit rewriting (demodulation),cnf:1;cnfConj:4;defexp_and_simp_and_etaexpand:1;neg_conjecture:1;paramod_ordered:2;pattern_uni:2;rewrite:2;simp:5
+dev,stock,10,LCL612^1,LCL,unit rewriting (demodulation),cnf:1;cnfConj:3;defexp_and_simp_and_etaexpand:1;neg_conjecture:1;rewrite:2;simp:3
+dev,stock,10,LCL701^1,LCL,unit rewriting (demodulation),cnf:1;cnfConj:3;defexp_and_simp_and_etaexpand:1;neg_conjecture:1;paramod_ordered:2;pattern_uni:2;rewrite:1;simp:5
+dev,stock,10,LCL704^1,LCL,unit rewriting (demodulation),cnf:1;cnfConj:5;defexp_and_simp_and_etaexpand:1;lifteq:1;neg_conjecture:1;paramod_ordered:3;pattern_uni:2;rewrite:1;simp:5
+dev,stock,10,LCL735^5,LCL,choice;special instances;unit rewriting (demodulation),choice:1;cnf:1;cnfConj:2;defexp_and_simp_and_etaexpand:1;instance:1;neg_conjecture:1;rewrite:2;simp:2
+dev,stock,10,LCL736^5,LCL,choice;special instances;unit rewriting (demodulation),choice:1;cnf:1;cnfConj:2;defexp_and_simp_and_etaexpand:1;instance:1;miniscope:1;neg_conjecture:1;rewrite:2;simp:2
+dev,stock,10,LCL958^18,LCL,unit rewriting (demodulation),cnf:4;cnfConj:3;defexp_and_simp_and_etaexpand:4;neg_conjecture:1;paramod_ordered:4;pattern_uni:4;rewrite:3;simp:7
+dev,stock,10,NLP267^1,NLP,unit rewriting (demodulation),cnf:4;cnfConj:2;defexp_and_simp_and_etaexpand:4;neg_conjecture:1;paramod_ordered:3;pattern_uni:3;rewrite:1;simp:4
+dev,stock,10,NUM416^1,NUM,,defexp_and_simp_and_etaexpand:1;neg_conjecture:1;simp:1
+dev,stock,10,NUM635^1,NUM,unit rewriting (demodulation),cnf:2;defexp_and_simp_and_etaexpand:3;detectInverse:1;lifteq:4;neg_conjecture:1;paramod_ordered:1;pattern_uni:1;polarity_switch:2;rewrite:1;simplifyReflect:1
+dev,stock,10,NUM742^1,NUM,unit rewriting (demodulation),cnf:5;defexp_and_simp_and_etaexpand:7;miniscope:2;neg_conjecture:1;paramod_ordered:6;pattern_uni:6;rewrite:2;simp:9
+dev,stock,10,NUM767^1,NUM,unit rewriting (demodulation),cnf:3;defexp_and_simp_and_etaexpand:6;miniscope:2;neg_conjecture:1;paramod_ordered:4;pattern_uni:4;rewrite:1;simp:6
+dev,stock,10,NUM925^1,NUM,unit rewriting (demodulation),cnf:1;defexp_and_simp_and_etaexpand:5;lifteq:4;neg_conjecture:1;paramod_ordered:2;pattern_uni:1;polarity_switch:2;rewrite:3;simp:4;simplifyReflect:1
+dev,stock,10,NUN023^2,NUN,pre-unification beyond patterns;special instances,cnf:3;cnfConj:4;defexp_and_simp_and_etaexpand:1;eqfactor_ordered:1;instance:3;lifteq:6;neg_conjecture:1;paramod_ordered:4;pattern_uni:1;pre_uni:2;simp:11;simplifyReflect:1
+dev,stock,10,PLA053^2,PLA,unit rewriting (demodulation),cnf:3;cnfConj:4;defexp_and_simp_and_etaexpand:3;miniscope:1;neg_conjecture:1;paramod_ordered:2;pattern_uni:2;rewrite:2;simp:4
+dev,stock,10,PUZ090^5,PUZ,unit rewriting (demodulation),cnf:1;cnfConj:5;defexp_and_simp_and_etaexpand:1;neg_conjecture:1;rewrite:3;simp:3
+dev,stock,10,PUZ091^5,PUZ,unit rewriting (demodulation),cnf:1;cnfConj:18;defexp_and_simp_and_etaexpand:1;neg_conjecture:1;paramod_ordered:24;pattern_uni:24;rewrite:11;simp:35
+dev,stock,10,PUZ146^1,PUZ,functional extensionality;unit rewriting (demodulation),defexp_and_simp_and_etaexpand:3;func_ext:1;lifteq:1;neg_conjecture:1;polarity_switch:2;rewrite:2;simp:1
+dev,stock,10,SET010^5,SET,Boolean extensionality;functional extensionality;unit rewriting (demodulation),bool_ext:2;cnf:3;cnfConj:2;defexp_and_simp_and_etaexpand:1;func_ext:1;lifteq:1;neg_conjecture:1;rewrite:2;simp:4
+dev,stock,10,SET017^1,SET,Boolean extensionality;functional extensionality;unit rewriting (demodulation),bool_ext:2;cnf:3;cnfConj:4;defexp_and_simp_and_etaexpand:1;func_ext:1;lifteq:4;neg_conjecture:1;rewrite:2;simp:3;simplifyReflect:2
+dev,stock,10,SET044^23,SET,unit rewriting (demodulation),cnf:1;cnfConj:4;defexp_and_simp_and_etaexpand:1;lifteq:2;neg_conjecture:1;paramod_ordered:3;pattern_uni:3;rewrite:1;simp:6
+dev,stock,10,SET046^5,SET,unit rewriting (demodulation),cnf:1;cnfConj:3;defexp_and_simp_and_etaexpand:1;eqfactor_ordered:2;miniscope:1;neg_conjecture:1;paramod_ordered:2;pattern_uni:4;polarity_switch:1;rewrite:2;simp:7
+dev,stock,10,SET047^1,SET,Boolean extensionality;functional extensionality,bool_ext:2;cnf:2;defexp_and_simp_and_etaexpand:2;func_ext:1;lifteq:4;neg_conjecture:1;paramod_ordered:2;pattern_uni:2;simp:3;simplifyReflect:1
+dev,stock,10,SET143^3,SET,Boolean extensionality;functional extensionality;unit rewriting (demodulation),bool_ext:1;cnf:2;cnfConj:1;defexp_and_simp_and_etaexpand:1;func_ext:1;lifteq:1;neg_conjecture:1;rewrite:1;simp:2
+dev,stock,10,SET162^5,SET,,defexp_and_simp_and_etaexpand:1;neg_conjecture:1;simp:1
+dev,stock,10,SET169^5,SET,Boolean extensionality;functional extensionality;unit rewriting (demodulation),bool_ext:1;cnf:2;cnfConj:1;defexp_and_simp_and_etaexpand:1;func_ext:1;lifteq:1;neg_conjecture:1;rewrite:1;simp:2
+dev,stock,10,SET580^5,SET,Boolean extensionality;unit rewriting (demodulation),bool_ext:2;cnf:3;cnfConj:1;defexp_and_simp_and_etaexpand:1;lifteq:3;neg_conjecture:1;paramod_ordered:3;pattern_uni:3;rewrite:1;simp:6
+dev,stock,10,SET647^3,SET,unit rewriting (demodulation),cnf:1;cnfConj:3;defexp_and_simp_and_etaexpand:1;neg_conjecture:1;paramod_ordered:2;pattern_uni:2;rewrite:1;simp:4
+dev,stock,10,SET651^3,SET,unit rewriting (demodulation),cnf:1;cnfConj:3;defexp_and_simp_and_etaexpand:1;miniscope:1;neg_conjecture:1;paramod_ordered:1;pattern_uni:1;rewrite:1;simp:2
+dev,stock,10,SET716^4,SET,unit rewriting (demodulation),cnf:3;cnfConj:4;defexp_and_simp_and_etaexpand:1;detectInverse:2;lifteq:6;neg_conjecture:1;paramod_ordered:2;pattern_uni:2;rewrite:2;simp:1;simplifyReflect:1
+dev,stock,10,SET753^4,SET,unit rewriting (demodulation),cnf:1;cnfConj:4;defexp_and_simp_and_etaexpand:1;lifteq:2;neg_conjecture:1;paramod_ordered:2;pattern_uni:2;rewrite:2;simp:4
+dev,stock,10,SEU499^1,SEU,,defexp_and_simp_and_etaexpand:1;neg_conjecture:1;simp:1
+dev,stock,10,SEU503^2,SEU,primitive substitution,cnf:1;cnfConj:2;defexp_and_simp_and_etaexpand:1;miniscope:1;neg_conjecture:1;paramod_ordered:1;pattern_uni:1;prim_subst:1;simp:3
+dev,stock,10,SEU520^1,SEU,,defexp_and_simp_and_etaexpand:1;neg_conjecture:1;simp:1
+dev,stock,10,SEU537^1,SEU,unit rewriting (demodulation),cnf:1;cnfConj:3;defexp_and_simp_and_etaexpand:1;miniscope:1;neg_conjecture:1;paramod_ordered:1;pattern_uni:1;rewrite:1;simp:3
+dev,stock,10,SEU541^2,SEU,,defexp_and_simp_and_etaexpand:1;neg_conjecture:1;simp:1
+dev,stock,10,SEU544^1,SEU,,defexp_and_simp_and_etaexpand:1;neg_conjecture:1;simp:1
+dev,stock,10,SEU552^2,SEU,unit rewriting (demodulation),cnf:1;cnfConj:3;defexp_and_simp_and_etaexpand:1;lifteq:3;neg_conjecture:1;rewrite:1;simp:1
+dev,stock,10,SEU557^1,SEU,unit rewriting (demodulation),cnf:1;cnfConj:2;defexp_and_simp_and_etaexpand:1;lifteq:2;miniscope:1;neg_conjecture:1;rewrite:1;simp:3
+dev,stock,10,SEU582^2,SEU,unit rewriting (demodulation),cnf:1;cnfConj:4;defexp_and_simp_and_etaexpand:1;neg_conjecture:1;paramod_ordered:2;pattern_uni:2;rewrite:1;simp:4
+dev,stock,10,SEU595^2,SEU,pre-unification beyond patterns;unit rewriting (demodulation),cnf:1;cnfConj:3;defexp_and_simp_and_etaexpand:1;neg_conjecture:1;paramod_ordered:1;pre_uni:1;rewrite:1;simp:2
+dev,stock,10,SEU640^2,SEU,,defexp_and_simp_and_etaexpand:1;neg_conjecture:1;simp:1
+dev,stock,10,SEU646^2,SEU,,cnf:1;cnfConj:5;defexp_and_simp_and_etaexpand:1;lifteq:2;neg_conjecture:1;paramod_ordered:4;pattern_uni:3;simp:6;simplifyReflect:1
+dev,stock,10,SEU716^2,SEU,unit rewriting (demodulation),cnf:1;cnfConj:6;defexp_and_simp_and_etaexpand:1;miniscope:1;neg_conjecture:1;paramod_ordered:5;pattern_uni:5;rewrite:2;simp:11
+dev,stock,10,SEU723^2,SEU,unit rewriting (demodulation),cnf:1;cnfConj:5;defexp_and_simp_and_etaexpand:1;miniscope:1;neg_conjecture:1;paramod_ordered:3;pattern_uni:3;rewrite:1;simp:6
+dev,stock,10,SEU727^2,SEU,unit rewriting (demodulation),cnf:1;cnfConj:5;defexp_and_simp_and_etaexpand:1;neg_conjecture:1;paramod_ordered:2;pattern_uni:2;rewrite:2;simp:5
+dev,stock,10,SEU738^2,SEU,unit rewriting (demodulation),cnf:1;cnfConj:3;defexp_and_simp_and_etaexpand:1;neg_conjecture:1;paramod_ordered:1;pattern_uni:1;rewrite:1;simp:2
+dev,stock,10,SEU750^2,SEU,unit rewriting (demodulation),cnf:1;cnfConj:8;defexp_and_simp_and_etaexpand:1;neg_conjecture:1;paramod_ordered:4;pattern_uni:4;rewrite:3;simp:9
+dev,stock,10,SEU769^2,SEU,unit rewriting (demodulation),cnf:1;cnfConj:3;defexp_and_simp_and_etaexpand:1;neg_conjecture:1;paramod_ordered:1;pattern_uni:1;rewrite:1;simp:2
+dev,stock,10,SEU787^2,SEU,unit rewriting (demodulation),cnf:1;cnfConj:9;defexp_and_simp_and_etaexpand:1;neg_conjecture:1;paramod_ordered:2;pattern_uni:2;rewrite:4;simp:6
+dev,stock,10,SEU811^2,SEU,unit rewriting (demodulation),cnf:1;cnfConj:6;defexp_and_simp_and_etaexpand:1;eqfactor_ordered:1;lifteq:3;neg_conjecture:1;paramod_ordered:7;pattern_uni:8;rewrite:1;simp:9;simplifyReflect:1
+dev,stock,10,SEU826^1,SEU,Boolean extensionality;unit rewriting (demodulation),bool_ext:1;cnf:2;cnfConj:1;defexp_and_simp_and_etaexpand:1;lifteq:1;neg_conjecture:1;rewrite:1;simp:2
+dev,stock,10,SEU829^1,SEU,Boolean extensionality;functional extensionality;unit rewriting (demodulation),bool_ext:2;cnf:3;defexp_and_simp_and_etaexpand:1;func_ext:3;lifteq:3;neg_conjecture:1;paramod_ordered:8;pattern_uni:8;rewrite:1;simp:9
+dev,stock,10,SEU930^5,SEU,functional extensionality,cnf:1;cnfConj:4;defexp_and_simp_and_etaexpand:1;func_ext:1;lifteq:4;neg_conjecture:1;paramod_ordered:2;pattern_uni:2;simp:2;simplifyReflect:1
+dev,stock,10,SEV047^5,SEV,,defexp_and_simp_and_etaexpand:1;neg_conjecture:1;simp:1
+dev,stock,10,SEV162^5,SEV,pre-unification beyond patterns;Boolean extensionality,bool_ext:2;cnf:3;defexp_and_simp_and_etaexpand:1;eqfactor_ordered:1;lifteq:1;neg_conjecture:1;paramod_ordered:2;pre_uni:3;simp:3
+dev,stock,10,SEV229^5,SEV,Boolean extensionality;functional extensionality;unit rewriting (demodulation),bool_ext:2;cnf:2;cnfConj:10;defexp_and_simp_and_etaexpand:1;eqfactor_ordered:3;func_ext:1;lifteq:1;neg_conjecture:1;paramod_ordered:24;pattern_uni:26;rewrite:9;simp:37
+dev,stock,10,SYN364^5,SYN,unit rewriting (demodulation),cnf:1;cnfConj:5;defexp_and_simp_and_etaexpand:1;eqfactor_ordered:2;miniscope:1;neg_conjecture:1;paramod_ordered:4;pattern_uni:5;rewrite:3;simp:14
+dev,stock,10,SYN915^4,SYN,,defexp_and_simp_and_etaexpand:1;neg_conjecture:1;simp:1
+dev,stock,10,SYN983^1,SYN,Boolean extensionality;unit rewriting (demodulation),bool_ext:1;cnf:2;cnfConj:4;defexp_and_simp_and_etaexpand:1;neg_conjecture:1;paramod_ordered:2;rewrite:1;simp:6
+dev,stock,10,SYN999^1,SYN,unit rewriting (demodulation),cnf:1;cnfConj:3;defexp_and_simp_and_etaexpand:1;lifteq:1;neg_conjecture:1;paramod_ordered:1;replace_leibeq:1;rewrite:1;simp:4
+dev,stock,10,SYO026^1,SYO,Boolean extensionality;functional extensionality;unit rewriting (demodulation),bool_ext:6;cnf:2;cnfConj:5;defexp_and_simp_and_etaexpand:1;func_ext:4;neg_conjecture:1;paramod_ordered:15;pattern_uni:4;rewrite:3;simp:31
+dev,stock,10,SYO029^1,SYO,special instances,defexp_and_simp_and_etaexpand:1;instance:1;neg_conjecture:1;simp:1
+dev,stock,10,SYO044^1,SYO,,defexp_and_simp_and_etaexpand:1;neg_conjecture:1;simp:1
+dev,stock,10,SYO045^1,SYO,unit rewriting (demodulation),cnf:1;cnfConj:4;defexp_and_simp_and_etaexpand:1;neg_conjecture:1;paramod_ordered:2;pattern_uni:2;rewrite:1;simp:4
+dev,stock,10,SYO048^1,SYO,unit rewriting (demodulation),cnf:1;cnfConj:10;defexp_and_simp_and_etaexpand:1;miniscope:1;neg_conjecture:1;paramod_ordered:9;pattern_uni:9;rewrite:9;simp:20
+dev,stock,10,SYO107^5,SYO,Boolean extensionality;functional extensionality;unit rewriting (demodulation),bool_ext:1;cnf:1;cnfConj:1;defexp_and_simp_and_etaexpand:1;func_ext:1;lifteq:1;neg_conjecture:1;rewrite:1;simp:3
+dev,stock,10,SYO111^5,SYO,unit rewriting (demodulation),cnf:1;cnfConj:4;defexp_and_simp_and_etaexpand:1;miniscope:1;neg_conjecture:1;rewrite:3;simp:6
+dev,stock,10,SYO131^5,SYO,unit rewriting (demodulation),cnf:1;cnfConj:2;defexp_and_simp_and_etaexpand:1;neg_conjecture:1;rewrite:1;simp:1
+dev,stock,10,SYO194^5,SYO,pre-unification beyond patterns,cnf:1;defexp_and_simp_and_etaexpand:1;lifteq:1;neg_conjecture:1;pre_uni:1
+dev,stock,10,SYO199^5,SYO,special instances,defexp_and_simp_and_etaexpand:1;instance:1;neg_conjecture:1;simp:1
+dev,stock,10,SYO233^5,SYO,unit rewriting (demodulation),cnf:1;cnfConj:2;defexp_and_simp_and_etaexpand:1;lifteq:2;neg_conjecture:1;replace_leibeq:1;rewrite:1;simp:2
+dev,stock,10,SYO259^5,SYO,primitive substitution,cnf:1;cnfConj:2;defexp_and_simp_and_etaexpand:1;neg_conjecture:1;paramod_ordered:1;pattern_uni:1;prim_subst:2;simp:4
+dev,stock,10,SYO295^5,SYO,choice,choice:2;cnf:3;cnfConj:3;defexp_and_simp_and_etaexpand:1;lifteq:3;neg_conjecture:1;simp:3;simplifyReflect:3
+dev,stock,10,SYO301^5,SYO,unit rewriting (demodulation),cnf:1;cnfConj:3;defexp_and_simp_and_etaexpand:1;lifteq:2;neg_conjecture:1;paramod_ordered:1;pattern_uni:1;replace_leibeq:1;rewrite:1;simp:3
+dev,stock,10,SYO349^5,SYO,unit rewriting (demodulation),cnf:1;cnfConj:4;defexp_and_simp_and_etaexpand:1;neg_conjecture:1;rewrite:3;simp:1
+dev,stock,10,SYO364^5,SYO,functional extensionality;unit rewriting (demodulation),cnf:1;cnfConj:4;defexp_and_simp_and_etaexpand:1;func_ext:1;lifteq:2;neg_conjecture:1;paramod_ordered:1;replace_leibeq:2;rewrite:2;simp:5
+dev,stock,10,SYO367^5,SYO,,defexp_and_simp_and_etaexpand:1;neg_conjecture:1;simp:1
+dev,stock,10,SYO380^5,SYO,unit rewriting (demodulation),cnf:1;cnfConj:2;defexp_and_simp_and_etaexpand:1;miniscope:1;neg_conjecture:1;rewrite:1;simp:2
+dev,stock,10,SYO396^1,SYO,,defexp_and_simp_and_etaexpand:1;neg_conjecture:1;simp:1
+dev,stock,10,SYO422^1,SYO,unit rewriting (demodulation),cnf:2;cnfConj:2;defexp_and_simp_and_etaexpand:2;miniscope:1;neg_conjecture:1;paramod_ordered:2;pattern_uni:2;rewrite:1;simp:4
+dev,stock,10,SYO447^1,SYO,unit rewriting (demodulation),cnf:3;cnfConj:10;defexp_and_simp_and_etaexpand:3;miniscope:1;neg_conjecture:1;paramod_ordered:20;pattern_uni:20;rewrite:5;simp:30
+dev,stock,10,SYO463^6,SYO,unit rewriting (demodulation),cnf:3;cnfConj:9;defexp_and_simp_and_etaexpand:3;neg_conjecture:1;paramod_ordered:14;pattern_uni:14;rewrite:4;simp:20
+dev,stock,10,SYO464^4,SYO,unit rewriting (demodulation),cnf:2;cnfConj:4;defexp_and_simp_and_etaexpand:2;neg_conjecture:1;paramod_ordered:3;pattern_uni:3;rewrite:1;simp:5
+dev,stock,10,SYO530^1,SYO,choice;unit rewriting (demodulation),choice:2;cnf:2;cnfConj:2;defexp_and_simp_and_etaexpand:1;neg_conjecture:1;rewrite:3;simp:3
+dev,stock,10,SYO537^1,SYO,choice;unit rewriting (demodulation),choice:2;cnf:2;cnfConj:2;defexp_and_simp_and_etaexpand:1;neg_conjecture:1;rewrite:3;simp:3
+dev,stock,10,SYO539^1,SYO,choice;unit rewriting (demodulation),choice:1;cnf:2;cnfConj:4;defexp_and_simp_and_etaexpand:1;lifteq:4;neg_conjecture:1;rewrite:2;simp:4;simplifyReflect:2
+dev,stock,10,SYO540^1,SYO,choice;unit rewriting (demodulation),choice:2;cnf:2;cnfConj:1;defexp_and_simp_and_etaexpand:1;lifteq:3;neg_conjecture:1;rewrite:1;simp:3;simplifyReflect:2
+dev,stock,10,SYO549^1,SYO,unit rewriting (demodulation),defexp_and_simp_and_etaexpand:2;neg_conjecture:1;rewrite:1;simp:1
+dev,stock,10,SYO553^1,SYO,pre-unification beyond patterns,cnf:1;defexp_and_simp_and_etaexpand:1;lifteq:1;neg_conjecture:1;pre_uni:1
+dev,stock,10,SYO570^7,SYO,unit rewriting (demodulation),cnf:2;cnfConj:5;defexp_and_simp_and_etaexpand:2;neg_conjecture:1;paramod_ordered:3;pattern_uni:3;rewrite:2;simp:5
+dev,stock,10,SYO572^7,SYO,unit rewriting (demodulation),cnf:3;cnfConj:3;defexp_and_simp_and_etaexpand:3;neg_conjecture:1;paramod_ordered:5;pattern_uni:5;rewrite:1;simp:7
+dev,stock,10,SYO902^8,SYO,unit rewriting (demodulation),cnf:2;cnfConj:4;defexp_and_simp_and_etaexpand:2;neg_conjecture:1;paramod_ordered:3;pattern_uni:3;rewrite:1;simp:5
+dev,stock,2.5,CSR127^1,CSR,unit rewriting (demodulation),cnf:2;defexp_and_simp_and_etaexpand:3;neg_conjecture:1;paramod_ordered:1;pattern_uni:1;rewrite:1;simp:2
+dev,stock,2.5,LCL585^1,LCL,unit rewriting (demodulation),cnf:1;cnfConj:4;defexp_and_simp_and_etaexpand:1;neg_conjecture:1;paramod_ordered:2;pattern_uni:2;rewrite:2;simp:5
+dev,stock,2.5,LCL612^1,LCL,unit rewriting (demodulation),cnf:1;cnfConj:3;defexp_and_simp_and_etaexpand:1;neg_conjecture:1;rewrite:2;simp:3
+dev,stock,2.5,LCL701^1,LCL,unit rewriting (demodulation),cnf:1;cnfConj:3;defexp_and_simp_and_etaexpand:1;neg_conjecture:1;paramod_ordered:2;pattern_uni:2;rewrite:1;simp:5
+dev,stock,2.5,NUM416^1,NUM,,defexp_and_simp_and_etaexpand:1;neg_conjecture:1;simp:1
+dev,stock,2.5,NUM635^1,NUM,unit rewriting (demodulation),cnf:2;defexp_and_simp_and_etaexpand:3;detectInverse:1;lifteq:4;neg_conjecture:1;paramod_ordered:1;pattern_uni:1;polarity_switch:2;rewrite:1;simplifyReflect:1
+dev,stock,2.5,PUZ090^5,PUZ,unit rewriting (demodulation),cnf:1;cnfConj:5;defexp_and_simp_and_etaexpand:1;neg_conjecture:1;rewrite:3;simp:3
+dev,stock,2.5,PUZ091^5,PUZ,unit rewriting (demodulation),cnf:1;cnfConj:18;defexp_and_simp_and_etaexpand:1;neg_conjecture:1;paramod_ordered:24;pattern_uni:24;rewrite:11;simp:35
+dev,stock,2.5,PUZ146^1,PUZ,functional extensionality;unit rewriting (demodulation),defexp_and_simp_and_etaexpand:3;func_ext:1;lifteq:1;neg_conjecture:1;polarity_switch:2;rewrite:2;simp:1
+dev,stock,2.5,SET010^5,SET,Boolean extensionality;functional extensionality;unit rewriting (demodulation),bool_ext:2;cnf:3;cnfConj:2;defexp_and_simp_and_etaexpand:1;func_ext:1;lifteq:1;neg_conjecture:1;rewrite:2;simp:4
+dev,stock,2.5,SET017^1,SET,Boolean extensionality;functional extensionality;unit rewriting (demodulation),bool_ext:2;cnf:3;cnfConj:4;defexp_and_simp_and_etaexpand:1;func_ext:1;lifteq:4;neg_conjecture:1;rewrite:2;simp:3;simplifyReflect:2
+dev,stock,2.5,SET046^5,SET,unit rewriting (demodulation),cnf:1;cnfConj:3;defexp_and_simp_and_etaexpand:1;eqfactor_ordered:2;miniscope:1;neg_conjecture:1;paramod_ordered:2;pattern_uni:4;polarity_switch:1;rewrite:2;simp:7
+dev,stock,2.5,SET143^3,SET,Boolean extensionality;functional extensionality;unit rewriting (demodulation),bool_ext:1;cnf:2;cnfConj:1;defexp_and_simp_and_etaexpand:1;func_ext:1;lifteq:1;neg_conjecture:1;rewrite:1;simp:2
+dev,stock,2.5,SET162^5,SET,,defexp_and_simp_and_etaexpand:1;neg_conjecture:1;simp:1
+dev,stock,2.5,SET169^5,SET,Boolean extensionality;functional extensionality;unit rewriting (demodulation),bool_ext:1;cnf:2;cnfConj:1;defexp_and_simp_and_etaexpand:1;func_ext:1;lifteq:1;neg_conjecture:1;rewrite:1;simp:2
+dev,stock,2.5,SET580^5,SET,Boolean extensionality;unit rewriting (demodulation),bool_ext:2;cnf:3;cnfConj:1;defexp_and_simp_and_etaexpand:1;lifteq:3;neg_conjecture:1;paramod_ordered:3;pattern_uni:3;rewrite:1;simp:6
+dev,stock,2.5,SET647^3,SET,unit rewriting (demodulation),cnf:1;cnfConj:3;defexp_and_simp_and_etaexpand:1;neg_conjecture:1;paramod_ordered:2;pattern_uni:2;rewrite:1;simp:4
+dev,stock,2.5,SET651^3,SET,unit rewriting (demodulation),cnf:1;cnfConj:3;defexp_and_simp_and_etaexpand:1;miniscope:1;neg_conjecture:1;paramod_ordered:1;pattern_uni:1;rewrite:1;simp:2
+dev,stock,2.5,SET716^4,SET,unit rewriting (demodulation),cnf:3;cnfConj:4;defexp_and_simp_and_etaexpand:1;detectInverse:2;lifteq:6;neg_conjecture:1;paramod_ordered:2;pattern_uni:2;rewrite:2;simp:1;simplifyReflect:1
+dev,stock,2.5,SET753^4,SET,unit rewriting (demodulation),cnf:1;cnfConj:4;defexp_and_simp_and_etaexpand:1;lifteq:2;neg_conjecture:1;paramod_ordered:2;pattern_uni:2;rewrite:2;simp:4
+dev,stock,2.5,SEU499^1,SEU,,defexp_and_simp_and_etaexpand:1;neg_conjecture:1;simp:1
+dev,stock,2.5,SEU503^2,SEU,primitive substitution,cnf:1;cnfConj:2;defexp_and_simp_and_etaexpand:1;miniscope:1;neg_conjecture:1;paramod_ordered:1;pattern_uni:1;prim_subst:1;simp:3
+dev,stock,2.5,SEU520^1,SEU,,defexp_and_simp_and_etaexpand:1;neg_conjecture:1;simp:1
+dev,stock,2.5,SEU541^2,SEU,,defexp_and_simp_and_etaexpand:1;neg_conjecture:1;simp:1
+dev,stock,2.5,SEU544^1,SEU,,defexp_and_simp_and_etaexpand:1;neg_conjecture:1;simp:1
+dev,stock,2.5,SEU552^2,SEU,unit rewriting (demodulation),cnf:1;cnfConj:3;defexp_and_simp_and_etaexpand:1;lifteq:3;neg_conjecture:1;rewrite:1;simp:1
+dev,stock,2.5,SEU582^2,SEU,unit rewriting (demodulation),cnf:1;cnfConj:4;defexp_and_simp_and_etaexpand:1;neg_conjecture:1;paramod_ordered:2;pattern_uni:2;rewrite:1;simp:4
+dev,stock,2.5,SEU595^2,SEU,pre-unification beyond patterns;unit rewriting (demodulation),cnf:1;cnfConj:3;defexp_and_simp_and_etaexpand:1;neg_conjecture:1;paramod_ordered:1;pre_uni:1;rewrite:1;simp:2
+dev,stock,2.5,SEU640^2,SEU,,defexp_and_simp_and_etaexpand:1;neg_conjecture:1;simp:1
+dev,stock,2.5,SEU727^2,SEU,unit rewriting (demodulation),cnf:1;cnfConj:5;defexp_and_simp_and_etaexpand:1;neg_conjecture:1;paramod_ordered:2;pattern_uni:2;rewrite:2;simp:5
+dev,stock,2.5,SEU738^2,SEU,unit rewriting (demodulation),cnf:1;cnfConj:3;defexp_and_simp_and_etaexpand:1;neg_conjecture:1;paramod_ordered:1;pattern_uni:1;rewrite:1;simp:2
+dev,stock,2.5,SEU769^2,SEU,unit rewriting (demodulation),cnf:1;cnfConj:3;defexp_and_simp_and_etaexpand:1;neg_conjecture:1;paramod_ordered:1;pattern_uni:1;rewrite:1;simp:2
+dev,stock,2.5,SEU826^1,SEU,Boolean extensionality;unit rewriting (demodulation),bool_ext:1;cnf:2;cnfConj:1;defexp_and_simp_and_etaexpand:1;lifteq:1;neg_conjecture:1;rewrite:1;simp:2
+dev,stock,2.5,SEU829^1,SEU,Boolean extensionality;functional extensionality;unit rewriting (demodulation),bool_ext:2;cnf:3;defexp_and_simp_and_etaexpand:1;func_ext:3;lifteq:3;neg_conjecture:1;paramod_ordered:8;pattern_uni:8;rewrite:1;simp:9
+dev,stock,2.5,SEV047^5,SEV,,defexp_and_simp_and_etaexpand:1;neg_conjecture:1;simp:1
+dev,stock,2.5,SYN915^4,SYN,,defexp_and_simp_and_etaexpand:1;neg_conjecture:1;simp:1
+dev,stock,2.5,SYN983^1,SYN,Boolean extensionality;unit rewriting (demodulation),bool_ext:1;cnf:2;cnfConj:4;defexp_and_simp_and_etaexpand:1;neg_conjecture:1;paramod_ordered:2;rewrite:1;simp:6
+dev,stock,2.5,SYN999^1,SYN,unit rewriting (demodulation),cnf:1;cnfConj:3;defexp_and_simp_and_etaexpand:1;lifteq:1;neg_conjecture:1;paramod_ordered:1;replace_leibeq:1;rewrite:1;simp:4
+dev,stock,2.5,SYO029^1,SYO,special instances,defexp_and_simp_and_etaexpand:1;instance:1;neg_conjecture:1;simp:1
+dev,stock,2.5,SYO044^1,SYO,,defexp_and_simp_and_etaexpand:1;neg_conjecture:1;simp:1
+dev,stock,2.5,SYO045^1,SYO,unit rewriting (demodulation),cnf:1;cnfConj:4;defexp_and_simp_and_etaexpand:1;neg_conjecture:1;paramod_ordered:2;pattern_uni:2;rewrite:1;simp:4
+dev,stock,2.5,SYO107^5,SYO,Boolean extensionality;functional extensionality;unit rewriting (demodulation),bool_ext:1;cnf:1;cnfConj:1;defexp_and_simp_and_etaexpand:1;func_ext:1;lifteq:1;neg_conjecture:1;rewrite:1;simp:3
+dev,stock,2.5,SYO111^5,SYO,unit rewriting (demodulation),cnf:1;cnfConj:4;defexp_and_simp_and_etaexpand:1;miniscope:1;neg_conjecture:1;rewrite:3;simp:6
+dev,stock,2.5,SYO131^5,SYO,unit rewriting (demodulation),cnf:1;cnfConj:2;defexp_and_simp_and_etaexpand:1;neg_conjecture:1;rewrite:1;simp:1
+dev,stock,2.5,SYO194^5,SYO,pre-unification beyond patterns,cnf:1;defexp_and_simp_and_etaexpand:1;lifteq:1;neg_conjecture:1;pre_uni:1
+dev,stock,2.5,SYO199^5,SYO,special instances,defexp_and_simp_and_etaexpand:1;instance:1;neg_conjecture:1;simp:1
+dev,stock,2.5,SYO233^5,SYO,unit rewriting (demodulation),cnf:1;cnfConj:2;defexp_and_simp_and_etaexpand:1;lifteq:2;neg_conjecture:1;replace_leibeq:1;rewrite:1;simp:2
+dev,stock,2.5,SYO301^5,SYO,unit rewriting (demodulation),cnf:1;cnfConj:3;defexp_and_simp_and_etaexpand:1;lifteq:2;neg_conjecture:1;paramod_ordered:1;pattern_uni:1;replace_leibeq:1;rewrite:1;simp:3
+dev,stock,2.5,SYO349^5,SYO,unit rewriting (demodulation),cnf:1;cnfConj:4;defexp_and_simp_and_etaexpand:1;neg_conjecture:1;rewrite:3;simp:1
+dev,stock,2.5,SYO364^5,SYO,functional extensionality;unit rewriting (demodulation),cnf:1;cnfConj:4;defexp_and_simp_and_etaexpand:1;func_ext:1;lifteq:2;neg_conjecture:1;paramod_ordered:1;replace_leibeq:2;rewrite:2;simp:5
+dev,stock,2.5,SYO367^5,SYO,,defexp_and_simp_and_etaexpand:1;neg_conjecture:1;simp:1
+dev,stock,2.5,SYO380^5,SYO,unit rewriting (demodulation),cnf:1;cnfConj:2;defexp_and_simp_and_etaexpand:1;miniscope:1;neg_conjecture:1;rewrite:1;simp:2
+dev,stock,2.5,SYO396^1,SYO,,defexp_and_simp_and_etaexpand:1;neg_conjecture:1;simp:1
+dev,stock,2.5,SYO422^1,SYO,unit rewriting (demodulation),cnf:2;cnfConj:2;defexp_and_simp_and_etaexpand:2;miniscope:1;neg_conjecture:1;paramod_ordered:2;pattern_uni:2;rewrite:1;simp:4
+dev,stock,2.5,SYO530^1,SYO,choice;unit rewriting (demodulation),choice:2;cnf:2;cnfConj:2;defexp_and_simp_and_etaexpand:1;neg_conjecture:1;rewrite:3;simp:3
+dev,stock,2.5,SYO537^1,SYO,choice;unit rewriting (demodulation),choice:2;cnf:2;cnfConj:2;defexp_and_simp_and_etaexpand:1;neg_conjecture:1;rewrite:3;simp:3
+dev,stock,2.5,SYO539^1,SYO,choice;unit rewriting (demodulation),choice:1;cnf:2;cnfConj:4;defexp_and_simp_and_etaexpand:1;lifteq:4;neg_conjecture:1;rewrite:2;simp:4;simplifyReflect:2
+dev,stock,2.5,SYO540^1,SYO,choice;unit rewriting (demodulation),choice:2;cnf:2;cnfConj:1;defexp_and_simp_and_etaexpand:1;lifteq:3;neg_conjecture:1;rewrite:1;simp:3;simplifyReflect:2
+dev,stock,2.5,SYO549^1,SYO,unit rewriting (demodulation),defexp_and_simp_and_etaexpand:2;neg_conjecture:1;rewrite:1;simp:1
+dev,stock,2.5,SYO553^1,SYO,pre-unification beyond patterns,cnf:1;defexp_and_simp_and_etaexpand:1;lifteq:1;neg_conjecture:1;pre_uni:1
+dev,stock,2.5,SYO902^8,SYO,unit rewriting (demodulation),cnf:2;cnfConj:4;defexp_and_simp_and_etaexpand:2;neg_conjecture:1;paramod_ordered:3;pattern_uni:3;rewrite:1;simp:5
+smoke,e,10,AGT033^2,AGT,external cooperation (E),defexp_and_simp_and_etaexpand:19;e:1;neg_conjecture:1
+smoke,e,10,AGT037^2,AGT,external cooperation (E),defexp_and_simp_and_etaexpand:19;e:1;neg_conjecture:1
+smoke,e,10,ITP117^1,ITP,functional extensionality;external cooperation (E),cnf:7;cnfConj:1;defexp_and_simp_and_etaexpand:264;e:1;func_ext:2;lifteq:17;miniscope:1;neg_conjecture:1;paramod_ordered:4;pattern_uni:2;polarity_switch:2;simp:11
+smoke,e,10,ITP130^1,ITP,external cooperation (E),defexp_and_simp_and_etaexpand:320;e:1;neg_conjecture:1
+smoke,e,10,LCL608^1,LCL,unit rewriting (demodulation),cnf:1;cnfConj:3;defexp_and_simp_and_etaexpand:1;neg_conjecture:1;rewrite:2;simp:3
+smoke,e,10,LCL621^1,LCL,external cooperation (E),defexp_and_simp_and_etaexpand:2;e:1;neg_conjecture:1
+smoke,e,10,LCL723^1,LCL,external cooperation (E),defexp_and_simp_and_etaexpand:3;e:1;neg_conjecture:1
+smoke,e,10,NUM727^1,NUM,unit rewriting (demodulation);external cooperation (E),cnf:4;defexp_and_simp_and_etaexpand:6;detectInverse:1;e:1;lifteq:7;miniscope:1;neg_conjecture:1;paramod_ordered:19;pattern_uni:14;rewrite:3;simp:21
+smoke,e,10,NUM793^1,NUM,external cooperation (E),defexp_and_simp_and_etaexpand:7;e:1;neg_conjecture:1
+smoke,e,10,SEU511^2,SEU,primitive substitution;unit rewriting (demodulation),cnf:1;cnfConj:3;defexp_and_simp_and_etaexpand:1;lifteq:1;miniscope:1;neg_conjecture:1;paramod_ordered:1;pattern_uni:1;prim_subst:1;rewrite:1;simp:3
+smoke,e,10,SEU522^1,SEU,external cooperation (E),defexp_and_simp_and_etaexpand:1;e:1;neg_conjecture:1
+smoke,e,10,SEU559^2,SEU,,defexp_and_simp_and_etaexpand:1;neg_conjecture:1;simp:1
+smoke,e,10,SEU673^2,SEU,external cooperation (E),defexp_and_simp_and_etaexpand:1;e:1;neg_conjecture:1
+smoke,e,10,SEU798^2,SEU,external cooperation (E),defexp_and_simp_and_etaexpand:1;e:1;neg_conjecture:1
+smoke,e,10,SEU820^2,SEU,primitive substitution;unit rewriting (demodulation);external cooperation (E),cnf:1;cnfConj:5;defexp_and_simp_and_etaexpand:1;e:1;lifteq:2;neg_conjecture:1;prim_subst:1;rewrite:3;simp:5
+smoke,e,10,SEU893^5,SEU,external cooperation (E),defexp_and_simp_and_etaexpand:1;e:1;neg_conjecture:1
+smoke,e,10,SEV160^5,SEV,,defexp_and_simp_and_etaexpand:1;neg_conjecture:1;simp:1
+smoke,e,10,SEV393^5,SEV,external cooperation (E),defexp_and_simp_and_etaexpand:1;e:1;neg_conjecture:1
+smoke,e,10,SWV442^1,SWV,,defexp_and_simp_and_etaexpand:1;neg_conjecture:1;simp:1
+smoke,e,10,SYO011^1,SYO,functional extensionality;unit rewriting (demodulation),cnf:1;cnfConj:3;defexp_and_simp_and_etaexpand:1;func_ext:1;lifteq:1;neg_conjecture:1;paramod_ordered:1;replace_leibeq:1;rewrite:1;simp:4
+smoke,e,10,SYO088^5,SYO,external cooperation (E),defexp_and_simp_and_etaexpand:1;e:1;neg_conjecture:1
+smoke,e,10,SYO114^5,SYO,external cooperation (E),defexp_and_simp_and_etaexpand:1;e:1;neg_conjecture:1
+smoke,e,10,SYO128^5,SYO,external cooperation (E),defexp_and_simp_and_etaexpand:1;e:1;neg_conjecture:1
+smoke,e,10,SYO154^5,SYO,external cooperation (E),defexp_and_simp_and_etaexpand:1;e:1;neg_conjecture:1
+smoke,e,10,SYO413^1,SYO,external cooperation (E),defexp_and_simp_and_etaexpand:1;e:1;neg_conjecture:1
+smoke,e,10,SYO444^1,SYO,external cooperation (E),defexp_and_simp_and_etaexpand:4;e:1;neg_conjecture:1
+smoke,e,10,SYO462^2,SYO,external cooperation (E),defexp_and_simp_and_etaexpand:2;e:1;neg_conjecture:1
+smoke,e,10,SYO475^6,SYO,external cooperation (E),defexp_and_simp_and_etaexpand:4;e:1;neg_conjecture:1
+smoke,e,10,SYO481^6,SYO,,cnf:1;cnfConj:2;defexp_and_simp_and_etaexpand:1;lifteq:2;miniscope:1;neg_conjecture:1;simplifyReflect:1
+smoke,e,10,SYO507^1,SYO,,defexp_and_simp_and_etaexpand:1;neg_conjecture:1;simp:1
+smoke,e,2.5,LCL608^1,LCL,external cooperation (E),defexp_and_simp_and_etaexpand:1;e:1;neg_conjecture:1
+smoke,e,2.5,LCL621^1,LCL,external cooperation (E),defexp_and_simp_and_etaexpand:2;e:1;neg_conjecture:1
+smoke,e,2.5,LCL723^1,LCL,external cooperation (E),defexp_and_simp_and_etaexpand:3;e:1;neg_conjecture:1
+smoke,e,2.5,NUM793^1,NUM,external cooperation (E),defexp_and_simp_and_etaexpand:7;e:1;neg_conjecture:1
+smoke,e,2.5,SEU511^2,SEU,primitive substitution;unit rewriting (demodulation),cnf:1;cnfConj:3;defexp_and_simp_and_etaexpand:1;lifteq:1;miniscope:1;neg_conjecture:1;paramod_ordered:1;pattern_uni:1;prim_subst:1;rewrite:1;simp:3
+smoke,e,2.5,SEU559^2,SEU,,defexp_and_simp_and_etaexpand:1;neg_conjecture:1;simp:1
+smoke,e,2.5,SEU673^2,SEU,external cooperation (E),defexp_and_simp_and_etaexpand:1;e:1;neg_conjecture:1
+smoke,e,2.5,SEU798^2,SEU,external cooperation (E),defexp_and_simp_and_etaexpand:1;e:1;neg_conjecture:1
+smoke,e,2.5,SEU893^5,SEU,external cooperation (E),defexp_and_simp_and_etaexpand:1;e:1;neg_conjecture:1
+smoke,e,2.5,SEV160^5,SEV,,defexp_and_simp_and_etaexpand:1;neg_conjecture:1;simp:1
+smoke,e,2.5,SEV393^5,SEV,external cooperation (E),defexp_and_simp_and_etaexpand:1;e:1;neg_conjecture:1
+smoke,e,2.5,SWV442^1,SWV,,defexp_and_simp_and_etaexpand:1;neg_conjecture:1;simp:1
+smoke,e,2.5,SYO011^1,SYO,functional extensionality;unit rewriting (demodulation),cnf:1;cnfConj:3;defexp_and_simp_and_etaexpand:1;func_ext:1;lifteq:1;neg_conjecture:1;paramod_ordered:1;replace_leibeq:1;rewrite:1;simp:4
+smoke,e,2.5,SYO088^5,SYO,external cooperation (E),defexp_and_simp_and_etaexpand:1;e:1;neg_conjecture:1
+smoke,e,2.5,SYO114^5,SYO,external cooperation (E),defexp_and_simp_and_etaexpand:1;e:1;neg_conjecture:1
+smoke,e,2.5,SYO128^5,SYO,unit rewriting (demodulation),cnf:1;cnfConj:4;defexp_and_simp_and_etaexpand:1;neg_conjecture:1;rewrite:3;simp:3
+smoke,e,2.5,SYO154^5,SYO,external cooperation (E),defexp_and_simp_and_etaexpand:1;e:1;neg_conjecture:1
+smoke,e,2.5,SYO413^1,SYO,external cooperation (E),defexp_and_simp_and_etaexpand:1;e:1;neg_conjecture:1
+smoke,e,2.5,SYO444^1,SYO,external cooperation (E),defexp_and_simp_and_etaexpand:4;e:1;neg_conjecture:1
+smoke,e,2.5,SYO462^2,SYO,external cooperation (E),defexp_and_simp_and_etaexpand:2;e:1;neg_conjecture:1
+smoke,e,2.5,SYO475^6,SYO,external cooperation (E),defexp_and_simp_and_etaexpand:4;e:1;neg_conjecture:1
+smoke,e,2.5,SYO481^6,SYO,,cnf:1;cnfConj:2;defexp_and_simp_and_etaexpand:1;lifteq:2;miniscope:1;neg_conjecture:1;simplifyReflect:1
+smoke,e,2.5,SYO507^1,SYO,,defexp_and_simp_and_etaexpand:1;neg_conjecture:1;simp:1
+smoke,stock,10,AGT033^2,AGT,,cnf:4;cnfConj:1;defexp_and_simp_and_etaexpand:4;miniscope:2;neg_conjecture:1;paramod_ordered:4;pattern_uni:4;simp:6
+smoke,stock,10,AGT037^2,AGT,unit rewriting (demodulation),cnf:4;cnfConj:1;defexp_and_simp_and_etaexpand:4;miniscope:1;neg_conjecture:1;paramod_ordered:3;pattern_uni:3;rewrite:1;simp:6
+smoke,stock,10,LCL608^1,LCL,unit rewriting (demodulation),cnf:1;cnfConj:3;defexp_and_simp_and_etaexpand:1;neg_conjecture:1;rewrite:2;simp:3
+smoke,stock,10,LCL723^1,LCL,unit rewriting (demodulation),cnf:3;cnfConj:5;defexp_and_simp_and_etaexpand:3;neg_conjecture:1;paramod_ordered:4;pattern_uni:4;rewrite:4;simp:9
+smoke,stock,10,NUM793^1,NUM,unit rewriting (demodulation),cnf:4;defexp_and_simp_and_etaexpand:7;miniscope:1;neg_conjecture:1;paramod_ordered:5;pattern_uni:5;rewrite:1;simp:7
+smoke,stock,10,SEU511^2,SEU,primitive substitution;unit rewriting (demodulation),cnf:1;cnfConj:3;defexp_and_simp_and_etaexpand:1;lifteq:1;miniscope:1;neg_conjecture:1;paramod_ordered:1;pattern_uni:1;prim_subst:1;rewrite:1;simp:3
+smoke,stock,10,SEU559^2,SEU,,defexp_and_simp_and_etaexpand:1;neg_conjecture:1;simp:1
+smoke,stock,10,SEU673^2,SEU,unit rewriting (demodulation),cnf:1;cnfConj:6;defexp_and_simp_and_etaexpand:1;lifteq:2;neg_conjecture:1;paramod_ordered:5;pattern_uni:5;rewrite:3;simp:9
+smoke,stock,10,SEU798^2,SEU,unit rewriting (demodulation),cnf:1;cnfConj:4;defexp_and_simp_and_etaexpand:1;neg_conjecture:1;paramod_ordered:1;pattern_uni:1;rewrite:1;simp:2
+smoke,stock,10,SEU820^2,SEU,primitive substitution;unit rewriting (demodulation),cnf:1;cnfConj:8;defexp_and_simp_and_etaexpand:1;lifteq:2;neg_conjecture:1;paramod_ordered:3;pattern_uni:3;prim_subst:1;rewrite:8;simp:14
+smoke,stock,10,SEU893^5,SEU,unit rewriting (demodulation),cnf:1;cnfConj:4;defexp_and_simp_and_etaexpand:1;lifteq:3;neg_conjecture:1;paramod_ordered:2;pattern_uni:2;rewrite:2;simp:5
+smoke,stock,10,SEV160^5,SEV,,defexp_and_simp_and_etaexpand:1;neg_conjecture:1;simp:1
+smoke,stock,10,SEV393^5,SEV,Boolean extensionality;functional extensionality;unit rewriting (demodulation),bool_ext:1;cnf:2;cnfConj:4;defexp_and_simp_and_etaexpand:1;func_ext:1;lifteq:1;neg_conjecture:1;paramod_ordered:1;pattern_uni:1;rewrite:1;simp:2
+smoke,stock,10,SWV442^1,SWV,,defexp_and_simp_and_etaexpand:1;neg_conjecture:1;simp:1
+smoke,stock,10,SYO011^1,SYO,functional extensionality;unit rewriting (demodulation),cnf:1;cnfConj:3;defexp_and_simp_and_etaexpand:1;func_ext:1;lifteq:1;neg_conjecture:1;paramod_ordered:1;replace_leibeq:1;rewrite:1;simp:4
+smoke,stock,10,SYO088^5,SYO,unit rewriting (demodulation),cnf:1;cnfConj:8;defexp_and_simp_and_etaexpand:1;neg_conjecture:1;paramod_ordered:2;pattern_uni:2;rewrite:5;simp:7
+smoke,stock,10,SYO114^5,SYO,unit rewriting (demodulation),cnf:1;cnfConj:3;defexp_and_simp_and_etaexpand:1;miniscope:1;neg_conjecture:1;polarity_switch:1;rewrite:2;simp:4
+smoke,stock,10,SYO128^5,SYO,unit rewriting (demodulation),cnf:1;cnfConj:4;defexp_and_simp_and_etaexpand:1;neg_conjecture:1;rewrite:3;simp:3
+smoke,stock,10,SYO154^5,SYO,unit rewriting (demodulation),cnf:1;cnfConj:4;defexp_and_simp_and_etaexpand:1;neg_conjecture:1;paramod_ordered:1;pattern_uni:1;rewrite:2;simp:5
+smoke,stock,10,SYO413^1,SYO,unit rewriting (demodulation),cnf:1;cnfConj:3;defexp_and_simp_and_etaexpand:1;neg_conjecture:1;paramod_ordered:2;pattern_uni:2;rewrite:1;simp:4
+smoke,stock,10,SYO444^1,SYO,unit rewriting (demodulation),cnf:3;cnfConj:10;defexp_and_simp_and_etaexpand:3;miniscope:1;neg_conjecture:1;paramod_ordered:18;pattern_uni:18;rewrite:5;simp:28
+smoke,stock,10,SYO462^2,SYO,unit rewriting (demodulation),cnf:1;cnfConj:8;defexp_and_simp_and_etaexpand:1;neg_conjecture:1;paramod_ordered:7;pattern_uni:7;rewrite:3;simp:12
+smoke,stock,10,SYO475^6,SYO,unit rewriting (demodulation),cnf:1;cnfConj:3;defexp_and_simp_and_etaexpand:1;neg_conjecture:1;paramod_ordered:1;pattern_uni:1;rewrite:1;simp:2
+smoke,stock,10,SYO481^6,SYO,,cnf:1;cnfConj:2;defexp_and_simp_and_etaexpand:1;lifteq:2;miniscope:1;neg_conjecture:1;simplifyReflect:1
+smoke,stock,10,SYO507^1,SYO,,defexp_and_simp_and_etaexpand:1;neg_conjecture:1;simp:1
+smoke,stock,2.5,LCL608^1,LCL,unit rewriting (demodulation),cnf:1;cnfConj:3;defexp_and_simp_and_etaexpand:1;neg_conjecture:1;rewrite:2;simp:3
+smoke,stock,2.5,LCL723^1,LCL,unit rewriting (demodulation),cnf:3;cnfConj:5;defexp_and_simp_and_etaexpand:3;neg_conjecture:1;paramod_ordered:4;pattern_uni:4;rewrite:4;simp:9
+smoke,stock,2.5,NUM793^1,NUM,unit rewriting (demodulation),cnf:4;defexp_and_simp_and_etaexpand:7;miniscope:1;neg_conjecture:1;paramod_ordered:5;pattern_uni:5;rewrite:1;simp:7
+smoke,stock,2.5,SEU511^2,SEU,primitive substitution;unit rewriting (demodulation),cnf:1;cnfConj:3;defexp_and_simp_and_etaexpand:1;lifteq:1;miniscope:1;neg_conjecture:1;paramod_ordered:1;pattern_uni:1;prim_subst:1;rewrite:1;simp:3
+smoke,stock,2.5,SEU559^2,SEU,,defexp_and_simp_and_etaexpand:1;neg_conjecture:1;simp:1
+smoke,stock,2.5,SEU798^2,SEU,unit rewriting (demodulation),cnf:1;cnfConj:4;defexp_and_simp_and_etaexpand:1;neg_conjecture:1;paramod_ordered:1;pattern_uni:1;rewrite:1;simp:2
+smoke,stock,2.5,SEU893^5,SEU,unit rewriting (demodulation),cnf:1;cnfConj:4;defexp_and_simp_and_etaexpand:1;lifteq:3;neg_conjecture:1;paramod_ordered:2;pattern_uni:2;rewrite:2;simp:5
+smoke,stock,2.5,SEV160^5,SEV,,defexp_and_simp_and_etaexpand:1;neg_conjecture:1;simp:1
+smoke,stock,2.5,SEV393^5,SEV,Boolean extensionality;functional extensionality;unit rewriting (demodulation),bool_ext:1;cnf:2;cnfConj:4;defexp_and_simp_and_etaexpand:1;func_ext:1;lifteq:1;neg_conjecture:1;paramod_ordered:1;pattern_uni:1;rewrite:1;simp:2
+smoke,stock,2.5,SWV442^1,SWV,,defexp_and_simp_and_etaexpand:1;neg_conjecture:1;simp:1
+smoke,stock,2.5,SYO011^1,SYO,functional extensionality;unit rewriting (demodulation),cnf:1;cnfConj:3;defexp_and_simp_and_etaexpand:1;func_ext:1;lifteq:1;neg_conjecture:1;paramod_ordered:1;replace_leibeq:1;rewrite:1;simp:4
+smoke,stock,2.5,SYO088^5,SYO,unit rewriting (demodulation),cnf:1;cnfConj:8;defexp_and_simp_and_etaexpand:1;neg_conjecture:1;paramod_ordered:2;pattern_uni:2;rewrite:5;simp:7
+smoke,stock,2.5,SYO114^5,SYO,unit rewriting (demodulation),cnf:1;cnfConj:3;defexp_and_simp_and_etaexpand:1;miniscope:1;neg_conjecture:1;polarity_switch:1;rewrite:2;simp:4
+smoke,stock,2.5,SYO128^5,SYO,unit rewriting (demodulation),cnf:1;cnfConj:4;defexp_and_simp_and_etaexpand:1;neg_conjecture:1;rewrite:3;simp:3
+smoke,stock,2.5,SYO154^5,SYO,unit rewriting (demodulation),cnf:1;cnfConj:4;defexp_and_simp_and_etaexpand:1;neg_conjecture:1;paramod_ordered:1;pattern_uni:1;rewrite:2;simp:5
+smoke,stock,2.5,SYO413^1,SYO,unit rewriting (demodulation),cnf:1;cnfConj:3;defexp_and_simp_and_etaexpand:1;neg_conjecture:1;paramod_ordered:2;pattern_uni:2;rewrite:1;simp:4
+smoke,stock,2.5,SYO475^6,SYO,unit rewriting (demodulation),cnf:1;cnfConj:3;defexp_and_simp_and_etaexpand:1;neg_conjecture:1;paramod_ordered:1;pattern_uni:1;rewrite:1;simp:2
+smoke,stock,2.5,SYO481^6,SYO,,cnf:1;cnfConj:2;defexp_and_simp_and_etaexpand:1;lifteq:2;miniscope:1;neg_conjecture:1;simplifyReflect:1
+smoke,stock,2.5,SYO507^1,SYO,,defexp_and_simp_and_etaexpand:1;neg_conjecture:1;simp:1

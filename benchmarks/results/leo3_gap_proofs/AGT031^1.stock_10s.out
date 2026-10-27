@@ -1,0 +1,95 @@
+% [INFO] 	 Parsing problem /home/marc/.local/share/tptp/TPTP-v9.3.1/Problems/AGT/AGT031^1.p ... 
+% [INFO] 	 Included file 'Axioms/LCL013^0.ax' not found, trying TPTP home directory ... 
+% [INFO] 	 Parsing done (300ms). 
+% [INFO] 	 Running in sequential loop mode. 
+% [INFO] 	 Scanning for conjecture ... 
+% [INFO] 	 Found a conjecture (or negated_conjecture) and 39 axioms. Running axiom selection ... 
+% [INFO] 	 Axiom selection finished. Selected 39 axioms (removed 0 axioms). 
+% [INFO] 	 Problem is higher-order (TPTP THF). 
+% [INFO] 	 Type checking passed. 
+% [CONFIG] 	 Using configuration: timeout(10) with strategy<name(default),share(1.0),primSubst(3),sos(false),unifierCount(4),uniDepth(8),boolExt(true),choice(true),renaming(true),funcspec(false), domConstr(0),specialInstances(39),restrictUniAttempts(true),termOrdering(CPO)>.  Searching for refutation ... 
+% Time passed: 5545ms (effective reasoning time: 4739ms)
+% Solved by strategy<name(default),share(1.0),primSubst(3),sos(false),unifierCount(4),uniDepth(8),boolExt(true),choice(true),renaming(true),funcspec(false), domConstr(0),specialInstances(39),restrictUniAttempts(true),termOrdering(CPO)>
+% Axioms used in derivation (4): axiom_a3_2, axioms_B_a3, axiom_a3_1, axiom_a3_4
+% No. of inferences in proof: 40
+% SZS status Theorem for /home/marc/.local/share/tptp/TPTP-v9.3.1/Problems/AGT/AGT031^1.p : 5545 ms resp. 4739 ms w/o parsing
+% SZS output start Refutation for /home/marc/.local/share/tptp/TPTP-v9.3.1/Problems/AGT/AGT031^1.p
+thf(mu_type, type, mu: $tType).
+thf(mnot_decl, type, mnot: (($i > $o) > ($i > $o))).
+thf(mor_decl, type, mor: (($i > $o) > (($i > $o) > ($i > $o)))).
+thf(mand_decl, type, mand: (($i > $o) > (($i > $o) > ($i > $o)))).
+thf(mimplies_decl, type, mimplies: (($i > $o) > (($i > $o) > ($i > $o)))).
+thf(mforall_ind_decl, type, mforall_ind: ((mu > ($i > $o)) > ($i > $o))).
+thf(mexists_ind_decl, type, mexists_ind: ((mu > ($i > $o)) > ($i > $o))).
+thf(mbox_decl, type, mbox: (($i > ($i > $o)) > (($i > $o) > ($i > $o)))).
+thf(mdia_decl, type, mdia: (($i > ($i > $o)) > (($i > $o) > ($i > $o)))).
+thf(msymmetric_decl, type, msymmetric: (($i > ($i > $o)) > $o)).
+thf(mvalid_decl, type, mvalid: (($i > $o) > $o)).
+thf(a1_decl, type, a1: ($i > ($i > $o))).
+thf(a2_decl, type, a2: ($i > ($i > $o))).
+thf(a3_decl, type, a3: ($i > ($i > $o))).
+thf(jan_decl, type, jan: mu).
+thf(piotr_decl, type, piotr: mu).
+thf(cola_decl, type, cola: mu).
+thf(pepsi_decl, type, pepsi: mu).
+thf(likes_decl, type, likes: (mu > (mu > ($i > $o)))).
+thf(very_much_likes_decl, type, very_much_likes: (mu > (mu > ($i > $o)))).
+thf(sk1_decl, type, sk1: $i).
+thf(sk6_decl, type, sk6: ($i > $i)).
+thf(sk8_decl, type, sk8: ($i > (mu > (mu > ($i > $i))))).
+thf(sk9_decl, type, sk9: ($i > (mu > (mu > ($i > $i))))).
+thf(mnot_def, definition, mnot = (^ [A:($i > $o),B:$i]: ~ (A @ B)) ).
+thf(mor_def, definition, mor = (^ [A:($i > $o),B:($i > $o),C:$i]: ((A @ C) | (B @ C))) ).
+thf(mand_def, definition, mand = (^ [A:($i > $o),B:($i > $o)]: (mnot @ (mor @ (mnot @ A) @ (mnot @ B)))) ).
+thf(mimplies_def, definition, mimplies = (^ [A:($i > $o)]: (mor @ (mnot @ A))) ).
+thf(mforall_ind_def, definition, mforall_ind = (^ [A:(mu > ($i > $o)),B:$i]: ! [C:mu]: (A @ C @ B)) ).
+thf(mexists_ind_def, definition, mexists_ind = (^ [A:(mu > ($i > $o))]: (mnot @ (mforall_ind @ (^ [B:mu]: (mnot @ (A @ B)))))) ).
+thf(mbox_def, definition, mbox = (^ [A:($i > ($i > $o)),B:($i > $o),C:$i]: ! [D:$i]: (~ (A @ C @ D) | (B @ D))) ).
+thf(mdia_def, definition, mdia = (^ [A:($i > ($i > $o)),B:($i > $o)]: (mnot @ (mbox @ A @ (mnot @ B)))) ).
+thf(msymmetric_def, definition, msymmetric = (^ [A:($i > ($i > $o))]: ! [B:$i,C:$i]: ((A @ B @ C) => (A @ C @ B))) ).
+thf(mvalid_def, definition, mvalid = ((!) @ $i) ).
+thf(sk1_def, definition, sk1 = (@+ [A:$i]: ~ (? [B:mu,C:mu]: (very_much_likes @ B @ C @ A))) ).
+thf(sk6_def, definition, sk6 = (^ [A:$i]: (@+ [B:$i]: ~ (~ (a3 @ A @ B) | ~ (likes @ piotr @ pepsi @ B)))) ).
+thf(sk8_def, definition, sk8 = (^ [A:$i,B:mu,C:mu,D:$i]: (@+ [E:$i]: ~ (~ (a1 @ A @ E) | (likes @ C @ B @ E)))) ).
+thf(sk9_def, definition, sk9 = (^ [A:$i,B:mu,C:mu,D:$i]: (@+ [E:$i]: ~ (~ (a2 @ A @ E) | (likes @ C @ B @ E)))) ).
+thf(26,axiom,((mvalid @ (mdia @ a3 @ (likes @ piotr @ pepsi)))),file('/home/marc/.local/share/tptp/TPTP-v9.3.1/Problems/AGT/AGT031^1.p',axiom_a3_2)).
+thf(93,plain,((! [A:$i]: ~ (! [B:$i]: (~ (a3 @ A @ B) | ~ (likes @ piotr @ pepsi @ B))))),inference(defexp_and_simp_and_etaexpand,[status(thm)],[26])).
+thf(94,plain,((~ (? [A:$i]: ! [B:$i]: (~ (a3 @ A @ B) | ~ (likes @ piotr @ pepsi @ B))))),inference(miniscope,[status(thm)],[93])).
+thf(95,plain,(! [A:$i] : (((a3 @ A @ (sk6 @ A)) & (likes @ piotr @ pepsi @ (sk6 @ A))))),inference(cnf,[status(esa)],[94])).
+thf(96,plain,(! [A:$i] : ((a3 @ A @ (sk6 @ A)))),inference(cnfConj,[status(thm)],[95])).
+thf(8,axiom,((msymmetric @ a3)),file('/home/marc/.local/share/tptp/TPTP-v9.3.1/Problems/AGT/AGT031^1.p',axioms_B_a3)).
+thf(55,plain,((! [A:$i,B:$i]: ((a3 @ A @ B) => (a3 @ B @ A)))),inference(defexp_and_simp_and_etaexpand,[status(thm)],[8])).
+thf(56,plain,(! [B:$i,A:$i] : ((~ (a3 @ A @ B)) | (a3 @ B @ A))),inference(cnf,[status(esa)],[55])).
+thf(2287,plain,(! [C:$i,B:$i,A:$i] : (~ (($true)) | (a3 @ C @ B) | ((a3 @ A @ (sk6 @ A)) != (a3 @ B @ C)))),inference(paramod_ordered,[status(thm)],[96,56])).
+thf(2288,plain,(! [C:$i,B:$i,A:$i] : ((a3 @ C @ B) | ((a3 @ A @ (sk6 @ A)) != (a3 @ B @ C)))),inference(simp,[status(thm)],[2287])).
+thf(2289,plain,(! [A:$i] : ((a3 @ (sk6 @ A) @ A))),inference(pattern_uni,[status(thm)],[2288:[bind(A, $thf(D)),bind(B, $thf(D)),bind(C, $thf(sk6 @ D))]])).
+thf(2306,plain,(! [A:$i] : ((a3 @ (sk6 @ A) @ A))),inference(simp,[status(thm)],[2289])).
+thf(39,axiom,((mvalid @ (mbox @ a3 @ (likes @ jan @ cola)))),file('/home/marc/.local/share/tptp/TPTP-v9.3.1/Problems/AGT/AGT031^1.p',axiom_a3_1)).
+thf(129,plain,((! [A:$i,B:$i]: (~ (a3 @ A @ B) | (likes @ jan @ cola @ B)))),inference(defexp_and_simp_and_etaexpand,[status(thm)],[39])).
+thf(130,plain,(! [B:$i,A:$i] : ((~ (a3 @ A @ B)) | (likes @ jan @ cola @ B))),inference(cnf,[status(esa)],[129])).
+thf(2411,plain,(! [C:$i,B:$i,A:$i] : (~ (($true)) | (likes @ jan @ cola @ C) | ((a3 @ (sk6 @ A) @ A) != (a3 @ B @ C)))),inference(paramod_ordered,[status(thm)],[2306,130])).
+thf(2412,plain,(! [C:$i,B:$i,A:$i] : ((likes @ jan @ cola @ C) | ((a3 @ (sk6 @ A) @ A) != (a3 @ B @ C)))),inference(simp,[status(thm)],[2411])).
+thf(2413,plain,(! [A:$i] : ((likes @ jan @ cola @ A))),inference(pattern_uni,[status(thm)],[2412:[bind(A, $thf(D)),bind(B, $thf(sk6 @ D)),bind(C, $thf(D))]])).
+thf(2440,plain,(! [A:$i] : ((likes @ jan @ cola @ A))),inference(simp,[status(thm)],[2413])).
+thf(38,axiom,((mvalid @ (mforall_ind @ (^ [A:mu]: (mforall_ind @ (^ [B:mu]: (mbox @ a3 @ (mimplies @ (mand @ (likes @ A @ B) @ (mand @ (mbox @ a1 @ (likes @ A @ B)) @ (mbox @ a2 @ (likes @ A @ B)))) @ (very_much_likes @ A @ B))))))))),file('/home/marc/.local/share/tptp/TPTP-v9.3.1/Problems/AGT/AGT031^1.p',axiom_a3_4)).
+thf(123,plain,((! [A:$i,B:mu,C:mu,D:$i]: (~ (a3 @ A @ D) | ~ (likes @ B @ C @ D) | ~ (! [E:$i]: (~ (a1 @ D @ E) | (likes @ B @ C @ E))) | ~ (! [E:$i]: (~ (a2 @ D @ E) | (likes @ B @ C @ E))) | (very_much_likes @ B @ C @ D)))),inference(defexp_and_simp_and_etaexpand,[status(thm)],[38])).
+thf(124,plain,(! [D:$i,C:mu,B:mu,A:$i] : (((~ (a3 @ A @ D) | ~ (likes @ B @ C @ D) | (a1 @ D @ (sk8 @ D @ C @ B @ A)) | (a2 @ D @ (sk9 @ D @ C @ B @ A)) | (very_much_likes @ B @ C @ D)) & (~ (a3 @ A @ D) | ~ (likes @ B @ C @ D) | (a1 @ D @ (sk8 @ D @ C @ B @ A)) | ~ (likes @ B @ C @ (sk9 @ D @ C @ B @ A)) | (very_much_likes @ B @ C @ D)) & (~ (a3 @ A @ D) | ~ (likes @ B @ C @ D) | ~ (likes @ B @ C @ (sk8 @ D @ C @ B @ A)) | (a2 @ D @ (sk9 @ D @ C @ B @ A)) | (very_much_likes @ B @ C @ D)) & (~ (a3 @ A @ D) | ~ (likes @ B @ C @ D) | ~ (likes @ B @ C @ (sk8 @ D @ C @ B @ A)) | ~ (likes @ B @ C @ (sk9 @ D @ C @ B @ A)) | (very_much_likes @ B @ C @ D))))),inference(cnf,[status(esa)],[123])).
+thf(128,plain,(! [D:$i,C:mu,B:mu,A:$i] : ((~ (a3 @ A @ D)) | (~ (likes @ B @ C @ D)) | (~ (likes @ B @ C @ (sk8 @ D @ C @ B @ A))) | (~ (likes @ B @ C @ (sk9 @ D @ C @ B @ A))) | (very_much_likes @ B @ C @ D))),inference(cnfConj,[status(thm)],[124])).
+thf(1,conjecture,((mvalid @ (mexists_ind @ (^ [A:mu]: (mexists_ind @ (very_much_likes @ A)))))),file('/home/marc/.local/share/tptp/TPTP-v9.3.1/Problems/AGT/AGT031^1.p',conj)).
+thf(2,negated_conjecture,((~ (mvalid @ (mexists_ind @ (^ [A:mu]: (mexists_ind @ (very_much_likes @ A))))))),inference(neg_conjecture,[status(cth)],[1])).
+thf(42,plain,((~ (! [A:$i]: ~ (! [B:mu,C:mu]: ~ (very_much_likes @ B @ C @ A))))),inference(defexp_and_simp_and_etaexpand,[status(thm)],[2])).
+thf(43,plain,((~ (~ (~ (! [A:$i]: ? [B:mu,C:mu]: (very_much_likes @ B @ C @ A)))))),inference(miniscope,[status(thm)],[42])).
+thf(44,plain,(! [B:mu,A:mu] : ((~ (very_much_likes @ A @ B @ sk1)))),inference(cnf,[status(esa)],[43])).
+thf(149,plain,(! [F:mu,E:mu,D:$i,C:mu,B:mu,A:$i] : ((~ (a3 @ A @ D)) | (~ (likes @ B @ C @ D)) | (~ (likes @ B @ C @ (sk8 @ D @ C @ B @ A))) | (~ (likes @ B @ C @ (sk9 @ D @ C @ B @ A))) | ~ (($true)) | ((very_much_likes @ B @ C @ D) != (very_much_likes @ E @ F @ sk1)))),inference(paramod_ordered,[status(thm)],[128,44])).
+thf(150,plain,(! [F:mu,E:mu,D:$i,C:mu,B:mu,A:$i] : ((~ (a3 @ A @ D)) | (~ (likes @ B @ C @ D)) | (~ (likes @ B @ C @ (sk8 @ D @ C @ B @ A))) | (~ (likes @ B @ C @ (sk9 @ D @ C @ B @ A))) | ((very_much_likes @ B @ C @ D) != (very_much_likes @ E @ F @ sk1)))),inference(simp,[status(thm)],[149])).
+thf(151,plain,(! [C:mu,B:mu,A:$i] : ((~ (a3 @ A @ sk1)) | (~ (likes @ B @ C @ sk1)) | (~ (likes @ B @ C @ (sk8 @ sk1 @ C @ B @ A))) | (~ (likes @ B @ C @ (sk9 @ sk1 @ C @ B @ A))))),inference(pattern_uni,[status(thm)],[150:[bind(A, $thf(A)),bind(B, $thf(B)),bind(C, $thf(C)),bind(D, $thf(sk1)),bind(E, $thf(B)),bind(F, $thf(C))]])).
+thf(2468,plain,(! [D:mu,C:mu,B:$i,A:$i] : ((~ (a3 @ B @ sk1)) | (~ (likes @ C @ D @ sk1)) | ~ (($true)) | (~ (likes @ C @ D @ (sk9 @ sk1 @ D @ C @ B))) | ((likes @ jan @ cola @ A) != (likes @ C @ D @ (sk8 @ sk1 @ D @ C @ B))))),inference(paramod_ordered,[status(thm)],[2440,151])).
+thf(2469,plain,(! [D:mu,C:mu,B:$i,A:$i] : ((~ (a3 @ B @ sk1)) | (~ (likes @ C @ D @ sk1)) | (~ (likes @ C @ D @ (sk9 @ sk1 @ D @ C @ B))) | ((likes @ jan @ cola @ A) != (likes @ C @ D @ (sk8 @ sk1 @ D @ C @ B))))),inference(simp,[status(thm)],[2468])).
+thf(2470,plain,(! [A:$i] : ((~ (a3 @ A @ sk1)) | (~ (likes @ jan @ cola @ sk1)) | (~ (likes @ jan @ cola @ (sk9 @ sk1 @ cola @ jan @ A))))),inference(pattern_uni,[status(thm)],[2469:[bind(A, $thf(sk8 @ sk1 @ cola @ jan @ H)),bind(B, $thf(H)),bind(C, $thf(jan)),bind(D, $thf(cola))]])).
+thf(2547,plain,(! [A:$i] : ((~ (a3 @ A @ sk1)) | (~ (likes @ jan @ cola @ sk1)) | (~ (likes @ jan @ cola @ (sk9 @ sk1 @ cola @ jan @ A))))),inference(simp,[status(thm)],[2470])).
+thf(2751,plain,(! [A:$i] : ((~ (a3 @ A @ sk1)) | ~ (($true)) | ~ (($true)))),inference(rewrite,[status(thm)],[2547,2440])).
+thf(2752,plain,(! [A:$i] : ((~ (a3 @ A @ sk1)))),inference(simp,[status(thm)],[2751])).
+thf(2760,plain,(! [B:$i,A:$i] : (~ (($true)) | ((a3 @ (sk6 @ A) @ A) != (a3 @ B @ sk1)))),inference(paramod_ordered,[status(thm)],[2306,2752])).
+thf(2761,plain,(! [B:$i,A:$i] : (((a3 @ (sk6 @ A) @ A) != (a3 @ B @ sk1)))),inference(simp,[status(thm)],[2760])).
+thf(2762,plain,(($false)),inference(pattern_uni,[status(thm)],[2761:[bind(A, $thf(sk1)),bind(B, $thf(sk6 @ sk1))]])).
+% SZS output end Refutation for /home/marc/.local/share/tptp/TPTP-v9.3.1/Problems/AGT/AGT031^1.p

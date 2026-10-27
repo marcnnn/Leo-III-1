@@ -1,0 +1,26 @@
+% [INFO] 	 Parsing problem /home/marc/.local/share/tptp/TPTP-v9.3.1/Problems/SYO/SYO553^1.p ... 
+% [INFO] 	 Parsing done (323ms). 
+% [INFO] 	 Running in sequential loop mode. 
+% [INFO] 	 Scanning for conjecture ... 
+% [INFO] 	 Found a conjecture (or negated_conjecture) and 0 axioms. Running axiom selection ... 
+% [INFO] 	 Axiom selection finished. Selected 0 axioms (removed 0 axioms). 
+% [INFO] 	 Problem is higher-order (TPTP THF). 
+% [INFO] 	 Type checking passed. 
+% [CONFIG] 	 Using configuration: timeout(10) with strategy<name(default),share(1.0),primSubst(3),sos(false),unifierCount(4),uniDepth(8),boolExt(true),choice(true),renaming(true),funcspec(false), domConstr(0),specialInstances(39),restrictUniAttempts(true),termOrdering(CPO)>.  Searching for refutation ... 
+% Time passed: 2528ms (effective reasoning time: 1354ms)
+% Solved by strategy<name(default),share(1.0),primSubst(3),sos(false),unifierCount(4),uniDepth(8),boolExt(true),choice(true),renaming(true),funcspec(false), domConstr(0),specialInstances(39),restrictUniAttempts(true),termOrdering(CPO)>
+% Axioms used in derivation (0): 
+% No. of inferences in proof: 6
+% SZS status Theorem for /home/marc/.local/share/tptp/TPTP-v9.3.1/Problems/SYO/SYO553^1.p : 2528 ms resp. 1354 ms w/o parsing
+% SZS output start Refutation for /home/marc/.local/share/tptp/TPTP-v9.3.1/Problems/SYO/SYO553^1.p
+thf(sk1_decl, type, sk1: (($i > ($i > $i)) > $i)).
+thf(sk2_decl, type, sk2: (($i > ($i > $i)) > $i)).
+thf(sk1_def, definition, sk1 = (^ [A:($i > ($i > $i))]: (@+ [B:$i]: ~ (! [C:$i]: ((A @ B @ C) = C)))) ).
+thf(sk2_def, definition, sk2 = (^ [A:($i > ($i > $i))]: (@+ [B:$i]: ~ ((A @ (sk1 @ A) @ B) = B))) ).
+thf(1,conjecture,((? [A:($i > ($i > $i))]: ! [B:$i,C:$i]: ((A @ B @ C) = C))),file('/home/marc/.local/share/tptp/TPTP-v9.3.1/Problems/SYO/SYO553^1.p',claim)).
+thf(2,negated_conjecture,((~ (? [A:($i > ($i > $i))]: ! [B:$i,C:$i]: ((A @ B @ C) = C)))),inference(neg_conjecture,[status(cth)],[1])).
+thf(3,plain,((~ (? [A:($i > ($i > $i))]: ! [B:$i,C:$i]: ((A @ B @ C) = C)))),inference(defexp_and_simp_and_etaexpand,[status(thm)],[2])).
+thf(4,plain,(! [A:($i > ($i > $i))] : ((~ ((A @ (sk1 @ (A)) @ (sk2 @ (A))) = (sk2 @ (A)))))),inference(cnf,[status(esa)],[3])).
+thf(5,plain,(! [A:($i > ($i > $i))] : (((A @ (sk1 @ (A)) @ (sk2 @ (A))) != (sk2 @ (A))))),inference(lifteq,[status(thm)],[4])).
+thf(6,plain,(($false)),inference(pre_uni,[status(thm)],[5:[bind(A, $thf(^ [B:$i,C:$i]: (C)))]])).
+% SZS output end Refutation for /home/marc/.local/share/tptp/TPTP-v9.3.1/Problems/SYO/SYO553^1.p

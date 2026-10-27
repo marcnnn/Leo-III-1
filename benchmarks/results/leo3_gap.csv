@@ -1,0 +1,272 @@
+split,problem,domain,astraea_baseline@10000,astraea_baseline@2500,astraea_cooperate@2500,astraea_leo3@2500,astraea_leo3_racer@2500,astraea_racers@2500,leo3_stock_2.5s,leo3_stock_10s,leo3_e_2.5s,leo3_e_10s,proof_source,features,gap_class
+smoke,AGT033^2,AGT,1,1,1,0,1,1,0,1,0,1,stock_10s,none of the above (search/time),
+smoke,AGT037^2,AGT,1,1,1,0,1,1,0,1,0,1,stock_10s,unit rewriting (demodulation),
+smoke,ITP117^1,ITP,0,0,0,0,0,1,0,0,0,1,e_10s,functional extensionality;external cooperation (E),external cooperation (E)
+smoke,ITP130^1,ITP,0,0,0,0,0,1,0,0,0,1,e_10s,external cooperation (E),external cooperation (E)
+smoke,ITP175^1,ITP,1,1,1,0,1,1,0,0,0,0,,,
+smoke,ITP202^1,ITP,0,0,0,0,0,1,0,0,0,0,,,
+smoke,LCL608^1,LCL,1,1,1,0,1,1,1,1,1,1,stock_10s,unit rewriting (demodulation),
+smoke,LCL621^1,LCL,1,1,1,0,1,1,0,0,1,1,e_10s,external cooperation (E),
+smoke,LCL723^1,LCL,1,1,1,1,1,1,1,1,1,1,stock_10s,unit rewriting (demodulation),
+smoke,LCL866^1,LCL,1,1,1,0,1,1,0,0,0,0,,,
+smoke,NUM727^1,NUM,0,0,0,0,0,0,0,0,0,1,e_10s,unit rewriting (demodulation);external cooperation (E),external cooperation (E)
+smoke,NUM793^1,NUM,1,1,1,0,1,1,1,1,1,1,stock_10s,unit rewriting (demodulation),
+smoke,SEU511^2,SEU,1,1,1,0,1,1,1,1,1,1,stock_10s,primitive substitution;unit rewriting (demodulation),
+smoke,SEU522^1,SEU,0,0,0,0,0,0,0,0,0,1,e_10s,external cooperation (E),external cooperation (E)
+smoke,SEU559^2,SEU,1,1,1,1,1,1,1,1,1,1,stock_10s,none of the above (search/time),
+smoke,SEU673^2,SEU,1,1,1,0,1,1,0,1,1,1,stock_10s,unit rewriting (demodulation),
+smoke,SEU798^2,SEU,1,1,1,0,1,1,1,1,1,1,stock_10s,unit rewriting (demodulation),
+smoke,SEU820^2,SEU,1,1,1,0,1,1,0,1,0,1,stock_10s,primitive substitution;unit rewriting (demodulation),
+smoke,SEU893^5,SEU,1,1,1,0,1,1,1,1,1,1,stock_10s,unit rewriting (demodulation),
+smoke,SEV119^5,SEV,0,0,0,0,0,0,0,0,0,0,,,
+smoke,SEV160^5,SEV,1,1,1,0,1,1,1,1,1,1,stock_10s,none of the above (search/time),
+smoke,SEV393^5,SEV,1,1,1,0,1,1,1,1,1,1,stock_10s,Boolean extensionality;functional extensionality;unit rewriting (demodulation),
+smoke,SWV442^1,SWV,1,1,1,0,1,1,1,1,1,1,stock_10s,none of the above (search/time),
+smoke,SYO011^1,SYO,1,1,1,0,1,1,1,1,1,1,stock_10s,functional extensionality;unit rewriting (demodulation),
+smoke,SYO088^5,SYO,1,1,1,0,1,1,1,1,1,1,stock_10s,unit rewriting (demodulation),
+smoke,SYO114^5,SYO,1,1,1,0,1,1,1,1,1,1,stock_10s,unit rewriting (demodulation),
+smoke,SYO128^5,SYO,1,1,1,0,1,1,1,1,1,1,stock_10s,unit rewriting (demodulation),
+smoke,SYO154^5,SYO,1,1,1,0,1,1,1,1,1,1,stock_10s,unit rewriting (demodulation),
+smoke,SYO413^1,SYO,1,1,1,0,1,1,1,1,1,1,stock_10s,unit rewriting (demodulation),
+smoke,SYO444^1,SYO,0,0,0,0,0,0,0,1,1,1,stock_10s,unit rewriting (demodulation),calculus/search
+smoke,SYO462^2,SYO,1,1,1,0,1,1,0,1,1,1,stock_10s,unit rewriting (demodulation),
+smoke,SYO475^6,SYO,1,1,1,0,1,1,1,1,1,1,stock_10s,unit rewriting (demodulation),
+smoke,SYO481^6,SYO,1,1,1,0,1,1,1,1,1,1,stock_10s,none of the above (search/time),
+smoke,SYO507^1,SYO,1,1,1,0,1,1,1,1,1,1,stock_10s,none of the above (search/time),
+dev,AGT027^2,AGT,0,0,0,0,0,0,0,0,0,0,,,
+dev,AGT029^1,AGT,0,0,1,0,0,1,0,0,0,0,,,
+dev,AGT031^1,AGT,0,0,0,0,0,0,0,1,0,1,stock_10s,unit rewriting (demodulation),calculus/search
+dev,ALG018^7,ALG,0,0,0,0,0,0,0,0,0,0,,,
+dev,ALG020^7,ALG,0,0,0,0,0,0,0,0,0,0,,,
+dev,ALG248^3,ALG,1,1,1,1,1,1,0,1,0,1,stock_10s,unit rewriting (demodulation),
+dev,ALG254^1,ALG,1,1,1,0,1,1,0,1,0,1,stock_10s,unit rewriting (demodulation),
+dev,ALG258^2,ALG,1,1,1,0,1,1,0,1,0,1,stock_10s,unit rewriting (demodulation),
+dev,ALG268^1,ALG,0,0,0,0,0,0,0,0,0,0,,,
+dev,ALG285^5,ALG,0,0,0,0,0,0,0,1,1,1,stock_10s,unit rewriting (demodulation),calculus/search
+dev,CAT038^2,CAT,0,0,0,0,0,0,0,1,0,1,stock_10s,choice;pre-unification beyond patterns,calculus/search
+dev,CSR127^1,CSR,0,0,0,1,0,0,1,1,1,1,stock_10s,unit rewriting (demodulation),calculus/search
+dev,CSR131^2,CSR,0,0,0,0,0,0,0,0,0,0,,,
+dev,CSR133^1,CSR,0,0,0,0,0,0,0,1,0,1,stock_10s,pre-unification beyond patterns;functional extensionality;unit rewriting (demodulation),calculus/search
+dev,CSR138^1,CSR,1,1,1,0,1,1,0,0,0,1,e_10s,pre-unification beyond patterns;external cooperation (E),
+dev,CSR139^1,CSR,0,0,0,0,0,0,0,1,0,1,stock_10s,primitive substitution;pre-unification beyond patterns;functional extensionality;unit rewriting (demodulation),calculus/search
+dev,CSR140^2,CSR,1,1,1,0,1,1,0,1,0,1,stock_10s,pre-unification beyond patterns;unit rewriting (demodulation),
+dev,CSR142^1,CSR,0,0,0,0,0,0,0,1,1,1,stock_10s,unit rewriting (demodulation),calculus/search
+dev,CSR151^3,CSR,0,0,0,1,0,0,0,1,0,1,stock_10s,Boolean extensionality;unit rewriting (demodulation),calculus/search
+dev,GEG003^1,GEG,0,0,0,0,0,0,0,0,0,0,,,
+dev,GRA029^2,GRA,0,0,0,0,0,0,0,0,0,0,,,
+dev,GRA032^2,GRA,0,0,0,0,0,0,0,0,0,0,,,
+dev,GRA043^1,GRA,0,0,0,0,0,0,0,0,0,0,,,
+dev,GRA046^2,GRA,0,0,0,0,0,0,0,0,0,0,,,
+dev,GRA050^2,GRA,0,0,0,0,0,0,0,0,0,0,,,
+dev,GRA074^1,GRA,0,0,0,0,0,0,0,0,0,0,,,
+dev,ITP001^2,ITP,1,1,1,1,1,1,0,1,1,1,stock_10s,none of the above (search/time),
+dev,ITP003^5,ITP,0,0,0,0,0,0,0,0,0,0,,,
+dev,ITP016^4,ITP,0,0,0,0,0,0,0,0,0,0,,,
+dev,ITP016^5,ITP,0,0,0,0,0,0,0,0,0,0,,,
+dev,ITP022^2,ITP,0,0,0,0,0,0,0,0,0,0,,,
+dev,ITP023^5,ITP,0,0,0,0,0,0,0,0,0,0,,,
+dev,ITP048^1,ITP,0,0,0,0,0,1,0,0,0,0,,,
+dev,ITP054^1,ITP,0,0,0,0,0,0,0,0,0,0,,,
+dev,ITP071^1,ITP,0,0,0,0,0,1,0,0,0,0,,,
+dev,ITP104^1,ITP,0,0,0,0,0,1,0,0,0,0,,,
+dev,ITP124^1,ITP,0,0,0,0,0,1,0,0,0,0,,,
+dev,ITP127^1,ITP,1,1,1,0,1,1,0,0,0,0,,,
+dev,ITP129^1,ITP,0,0,0,0,0,0,0,0,0,0,,,
+dev,ITP138^1,ITP,0,0,0,0,0,1,0,0,0,1,e_10s,external cooperation (E),external cooperation (E)
+dev,ITP143^1,ITP,0,0,0,0,0,0,0,0,0,0,,,
+dev,ITP149^1,ITP,0,0,0,0,0,1,0,0,0,0,,,
+dev,ITP150^1,ITP,0,0,0,0,0,1,0,0,0,1,e_10s,external cooperation (E),external cooperation (E)
+dev,ITP196^1,ITP,0,0,0,0,0,1,0,1,0,0,stock_10s,unit rewriting (demodulation),calculus/search
+dev,ITP209^1,ITP,1,1,1,1,1,1,0,1,0,1,stock_10s,unit rewriting (demodulation),
+dev,ITP228^1,ITP,0,0,0,0,0,0,0,0,0,0,,,
+dev,ITP233^1,ITP,0,0,0,0,0,0,0,1,0,1,stock_10s,unit rewriting (demodulation),calculus/search
+dev,ITP237^3,ITP,0,0,0,0,0,0,0,0,0,0,,,
+dev,ITP246^3,ITP,0,0,0,0,0,0,0,0,0,0,,,
+dev,ITP250^1,ITP,0,0,0,0,0,0,0,0,0,0,,,
+dev,ITP254^3,ITP,0,0,0,0,0,0,0,0,0,0,,,
+dev,ITP264^3,ITP,0,0,0,0,0,0,0,0,0,0,,,
+dev,ITP281^1,ITP,0,0,0,0,0,0,0,0,0,0,,,
+dev,ITP281^3,ITP,0,0,0,0,0,0,0,0,0,0,,,
+dev,ITP283^3,ITP,0,0,0,0,0,0,0,0,0,0,,,
+dev,ITP290^3,ITP,0,0,0,0,0,0,0,0,0,0,,,
+dev,LCL584^1,LCL,1,1,1,1,1,1,1,1,1,1,stock_10s,unit rewriting (demodulation),
+dev,LCL585^1,LCL,1,1,1,1,1,1,1,1,1,1,stock_10s,unit rewriting (demodulation),
+dev,LCL612^1,LCL,1,1,1,1,1,1,1,1,1,1,stock_10s,unit rewriting (demodulation),
+dev,LCL623^1,LCL,0,0,1,0,0,0,0,0,1,1,e_10s,external cooperation (E),external cooperation (E)
+dev,LCL701^1,LCL,1,1,1,1,1,1,1,1,1,1,stock_10s,unit rewriting (demodulation),
+dev,LCL704^1,LCL,1,1,1,1,1,1,0,1,1,1,stock_10s,unit rewriting (demodulation),
+dev,LCL717^1,LCL,0,0,0,0,0,0,0,0,0,0,,,
+dev,LCL728^5,LCL,0,0,0,0,0,0,0,0,0,0,,,
+dev,LCL735^5,LCL,0,0,0,0,0,0,0,1,1,1,stock_10s,choice;special instances;unit rewriting (demodulation),calculus/search
+dev,LCL736^5,LCL,0,0,0,0,0,0,0,1,0,1,stock_10s,choice;special instances;unit rewriting (demodulation),calculus/search
+dev,LCL742^5,LCL,0,0,0,0,0,0,0,0,0,0,,,
+dev,LCL958^18,LCL,0,0,1,0,0,0,0,1,1,1,stock_10s,unit rewriting (demodulation),calculus/search
+dev,MSC021^5,MSC,0,0,0,0,0,0,0,0,0,0,,,
+dev,NLP267^1,NLP,1,1,1,1,1,1,0,1,1,1,stock_10s,unit rewriting (demodulation),
+dev,NUM416^1,NUM,1,1,1,1,1,1,1,1,1,1,stock_10s,none of the above (search/time),
+dev,NUM417^1,NUM,1,0,0,0,0,0,0,0,0,0,,,
+dev,NUM635^1,NUM,1,1,1,1,1,1,1,1,1,1,stock_10s,unit rewriting (demodulation),
+dev,NUM636^2,NUM,0,0,0,0,0,0,0,0,0,0,,,
+dev,NUM637^1,NUM,0,0,0,0,0,0,0,0,0,0,,,
+dev,NUM642^4,NUM,0,0,0,0,0,0,0,0,0,0,,,
+dev,NUM646^4,NUM,0,0,0,0,0,0,0,0,0,0,,,
+dev,NUM668^4,NUM,0,0,0,0,0,0,0,0,0,0,,,
+dev,NUM686^4,NUM,0,0,0,0,0,0,0,0,0,0,,,
+dev,NUM689^4,NUM,0,0,0,0,0,0,0,0,0,0,,,
+dev,NUM704^1,NUM,0,0,0,0,0,0,0,0,0,0,,,
+dev,NUM710^4,NUM,0,0,0,0,0,0,0,0,0,0,,,
+dev,NUM742^1,NUM,1,1,1,0,1,1,0,1,0,1,stock_10s,unit rewriting (demodulation),
+dev,NUM758^4,NUM,0,0,0,0,0,0,0,0,0,0,,,
+dev,NUM765^4,NUM,0,0,0,0,0,0,0,0,0,0,,,
+dev,NUM767^1,NUM,1,1,1,0,1,1,0,1,1,1,stock_10s,unit rewriting (demodulation),
+dev,NUM796^4,NUM,0,0,0,0,0,0,0,0,0,0,,,
+dev,NUM808^5,NUM,0,0,0,0,0,0,0,0,0,1,e_10s,pre-unification beyond patterns;external cooperation (E),external cooperation (E)
+dev,NUM825^5,NUM,0,0,0,0,0,0,0,0,0,0,,,
+dev,NUM925^1,NUM,0,0,1,0,0,1,0,1,0,1,stock_10s,unit rewriting (demodulation),calculus/search
+dev,NUN023^2,NUN,0,0,0,1,0,0,0,1,0,1,stock_10s,pre-unification beyond patterns;special instances,calculus/search
+dev,PHI004^4,PHI,0,0,0,0,0,0,0,0,0,0,,,
+dev,PLA032^7,PLA,1,1,1,0,1,1,0,0,1,1,e_10s,external cooperation (E),
+dev,PLA053^2,PLA,1,1,1,0,1,1,0,1,1,1,stock_10s,unit rewriting (demodulation),
+dev,PRO029^16,PRO,1,1,1,0,1,1,0,0,1,1,e_10s,external cooperation (E),
+dev,PUZ090^5,PUZ,1,1,1,1,1,1,1,1,1,1,stock_10s,unit rewriting (demodulation),
+dev,PUZ091^5,PUZ,1,1,1,0,1,1,1,1,1,1,stock_10s,unit rewriting (demodulation),
+dev,PUZ146^1,PUZ,1,1,1,1,1,1,1,1,1,1,stock_10s,functional extensionality;unit rewriting (demodulation),
+dev,QUA015^1,QUA,0,0,0,0,0,0,0,0,0,0,,,
+dev,SCT169^1,SCT,0,0,0,0,0,0,0,0,0,0,,,
+dev,SET002^4,SET,1,1,1,0,1,1,0,0,0,0,,,
+dev,SET010^5,SET,1,1,1,1,1,1,1,1,1,1,stock_10s,Boolean extensionality;functional extensionality;unit rewriting (demodulation),
+dev,SET017^1,SET,1,1,1,1,1,1,1,1,1,1,stock_10s,Boolean extensionality;functional extensionality;unit rewriting (demodulation),
+dev,SET044^23,SET,1,1,1,0,1,1,0,1,1,1,stock_10s,unit rewriting (demodulation),
+dev,SET046^5,SET,1,1,1,1,1,1,1,1,1,1,stock_10s,unit rewriting (demodulation),
+dev,SET047^1,SET,0,0,0,0,0,0,0,1,1,1,stock_10s,Boolean extensionality;functional extensionality,calculus/search
+dev,SET055^12,SET,1,1,1,0,1,1,0,0,0,1,e_10s,external cooperation (E),
+dev,SET143^3,SET,0,0,0,1,0,0,1,1,1,1,stock_10s,Boolean extensionality;functional extensionality;unit rewriting (demodulation),calculus/search
+dev,SET162^5,SET,0,0,0,1,0,0,1,1,1,1,stock_10s,none of the above (search/time),calculus/search
+dev,SET169^5,SET,1,1,1,1,1,1,1,1,1,1,stock_10s,Boolean extensionality;functional extensionality;unit rewriting (demodulation),
+dev,SET580^5,SET,1,1,1,1,1,1,1,1,1,1,stock_10s,Boolean extensionality;unit rewriting (demodulation),
+dev,SET647^3,SET,1,1,1,1,1,1,1,1,1,1,stock_10s,unit rewriting (demodulation),
+dev,SET651^3,SET,1,1,1,1,1,1,1,1,1,1,stock_10s,unit rewriting (demodulation),
+dev,SET716^4,SET,1,1,1,1,1,1,1,1,1,1,stock_10s,unit rewriting (demodulation),
+dev,SET753^4,SET,1,1,1,1,1,1,1,1,1,1,stock_10s,unit rewriting (demodulation),
+dev,SET926^12,SET,1,1,1,0,1,1,0,0,1,1,e_10s,external cooperation (E),
+dev,SEU477^1,SEU,1,1,1,0,1,1,0,0,0,0,,,
+dev,SEU499^1,SEU,1,1,1,1,1,1,1,1,1,1,stock_10s,none of the above (search/time),
+dev,SEU503^2,SEU,1,1,1,1,1,1,1,1,1,1,stock_10s,primitive substitution,
+dev,SEU518^1,SEU,0,0,0,0,0,0,0,0,0,1,e_10s,external cooperation (E),external cooperation (E)
+dev,SEU520^1,SEU,0,0,0,1,0,0,1,1,1,1,stock_10s,none of the above (search/time),calculus/search
+dev,SEU537^1,SEU,0,0,0,0,0,0,0,1,0,1,stock_10s,unit rewriting (demodulation),calculus/search
+dev,SEU541^2,SEU,1,1,1,1,1,1,1,1,1,1,stock_10s,none of the above (search/time),
+dev,SEU544^1,SEU,0,0,0,1,0,0,1,1,1,1,stock_10s,none of the above (search/time),calculus/search
+dev,SEU552^2,SEU,1,1,1,1,1,1,1,1,1,1,stock_10s,unit rewriting (demodulation),
+dev,SEU557^1,SEU,0,0,0,0,0,0,0,1,0,1,stock_10s,unit rewriting (demodulation),calculus/search
+dev,SEU575^1,SEU,0,0,0,0,0,0,0,0,0,1,e_10s,external cooperation (E),external cooperation (E)
+dev,SEU582^2,SEU,1,1,1,1,1,1,1,1,1,1,stock_10s,unit rewriting (demodulation),
+dev,SEU595^2,SEU,1,1,1,1,1,1,1,1,1,1,stock_10s,pre-unification beyond patterns;unit rewriting (demodulation),
+dev,SEU598^2,SEU,1,1,1,0,1,1,0,0,1,1,e_10s,external cooperation (E),
+dev,SEU640^2,SEU,1,1,1,1,1,1,1,1,1,1,stock_10s,none of the above (search/time),
+dev,SEU646^2,SEU,1,1,1,0,1,1,0,1,1,1,stock_10s,none of the above (search/time),
+dev,SEU668^2,SEU,0,0,0,0,0,0,0,0,0,1,e_10s,primitive substitution;pre-unification beyond patterns;external cooperation (E),external cooperation (E)
+dev,SEU681^1,SEU,0,0,0,0,0,0,0,0,0,0,,,
+dev,SEU696^1,SEU,0,0,0,0,0,0,0,0,0,0,,,
+dev,SEU700^1,SEU,0,0,0,0,0,0,0,0,0,0,,,
+dev,SEU704^1,SEU,0,0,0,0,0,0,0,0,0,0,,,
+dev,SEU705^1,SEU,0,0,0,0,0,0,0,0,0,0,,,
+dev,SEU705^2,SEU,0,0,0,0,0,0,0,0,1,1,e_10s,external cooperation (E),external cooperation (E)
+dev,SEU713^1,SEU,0,0,0,0,0,0,0,0,0,0,,,
+dev,SEU716^2,SEU,1,1,1,0,1,1,0,1,1,1,stock_10s,unit rewriting (demodulation),
+dev,SEU721^1,SEU,0,0,0,0,0,0,0,0,0,0,,,
+dev,SEU723^2,SEU,1,1,1,0,1,1,1,1,1,1,stock_10s,unit rewriting (demodulation),
+dev,SEU727^2,SEU,1,1,1,1,1,1,1,1,1,1,stock_10s,unit rewriting (demodulation),
+dev,SEU734^1,SEU,0,0,0,0,0,0,0,0,0,0,,,
+dev,SEU738^2,SEU,1,1,1,1,1,1,1,1,1,1,stock_10s,unit rewriting (demodulation),
+dev,SEU742^2,SEU,0,0,0,0,0,0,0,0,1,1,e_10s,external cooperation (E),external cooperation (E)
+dev,SEU750^2,SEU,1,1,1,0,1,1,0,1,1,1,stock_10s,unit rewriting (demodulation),
+dev,SEU760^1,SEU,0,0,0,0,0,0,0,0,0,0,,,
+dev,SEU761^1,SEU,0,0,0,0,0,0,0,0,0,0,,,
+dev,SEU763^1,SEU,0,0,0,0,0,0,0,0,0,0,,,
+dev,SEU768^1,SEU,0,0,0,0,0,0,0,0,0,0,,,
+dev,SEU769^2,SEU,1,1,1,0,1,1,1,1,0,1,stock_10s,unit rewriting (demodulation),
+dev,SEU781^2,SEU,0,0,0,0,0,0,0,0,1,1,e_10s,external cooperation (E),external cooperation (E)
+dev,SEU787^2,SEU,1,1,1,0,1,0,0,1,1,1,stock_10s,unit rewriting (demodulation),
+dev,SEU794^1,SEU,0,0,0,0,0,0,0,0,0,0,,,
+dev,SEU795^1,SEU,0,0,0,0,0,0,0,0,0,0,,,
+dev,SEU796^1,SEU,0,0,0,0,0,0,0,0,0,0,,,
+dev,SEU798^1,SEU,0,0,0,0,0,0,0,0,0,0,,,
+dev,SEU811^2,SEU,1,1,1,0,1,1,0,1,0,1,stock_10s,unit rewriting (demodulation),
+dev,SEU821^1,SEU,0,0,0,0,0,0,0,0,0,1,e_10s,unit rewriting (demodulation),calculus/search
+dev,SEU826^1,SEU,1,1,1,1,1,1,1,1,1,1,stock_10s,Boolean extensionality;unit rewriting (demodulation),
+dev,SEU829^1,SEU,1,1,1,1,1,1,1,1,0,1,stock_10s,Boolean extensionality;functional extensionality;unit rewriting (demodulation),
+dev,SEU866^5,SEU,0,0,0,0,0,0,0,0,0,0,,,
+dev,SEU930^5,SEU,1,1,1,0,1,1,0,1,1,1,stock_10s,functional extensionality,
+dev,SEU938^5,SEU,0,0,0,0,0,0,0,0,0,0,,,
+dev,SEU943^5,SEU,0,0,0,0,0,0,0,0,0,0,,,
+dev,SEU969^5,SEU,0,0,0,0,0,0,0,0,0,1,e_10s,pre-unification beyond patterns;external cooperation (E),external cooperation (E)
+dev,SEV005^5,SEV,0,0,0,0,0,0,0,0,0,0,,,
+dev,SEV011^5,SEV,0,0,0,0,0,0,0,0,0,0,,,
+dev,SEV021^7,SEV,0,0,0,0,0,0,0,0,0,0,,,
+dev,SEV033^5,SEV,0,0,0,0,0,0,0,0,0,0,,,
+dev,SEV047^5,SEV,1,1,1,1,1,1,1,1,1,1,stock_10s,none of the above (search/time),
+dev,SEV068^5,SEV,0,0,0,0,0,0,0,0,0,0,,,
+dev,SEV113^5,SEV,0,0,0,0,0,0,0,0,0,0,,,
+dev,SEV141^5,SEV,0,0,0,0,0,0,0,0,0,0,,,
+dev,SEV162^5,SEV,0,0,0,0,0,0,0,1,0,1,stock_10s,pre-unification beyond patterns;Boolean extensionality,calculus/search
+dev,SEV198^5,SEV,0,0,0,0,0,0,0,0,0,0,,,
+dev,SEV204^5,SEV,0,0,0,0,0,0,0,0,0,0,,,
+dev,SEV205^5,SEV,0,0,0,0,0,0,0,0,0,0,,,
+dev,SEV212^5,SEV,0,0,0,0,0,0,0,0,0,0,,,
+dev,SEV229^5,SEV,1,1,1,0,1,1,0,1,0,1,stock_10s,Boolean extensionality;functional extensionality;unit rewriting (demodulation),
+dev,SEV403^5,SEV,0,0,0,0,0,0,0,0,0,0,,,
+dev,SWV431^2,SWV,1,0,1,0,0,0,0,0,0,0,,,
+dev,SWV438^1,SWV,0,0,0,0,0,0,0,0,0,0,,,
+dev,SWW470^1,SWW,0,0,0,0,0,0,0,0,0,1,e_10s,external cooperation (E),external cooperation (E)
+dev,SWX154^1,SWX,0,0,0,0,0,0,0,0,0,1,,,calculus/search
+dev,SWX165^1,SWX,0,0,0,0,0,0,0,0,0,0,,,
+dev,SWX170^1,SWX,0,0,0,0,0,0,0,0,0,0,,,
+dev,SYN052^7,SYN,0,0,0,0,0,0,0,0,0,0,,,
+dev,SYN364^5,SYN,1,1,1,0,1,1,0,1,1,1,stock_10s,unit rewriting (demodulation),
+dev,SYN915^4,SYN,1,1,1,1,1,1,1,1,1,1,stock_10s,none of the above (search/time),
+dev,SYN983^1,SYN,0,0,0,1,0,0,1,1,1,1,stock_10s,Boolean extensionality;unit rewriting (demodulation),calculus/search
+dev,SYN999^1,SYN,1,1,1,1,1,1,1,1,1,1,stock_10s,unit rewriting (demodulation),
+dev,SYO026^1,SYO,0,0,0,1,0,0,0,1,0,1,stock_10s,Boolean extensionality;functional extensionality;unit rewriting (demodulation),calculus/search
+dev,SYO029^1,SYO,0,0,0,1,0,0,1,1,1,1,stock_10s,special instances,calculus/search
+dev,SYO038^1.005.005,SYO,0,0,0,0,0,0,0,0,0,0,,,
+dev,SYO044^1,SYO,1,1,1,1,1,1,1,1,1,1,stock_10s,none of the above (search/time),
+dev,SYO045^1,SYO,1,1,1,0,1,1,1,1,0,1,stock_10s,unit rewriting (demodulation),
+dev,SYO048^1,SYO,1,1,1,0,1,1,0,1,0,1,stock_10s,unit rewriting (demodulation),
+dev,SYO067^4.002,SYO,0,0,0,0,0,0,0,0,0,0,,,
+dev,SYO067^4.003,SYO,0,0,0,0,0,0,0,0,0,0,,,
+dev,SYO068^4.020,SYO,0,0,1,0,0,0,0,0,0,1,e_10s,external cooperation (E),external cooperation (E)
+dev,SYO069^4.001,SYO,0,0,0,0,0,0,0,0,0,0,,,
+dev,SYO069^4.002,SYO,0,0,0,0,0,0,0,0,0,0,,,
+dev,SYO107^5,SYO,1,1,1,1,1,1,1,1,1,1,stock_10s,Boolean extensionality;functional extensionality;unit rewriting (demodulation),
+dev,SYO111^5,SYO,1,1,1,0,1,1,1,1,1,1,stock_10s,unit rewriting (demodulation),
+dev,SYO131^5,SYO,1,1,1,0,1,1,1,1,1,1,stock_10s,unit rewriting (demodulation),
+dev,SYO170^5,SYO,0,0,0,0,0,0,0,0,1,1,e_10s,external cooperation (E),external cooperation (E)
+dev,SYO194^5,SYO,1,1,1,0,1,1,1,1,1,1,stock_10s,pre-unification beyond patterns,
+dev,SYO199^5,SYO,0,0,0,0,0,0,1,1,1,1,stock_10s,special instances,calculus/search
+dev,SYO233^5,SYO,1,1,1,0,1,1,1,1,1,1,stock_10s,unit rewriting (demodulation),
+dev,SYO243^5,SYO,0,0,0,0,0,0,0,0,0,0,,,
+dev,SYO259^5,SYO,0,0,0,0,0,0,0,1,1,1,stock_10s,primitive substitution,calculus/search
+dev,SYO295^5,SYO,0,0,0,0,0,0,0,1,0,1,stock_10s,choice,calculus/search
+dev,SYO301^5,SYO,1,1,1,1,1,1,1,1,1,1,stock_10s,unit rewriting (demodulation),
+dev,SYO349^5,SYO,0,0,0,1,0,0,1,1,1,1,stock_10s,unit rewriting (demodulation),calculus/search
+dev,SYO364^5,SYO,1,1,1,1,1,1,1,1,0,1,stock_10s,functional extensionality;unit rewriting (demodulation),
+dev,SYO367^5,SYO,1,1,1,1,1,1,1,1,1,1,stock_10s,none of the above (search/time),
+dev,SYO380^5,SYO,1,1,1,1,1,1,1,1,1,1,stock_10s,unit rewriting (demodulation),
+dev,SYO396^1,SYO,1,1,1,1,1,1,1,1,1,1,stock_10s,none of the above (search/time),
+dev,SYO422^1,SYO,1,1,1,1,1,1,1,1,1,1,stock_10s,unit rewriting (demodulation),
+dev,SYO447^1,SYO,0,0,0,0,0,0,0,1,1,1,stock_10s,unit rewriting (demodulation),calculus/search
+dev,SYO463^6,SYO,1,1,1,0,1,1,0,1,1,1,stock_10s,unit rewriting (demodulation),
+dev,SYO464^4,SYO,1,1,1,0,1,1,0,1,1,1,stock_10s,unit rewriting (demodulation),
+dev,SYO515^1,SYO,0,0,0,0,0,0,0,0,0,0,,,
+dev,SYO530^1,SYO,0,0,0,0,0,0,1,1,1,1,stock_10s,choice;unit rewriting (demodulation),calculus/search
+dev,SYO533^1,SYO,0,0,0,0,0,0,0,0,0,0,,,
+dev,SYO537^1,SYO,0,0,0,0,0,0,1,1,1,1,stock_10s,choice;unit rewriting (demodulation),calculus/search
+dev,SYO539^1,SYO,0,0,0,0,0,0,1,1,1,1,stock_10s,choice;unit rewriting (demodulation),calculus/search
+dev,SYO540^1,SYO,0,0,0,1,0,0,1,1,1,1,stock_10s,choice;unit rewriting (demodulation),calculus/search
+dev,SYO549^1,SYO,1,1,1,1,1,1,1,1,1,1,stock_10s,unit rewriting (demodulation),
+dev,SYO553^1,SYO,0,0,0,0,0,0,1,1,1,1,stock_10s,pre-unification beyond patterns,calculus/search
+dev,SYO570^7,SYO,1,1,1,0,1,1,0,1,1,1,stock_10s,unit rewriting (demodulation),
+dev,SYO572^7,SYO,0,0,0,0,0,0,0,1,1,1,stock_10s,unit rewriting (demodulation),calculus/search
+dev,SYO852^1,SYO,0,0,0,0,0,0,0,0,0,0,,,
+dev,SYO902^8,SYO,1,1,1,1,1,1,1,1,1,1,stock_10s,unit rewriting (demodulation),

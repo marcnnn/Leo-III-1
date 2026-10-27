@@ -1,0 +1,38 @@
+% [INFO] 	 Parsing problem /home/marc/.local/share/tptp/TPTP-v9.3.1/Problems/CSR/CSR127^1.p ... 
+% [INFO] 	 Parsing done (209ms). 
+% [INFO] 	 Running in sequential loop mode. 
+% [INFO] 	 Scanning for conjecture ... 
+% [INFO] 	 Found a conjecture (or negated_conjecture) and 2 axioms. Running axiom selection ... 
+% [INFO] 	 Axiom selection finished. Selected 2 axioms (removed 0 axioms). 
+% [INFO] 	 Problem is higher-order (TPTP THF). 
+% [INFO] 	 Type checking passed. 
+% [CONFIG] 	 Using configuration: timeout(10) with strategy<name(default),share(1.0),primSubst(3),sos(false),unifierCount(4),uniDepth(8),boolExt(true),choice(true),renaming(true),funcspec(false), domConstr(0),specialInstances(39),restrictUniAttempts(true),termOrdering(CPO)>.  Searching for refutation ... 
+% Time passed: 1942ms (effective reasoning time: 1189ms)
+% Solved by strategy<name(default),share(1.0),primSubst(3),sos(false),unifierCount(4),uniDepth(8),boolExt(true),choice(true),renaming(true),funcspec(false), domConstr(0),specialInstances(39),restrictUniAttempts(true),termOrdering(CPO)>
+% Axioms used in derivation (2): ax, ax_001
+% No. of inferences in proof: 14
+% SZS status Theorem for /home/marc/.local/share/tptp/TPTP-v9.3.1/Problems/CSR/CSR127^1.p : 1942 ms resp. 1189 ms w/o parsing
+% SZS output start Refutation for /home/marc/.local/share/tptp/TPTP-v9.3.1/Problems/CSR/CSR127^1.p
+thf(num_type, type, num: $tType).
+thf(holdsDuring_THFTYPE_IiooI_decl, type, holdsDuring_THFTYPE_IiooI: ($i > ($o > $o))).
+thf(lBill_THFTYPE_i_decl, type, lBill_THFTYPE_i: $i).
+thf(lMary_THFTYPE_i_decl, type, lMary_THFTYPE_i: $i).
+thf(lSue_THFTYPE_i_decl, type, lSue_THFTYPE_i: $i).
+thf(lYearFn_THFTYPE_IiiI_decl, type, lYearFn_THFTYPE_IiiI: ($i > $i)).
+thf(likes_THFTYPE_IiioI_decl, type, likes_THFTYPE_IiioI: ($i > ($i > $o))).
+thf(n2009_THFTYPE_i_decl, type, n2009_THFTYPE_i: $i).
+thf(3,axiom,((likes_THFTYPE_IiioI @ lMary_THFTYPE_i @ lBill_THFTYPE_i)),file('/home/marc/.local/share/tptp/TPTP-v9.3.1/Problems/CSR/CSR127^1.p',ax)).
+thf(7,plain,((likes_THFTYPE_IiioI @ lMary_THFTYPE_i @ lBill_THFTYPE_i)),inference(defexp_and_simp_and_etaexpand,[status(thm)],[3])).
+thf(4,axiom,((! [A:$i]: (holdsDuring_THFTYPE_IiooI @ (lYearFn_THFTYPE_IiiI @ n2009_THFTYPE_i) @ ((likes_THFTYPE_IiioI @ lMary_THFTYPE_i @ A) => (likes_THFTYPE_IiioI @ lSue_THFTYPE_i @ A))))),file('/home/marc/.local/share/tptp/TPTP-v9.3.1/Problems/CSR/CSR127^1.p',ax_001)).
+thf(8,plain,((! [A:$i]: (holdsDuring_THFTYPE_IiooI @ (lYearFn_THFTYPE_IiiI @ n2009_THFTYPE_i) @ ((likes_THFTYPE_IiioI @ lMary_THFTYPE_i @ A) => (likes_THFTYPE_IiioI @ lSue_THFTYPE_i @ A))))),inference(defexp_and_simp_and_etaexpand,[status(thm)],[4])).
+thf(9,plain,(! [A:$i] : ((holdsDuring_THFTYPE_IiooI @ (lYearFn_THFTYPE_IiiI @ n2009_THFTYPE_i) @ ((likes_THFTYPE_IiioI @ lMary_THFTYPE_i @ A) => (likes_THFTYPE_IiioI @ lSue_THFTYPE_i @ A))))),inference(cnf,[status(esa)],[8])).
+thf(14,plain,(! [A:$i] : ((holdsDuring_THFTYPE_IiooI @ (lYearFn_THFTYPE_IiiI @ n2009_THFTYPE_i) @ ((($true)) => (likes_THFTYPE_IiioI @ lSue_THFTYPE_i @ A))) | ((likes_THFTYPE_IiioI @ lMary_THFTYPE_i @ lBill_THFTYPE_i) != (likes_THFTYPE_IiioI @ lMary_THFTYPE_i @ A)))),inference(paramod_ordered,[status(thm)],[7,9])).
+thf(15,plain,(! [A:$i] : ((holdsDuring_THFTYPE_IiooI @ (lYearFn_THFTYPE_IiiI @ n2009_THFTYPE_i) @ (likes_THFTYPE_IiioI @ lSue_THFTYPE_i @ A)) | ((likes_THFTYPE_IiioI @ lMary_THFTYPE_i @ lBill_THFTYPE_i) != (likes_THFTYPE_IiioI @ lMary_THFTYPE_i @ A)))),inference(simp,[status(thm)],[14])).
+thf(16,plain,((holdsDuring_THFTYPE_IiooI @ (lYearFn_THFTYPE_IiiI @ n2009_THFTYPE_i) @ (likes_THFTYPE_IiioI @ lSue_THFTYPE_i @ lBill_THFTYPE_i))),inference(pattern_uni,[status(thm)],[15:[bind(A, $thf(lBill_THFTYPE_i))]])).
+thf(1,conjecture,((? [A:$i]: (holdsDuring_THFTYPE_IiooI @ (lYearFn_THFTYPE_IiiI @ n2009_THFTYPE_i) @ (likes_THFTYPE_IiioI @ A @ lBill_THFTYPE_i)))),file('/home/marc/.local/share/tptp/TPTP-v9.3.1/Problems/CSR/CSR127^1.p',con)).
+thf(2,negated_conjecture,((~ (? [A:$i]: (holdsDuring_THFTYPE_IiooI @ (lYearFn_THFTYPE_IiiI @ n2009_THFTYPE_i) @ (likes_THFTYPE_IiioI @ A @ lBill_THFTYPE_i))))),inference(neg_conjecture,[status(cth)],[1])).
+thf(5,plain,((~ (? [A:$i]: (holdsDuring_THFTYPE_IiooI @ (lYearFn_THFTYPE_IiiI @ n2009_THFTYPE_i) @ (likes_THFTYPE_IiioI @ A @ lBill_THFTYPE_i))))),inference(defexp_and_simp_and_etaexpand,[status(thm)],[2])).
+thf(6,plain,(! [A:$i] : ((~ (holdsDuring_THFTYPE_IiooI @ (lYearFn_THFTYPE_IiiI @ n2009_THFTYPE_i) @ (likes_THFTYPE_IiioI @ A @ lBill_THFTYPE_i))))),inference(cnf,[status(esa)],[5])).
+thf(37,plain,(($false)),inference(rewrite,[status(thm)],[16,6])).
+thf(38,plain,(($false)),inference(simp,[status(thm)],[37])).
+% SZS output end Refutation for /home/marc/.local/share/tptp/TPTP-v9.3.1/Problems/CSR/CSR127^1.p

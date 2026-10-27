@@ -1,0 +1,35 @@
+% [INFO] 	 Parsing problem /home/marc/.local/share/tptp/TPTP-v9.3.1/Problems/SEU/SEU781^2.p ... 
+% [INFO] 	 Parsing done (215ms). 
+% [INFO] 	 Running in sequential loop mode. 
+% [INFO] 	 e registered as external prover. 
+% [INFO] 	 Scanning for conjecture ... 
+% [INFO] 	 Found a conjecture (or negated_conjecture) and 0 axioms. Running axiom selection ... 
+% [INFO] 	 Axiom selection finished. Selected 0 axioms (removed 0 axioms). 
+% [INFO] 	 Problem is higher-order (TPTP THF). 
+% [INFO] 	 Type checking passed. 
+% [CONFIG] 	 Using configuration: timeout(10) with strategy<name(default),share(1.0),primSubst(3),sos(false),unifierCount(4),uniDepth(8),boolExt(true),choice(true),renaming(true),funcspec(false), domConstr(0),specialInstances(39),restrictUniAttempts(true),termOrdering(CPO)>.  Searching for refutation ... 
+% External prover 'e' found a proof!
+% [INFO] 	 Killing All external provers ... 
+% Time passed: 2329ms (effective reasoning time: 1543ms)
+% Solved by strategy<name(default),share(1.0),primSubst(3),sos(false),unifierCount(4),uniDepth(8),boolExt(true),choice(true),renaming(true),funcspec(false), domConstr(0),specialInstances(39),restrictUniAttempts(true),termOrdering(CPO)>
+% Axioms used in derivation (0): 
+% No. of inferences in proof: 4
+% SZS status Theorem for /home/marc/.local/share/tptp/TPTP-v9.3.1/Problems/SEU/SEU781^2.p : 2329 ms resp. 1543 ms w/o parsing
+% SZS output start Refutation for /home/marc/.local/share/tptp/TPTP-v9.3.1/Problems/SEU/SEU781^2.p
+thf(in_decl, type, in: ($i > ($i > $o))).
+thf(subset_decl, type, subset: ($i > ($i > $o))).
+thf(kpair_decl, type, kpair: ($i > ($i > $i))).
+thf(cartprod_decl, type, cartprod: ($i > ($i > $i))).
+thf(breln_decl, type, breln: ($i > ($i > ($i > $o)))).
+thf(breln1_decl, type, breln1: ($i > ($i > $o))).
+thf(breln1compset_decl, type, breln1compset: ($i > ($i > ($i > $i)))).
+thf(breln1compE_decl, type, breln1compE: $o).
+thf(breln_def, definition, breln = (^ [A:$i,B:$i,C:$i]: (subset @ C @ (cartprod @ A @ B))) ).
+thf(breln1_def, definition, breln1 = (^ [A:$i]: (breln @ A @ A)) ).
+thf(breln1compE_def, definition, breln1compE = (! [A:$i,B:$i]: ((breln1 @ A @ B) => (! [C:$i]: ((breln1 @ A @ C) => (! [D:$i]: ((in @ D @ A) => (! [E:$i]: ((in @ E @ A) => ((in @ (kpair @ D @ E) @ (breln1compset @ A @ B @ C)) => (? [F:$i]: ((in @ F @ A) & (in @ (kpair @ D @ F) @ B) & (in @ (kpair @ F @ E) @ C)))))))))))) ).
+thf(1,conjecture,(((breln1compE) => (! [A:$i,B:$i]: ((breln1 @ A @ B) => (! [C:$i]: ((breln1 @ A @ C) => (! [D:$i]: ((in @ D @ A) => (! [E:$i]: ((in @ E @ A) => ((in @ (kpair @ D @ E) @ (breln1compset @ A @ B @ C)) => (! [F:$o]: ((! [G:$i]: ((in @ G @ A) => ((in @ (kpair @ D @ G) @ B) => ((in @ (kpair @ G @ E) @ C) => (F))))) => (F)))))))))))))),file('/home/marc/.local/share/tptp/TPTP-v9.3.1/Problems/SEU/SEU781^2.p',breln1compEex)).
+thf(2,negated_conjecture,((~ ((breln1compE) => (! [A:$i,B:$i]: ((breln1 @ A @ B) => (! [C:$i]: ((breln1 @ A @ C) => (! [D:$i]: ((in @ D @ A) => (! [E:$i]: ((in @ E @ A) => ((in @ (kpair @ D @ E) @ (breln1compset @ A @ B @ C)) => (! [F:$o]: ((! [G:$i]: ((in @ G @ A) => ((in @ (kpair @ D @ G) @ B) => ((in @ (kpair @ G @ E) @ C) => (F))))) => (F))))))))))))))),inference(neg_conjecture,[status(cth)],[1])).
+thf(3,plain,((~ ((! [A:$i,B:$i]: ((subset @ B @ (cartprod @ A @ A)) => (! [C:$i]: ((subset @ C @ (cartprod @ A @ A)) => (! [D:$i]: ((in @ D @ A) => (! [E:$i]: ((in @ E @ A) => ((in @ (kpair @ D @ E) @ (breln1compset @ A @ B @ C)) => (? [F:$i]: ((in @ F @ A) & (in @ (kpair @ D @ F) @ B) & (in @ (kpair @ F @ E) @ C)))))))))))) => (! [A:$i,B:$i]: ((subset @ B @ (cartprod @ A @ A)) => (! [C:$i]: ((subset @ C @ (cartprod @ A @ A)) => (! [D:$i]: ((in @ D @ A) => (! [E:$i]: ((in @ E @ A) => ((in @ (kpair @ D @ E) @ (breln1compset @ A @ B @ C)) => (! [F:$o]: ((! [G:$i]: ((in @ G @ A) => ((in @ (kpair @ D @ G) @ B) => ((in @ (kpair @ G @ E) @ C) => (F))))) => (F))))))))))))))),inference(defexp_and_simp_and_etaexpand,[status(thm)],[2])).
+thf(16,plain,(($false)),inference(e,[status(thm)],[3])).
+% SZS output end Refutation for /home/marc/.local/share/tptp/TPTP-v9.3.1/Problems/SEU/SEU781^2.p
+% [INFO] 	 Killing All external provers ... 

@@ -1,0 +1,207 @@
+% [INFO] 	 Parsing problem /home/marc/.local/share/tptp/TPTP-v9.3.1/Problems/SEU/SEU537^1.p ... 
+% [INFO] 	 Parsing done (510ms). 
+% [INFO] 	 Running in sequential loop mode. 
+% [INFO] 	 Scanning for conjecture ... 
+% [INFO] 	 Found a conjecture (or negated_conjecture) and 0 axioms. Running axiom selection ... 
+% [INFO] 	 Axiom selection finished. Selected 0 axioms (removed 0 axioms). 
+% [INFO] 	 Problem is higher-order (TPTP THF). 
+% [INFO] 	 Type checking passed. 
+% [CONFIG] 	 Using configuration: timeout(10) with strategy<name(default),share(1.0),primSubst(3),sos(false),unifierCount(4),uniDepth(8),boolExt(true),choice(true),renaming(true),funcspec(false), domConstr(0),specialInstances(39),restrictUniAttempts(true),termOrdering(CPO)>.  Searching for refutation ... 
+% Time passed: 3568ms (effective reasoning time: 2218ms)
+% Solved by strategy<name(default),share(1.0),primSubst(3),sos(false),unifierCount(4),uniDepth(8),boolExt(true),choice(true),renaming(true),funcspec(false), domConstr(0),specialInstances(39),restrictUniAttempts(true),termOrdering(CPO)>
+% Axioms used in derivation (0): 
+% No. of inferences in proof: 14
+% SZS status Theorem for /home/marc/.local/share/tptp/TPTP-v9.3.1/Problems/SEU/SEU537^1.p : 3568 ms resp. 2218 ms w/o parsing
+% SZS output start Refutation for /home/marc/.local/share/tptp/TPTP-v9.3.1/Problems/SEU/SEU537^1.p
+thf(in_decl, type, in: ($i > ($i > $o))).
+thf(exu_decl, type, exu: (($i > $o) > $o)).
+thf(setextAx_decl, type, setextAx: $o).
+thf(emptyset_decl, type, emptyset: $i).
+thf(emptysetAx_decl, type, emptysetAx: $o).
+thf(setadjoin_decl, type, setadjoin: ($i > ($i > $i))).
+thf(setadjoinAx_decl, type, setadjoinAx: $o).
+thf(powerset_decl, type, powerset: ($i > $i)).
+thf(powersetAx_decl, type, powersetAx: $o).
+thf(setunion_decl, type, setunion: ($i > $i)).
+thf(setunionAx_decl, type, setunionAx: $o).
+thf(omega_decl, type, omega: $i).
+thf(omega0Ax_decl, type, omega0Ax: $o).
+thf(omegaSAx_decl, type, omegaSAx: $o).
+thf(omegaIndAx_decl, type, omegaIndAx: $o).
+thf(replAx_decl, type, replAx: $o).
+thf(foundationAx_decl, type, foundationAx: $o).
+thf(wellorderingAx_decl, type, wellorderingAx: $o).
+thf(descr_decl, type, descr: (($i > $o) > $i)).
+thf(descrp_decl, type, descrp: $o).
+thf(dsetconstr_decl, type, dsetconstr: ($i > (($i > $o) > $i))).
+thf(dsetconstrI_decl, type, dsetconstrI: $o).
+thf(dsetconstrEL_decl, type, dsetconstrEL: $o).
+thf(dsetconstrER_decl, type, dsetconstrER: $o).
+thf(exuE1_decl, type, exuE1: $o).
+thf(prop2set_decl, type, prop2set: ($o > $i)).
+thf(prop2setE_decl, type, prop2setE: $o).
+thf(emptysetE_decl, type, emptysetE: $o).
+thf(emptysetimpfalse_decl, type, emptysetimpfalse: $o).
+thf(notinemptyset_decl, type, notinemptyset: $o).
+thf(exuE3e_decl, type, exuE3e: $o).
+thf(setext_decl, type, setext: $o).
+thf(emptyI_decl, type, emptyI: $o).
+thf(noeltsimpempty_decl, type, noeltsimpempty: $o).
+thf(setbeta_decl, type, setbeta: $o).
+thf(nonempty_decl, type, nonempty: ($i > $o)).
+thf(nonemptyE1_decl, type, nonemptyE1: $o).
+thf(nonemptyI_decl, type, nonemptyI: $o).
+thf(nonemptyI1_decl, type, nonemptyI1: $o).
+thf(setadjoinIL_decl, type, setadjoinIL: $o).
+thf(emptyinunitempty_decl, type, emptyinunitempty: $o).
+thf(setadjoinIR_decl, type, setadjoinIR: $o).
+thf(setadjoinE_decl, type, setadjoinE: $o).
+thf(setadjoinOr_decl, type, setadjoinOr: $o).
+thf(setoftrueEq_decl, type, setoftrueEq: $o).
+thf(powersetI_decl, type, powersetI: $o).
+thf(emptyinPowerset_decl, type, emptyinPowerset: $o).
+thf(emptyInPowerset_decl, type, emptyInPowerset: $o).
+thf(powersetE_decl, type, powersetE: $o).
+thf(setunionI_decl, type, setunionI: $o).
+thf(setunionE_decl, type, setunionE: $o).
+thf(subPowSU_decl, type, subPowSU: $o).
+thf(exuE2_decl, type, exuE2: $o).
+thf(nonemptyImpWitness_decl, type, nonemptyImpWitness: $o).
+thf(uniqinunit_decl, type, uniqinunit: $o).
+thf(notinsingleton_decl, type, notinsingleton: $o).
+thf(eqinunit_decl, type, eqinunit: $o).
+thf(singletonsswitch_decl, type, singletonsswitch: $o).
+thf(upairsetE_decl, type, upairsetE: $o).
+thf(upairsetIL_decl, type, upairsetIL: $o).
+thf(upairsetIR_decl, type, upairsetIR: $o).
+thf(emptyE1_decl, type, emptyE1: $o).
+thf(vacuousDall_decl, type, vacuousDall: $o).
+thf(quantDeMorgan1_decl, type, quantDeMorgan1: $o).
+thf(sk1_decl, type, sk1: ($i > ($i > $i))).
+thf(sk2_decl, type, sk2: ($i > $i)).
+thf(sk3_decl, type, sk3: ($i > (($i > ($i > $o)) > $i))).
+thf(sk4_decl, type, sk4: ($i > ($i > (($i > ($i > $o)) > $i)))).
+thf(sk5_decl, type, sk5: ($i > (($i > ($i > $o)) > $i))).
+thf(sk6_decl, type, sk6: ($i > $i)).
+thf(sk7_decl, type, sk7: ($i > $i)).
+thf(sk8_decl, type, sk8: ($i > ($i > ($i > $i)))).
+thf(sk9_decl, type, sk9: ($i > ($i > $o))).
+thf(sk10_decl, type, sk10: ($i > ($i > $i))).
+thf(sk11_decl, type, sk11: ($i > ($i > $i))).
+thf(sk12_decl, type, sk12: ($i > ($i > $i))).
+thf(sk13_decl, type, sk13: ($i > (($i > $o) > $i))).
+thf(sk14_decl, type, sk14: ($i > (($i > $o) > $i))).
+thf(sk15_decl, type, sk15: (($i > $o) > $i)).
+thf(sk16_decl, type, sk16: ($i > ($i > $i))).
+thf(sk17_decl, type, sk17: ($i > ($i > $i))).
+thf(sk18_decl, type, sk18: ($i > $i)).
+thf(sk19_decl, type, sk19: ($i > $i)).
+thf(sk20_decl, type, sk20: ($i > $i)).
+thf(sk21_decl, type, sk21: ($i > ($i > $i))).
+thf(sk22_decl, type, sk22: ($o > ($i > ($i > $i)))).
+thf(sk23_decl, type, sk23: ($i > (($i > $o) > $i))).
+thf(sk24_decl, type, sk24: (($i > $o) > $i)).
+thf(sk25_decl, type, sk25: ($i > $i)).
+thf(sk26_decl, type, sk26: (($i > $o) > ($i > $i))).
+thf(sk27_decl, type, sk27: $i).
+thf(sk28_decl, type, sk28: ($i > $o)).
+thf(sk29_decl, type, sk29: $i).
+thf(exu_def, definition, exu = (^ [A:($i > $o)]: ? [B:$i]: ((A @ B) & ! [C:$i]: ((A @ C) => (B = C)))) ).
+thf(setextAx_def, definition, setextAx = (! [A:$i,B:$i]: ((! [C:$i]: ((in @ C @ A) = (in @ C @ B))) => (A = B))) ).
+thf(emptysetAx_def, definition, emptysetAx = (! [A:$i]: ~ (in @ A @ emptyset)) ).
+thf(setadjoinAx_def, definition, setadjoinAx = (! [A:$i,B:$i,C:$i]: ((in @ C @ (setadjoin @ A @ B)) = ((C = A) | (in @ C @ B)))) ).
+thf(powersetAx_def, definition, powersetAx = (! [A:$i,B:$i]: ((in @ B @ (powerset @ A)) = (! [C:$i]: ((in @ C @ B) => (in @ C @ A))))) ).
+thf(setunionAx_def, definition, setunionAx = (! [A:$i,B:$i]: ((in @ B @ (setunion @ A)) = (? [C:$i]: ((in @ B @ C) & (in @ C @ A))))) ).
+thf(omega0Ax_def, definition, omega0Ax = (in @ emptyset @ omega) ).
+thf(omegaSAx_def, definition, omegaSAx = (! [A:$i]: ((in @ A @ omega) => (in @ (setadjoin @ A @ A) @ omega))) ).
+thf(omegaIndAx_def, definition, omegaIndAx = (! [A:$i]: (((in @ emptyset @ A) & ! [B:$i]: (((in @ B @ omega) & (in @ B @ A)) => (in @ (setadjoin @ B @ B) @ A))) => (! [B:$i]: ((in @ B @ omega) => (in @ B @ A))))) ).
+thf(replAx_def, definition, replAx = (! [A:($i > ($i > $o)),B:$i]: ((! [C:$i]: ((in @ C @ B) => (exu @ (A @ C)))) => (? [C:$i]: ! [D:$i]: ((in @ D @ C) = (? [E:$i]: ((in @ E @ B) & (A @ E @ D))))))) ).
+thf(foundationAx_def, definition, foundationAx = (! [A:$i]: ((? [B:$i]: (in @ B @ A)) => (? [B:$i]: ((in @ B @ A) & ~ (? [C:$i]: ((in @ C @ B) & (in @ C @ A))))))) ).
+thf(wellorderingAx_def, definition, wellorderingAx = (! [A:$i]: ? [B:$i]: (! [C:$i]: ((in @ C @ B) => (! [D:$i]: ((in @ D @ C) => (in @ D @ A)))) & ! [C:$i,D:$i]: (((in @ C @ A) & (in @ D @ A)) => ((! [E:$i]: ((in @ E @ B) => ((in @ C @ E) = (in @ D @ E)))) => (C = D))) & ! [C:$i,D:$i]: (((in @ C @ B) & (in @ D @ B)) => (! [E:$i]: ((in @ E @ C) => (in @ E @ D)) | ! [E:$i]: ((in @ E @ D) => (in @ E @ C)))) & ! [C:$i]: ((! [D:$i]: ((in @ D @ C) => (in @ D @ A)) & ? [D:$i]: (in @ D @ C)) => (? [D:$i,E:$i]: ((in @ D @ B) & (in @ E @ C) & ~ (? [F:$i]: ((in @ F @ D) & (in @ F @ C))) & ! [F:$i]: ((in @ F @ B) => (! [G:$i]: ((in @ G @ F) => (in @ G @ D)) | (in @ E @ F)))))))) ).
+thf(descrp_def, definition, descrp = (! [A:($i > $o)]: ((exu @ (A)) => (A @ (descr @ (A))))) ).
+thf(dsetconstrI_def, definition, dsetconstrI = (! [A:$i,B:($i > $o),C:$i]: ((in @ C @ A) => ((B @ C) => (in @ C @ (dsetconstr @ A @ (B)))))) ).
+thf(dsetconstrEL_def, definition, dsetconstrEL = (! [A:$i,B:($i > $o),C:$i]: ((in @ C @ (dsetconstr @ A @ (B))) => (in @ C @ A))) ).
+thf(dsetconstrER_def, definition, dsetconstrER = (! [A:$i,B:($i > $o),C:$i]: ((in @ C @ (dsetconstr @ A @ (B))) => (B @ C))) ).
+thf(exuE1_def, definition, exuE1 = (! [A:($i > $o)]: ((exu @ (A)) => (? [B:$i]: ((A @ B) & ! [C:$i]: ((A @ C) => (B = C)))))) ).
+thf(prop2set_def, definition, prop2set = (^ [A:$o]: (dsetconstr @ (powerset @ emptyset) @ (^ [B:$i]: (A)))) ).
+thf(prop2setE_def, definition, prop2setE = (! [A:$o,B:$i]: ((in @ B @ (prop2set @ A)) => (A))) ).
+thf(emptysetE_def, definition, emptysetE = (! [A:$i]: ((in @ A @ emptyset) => (! [B:$o]: (B)))) ).
+thf(emptysetimpfalse_def, definition, emptysetimpfalse = (! [A:$i]: ((in @ A @ emptyset) => (($false)))) ).
+thf(notinemptyset_def, definition, notinemptyset = (! [A:$i]: ~ (in @ A @ emptyset)) ).
+thf(exuE3e_def, definition, exuE3e = (! [A:($i > $o)]: ((exu @ (A)) => (? [B:$i]: (A @ B)))) ).
+thf(setext_def, definition, setext = (! [A:$i,B:$i]: ((! [C:$i]: ((in @ C @ A) => (in @ C @ B))) => ((! [C:$i]: ((in @ C @ B) => (in @ C @ A))) => (A = B)))) ).
+thf(emptyI_def, definition, emptyI = (! [A:$i]: ((! [B:$i]: ~ (in @ B @ A)) => (A = emptyset))) ).
+thf(noeltsimpempty_def, definition, noeltsimpempty = (! [A:$i]: ((! [B:$i]: ~ (in @ B @ A)) => (A = emptyset))) ).
+thf(setbeta_def, definition, setbeta = (! [A:$i,B:($i > $o),C:$i]: ((in @ C @ A) => ((in @ C @ (dsetconstr @ A @ (B))) = (B @ C)))) ).
+thf(nonempty_def, definition, nonempty = (^ [A:$i]: (A != emptyset)) ).
+thf(nonemptyE1_def, definition, nonemptyE1 = (! [A:$i]: ((nonempty @ A) => (? [B:$i]: (in @ B @ A)))) ).
+thf(nonemptyI_def, definition, nonemptyI = (! [A:$i,B:($i > $o),C:$i]: ((in @ C @ A) => ((B @ C) => (nonempty @ (dsetconstr @ A @ (B)))))) ).
+thf(nonemptyI1_def, definition, nonemptyI1 = (! [A:$i]: ((? [B:$i]: (in @ B @ A)) => (nonempty @ A))) ).
+thf(setadjoinIL_def, definition, setadjoinIL = (! [A:$i,B:$i]: (in @ A @ (setadjoin @ A @ B))) ).
+thf(emptyinunitempty_def, definition, emptyinunitempty = (in @ emptyset @ (setadjoin @ emptyset @ emptyset)) ).
+thf(setadjoinIR_def, definition, setadjoinIR = (! [A:$i,B:$i,C:$i]: ((in @ C @ B) => (in @ C @ (setadjoin @ A @ B)))) ).
+thf(setadjoinE_def, definition, setadjoinE = (! [A:$i,B:$i,C:$i]: ((in @ C @ (setadjoin @ A @ B)) => (! [D:$o]: (((C = A) => (D)) => (((in @ C @ B) => (D)) => (D)))))) ).
+thf(setadjoinOr_def, definition, setadjoinOr = (! [A:$i,B:$i,C:$i]: ((in @ C @ (setadjoin @ A @ B)) => ((C = A) | (in @ C @ B)))) ).
+thf(setoftrueEq_def, definition, setoftrueEq = (! [A:$i]: ((dsetconstr @ A @ (^ [B:$i]: (($true)))) = A)) ).
+thf(powersetI_def, definition, powersetI = (! [A:$i,B:$i]: ((! [C:$i]: ((in @ C @ B) => (in @ C @ A))) => (in @ B @ (powerset @ A)))) ).
+thf(emptyinPowerset_def, definition, emptyinPowerset = (! [A:$i]: (in @ emptyset @ (powerset @ A))) ).
+thf(emptyInPowerset_def, definition, emptyInPowerset = (! [A:$i]: (in @ emptyset @ (powerset @ A))) ).
+thf(powersetE_def, definition, powersetE = (! [A:$i,B:$i,C:$i]: ((in @ B @ (powerset @ A)) => ((in @ C @ B) => (in @ C @ A)))) ).
+thf(setunionI_def, definition, setunionI = (! [A:$i,B:$i,C:$i]: ((in @ B @ C) => ((in @ C @ A) => (in @ B @ (setunion @ A))))) ).
+thf(setunionE_def, definition, setunionE = (! [A:$i,B:$i]: ((in @ B @ (setunion @ A)) => (! [C:$o]: ((! [D:$i]: ((in @ B @ D) => ((in @ D @ A) => (C)))) => (C))))) ).
+thf(subPowSU_def, definition, subPowSU = (! [A:$i,B:$i]: ((in @ B @ A) => (in @ B @ (powerset @ (setunion @ A))))) ).
+thf(exuE2_def, definition, exuE2 = (! [A:($i > $o)]: ((exu @ (A)) => (? [B:$i]: ! [C:$i]: ((A @ C) = (C = B))))) ).
+thf(nonemptyImpWitness_def, definition, nonemptyImpWitness = (! [A:$i]: ((nonempty @ A) => (? [B:$i]: ((in @ B @ A) & (($true)))))) ).
+thf(uniqinunit_def, definition, uniqinunit = (! [A:$i,B:$i]: ((in @ A @ (setadjoin @ B @ emptyset)) => (A = B))) ).
+thf(notinsingleton_def, definition, notinsingleton = (! [A:$i,B:$i]: ((A != B) => (~ (in @ B @ (setadjoin @ A @ emptyset))))) ).
+thf(eqinunit_def, definition, eqinunit = (! [A:$i,B:$i]: ((A = B) => (in @ A @ (setadjoin @ B @ emptyset)))) ).
+thf(singletonsswitch_def, definition, singletonsswitch = (! [A:$i,B:$i]: ((in @ A @ (setadjoin @ B @ emptyset)) => (in @ B @ (setadjoin @ A @ emptyset)))) ).
+thf(upairsetE_def, definition, upairsetE = (! [A:$i,B:$i,C:$i]: ((in @ C @ (setadjoin @ A @ (setadjoin @ B @ emptyset))) => ((C = A) | (C = B)))) ).
+thf(upairsetIL_def, definition, upairsetIL = (! [A:$i,B:$i]: (in @ A @ (setadjoin @ A @ (setadjoin @ B @ emptyset)))) ).
+thf(upairsetIR_def, definition, upairsetIR = (! [A:$i,B:$i]: (in @ B @ (setadjoin @ A @ (setadjoin @ B @ emptyset)))) ).
+thf(emptyE1_def, definition, emptyE1 = (! [A:$i,B:($i > $o)]: ((? [C:$i]: ((in @ C @ A) & (B @ C))) => (((dsetconstr @ A @ (B)) = emptyset) => (($false))))) ).
+thf(vacuousDall_def, definition, vacuousDall = (! [A:($i > $o),B:$i]: ((in @ B @ emptyset) => (A @ B))) ).
+thf(quantDeMorgan1_def, definition, quantDeMorgan1 = (! [A:$i,B:($i > $o)]: ((~ (! [C:$i]: ((in @ C @ A) => (B @ C)))) => (? [C:$i]: ((in @ C @ A) & ~ (B @ C))))) ).
+thf(sk1_def, definition, sk1 = (^ [A:$i,B:$i]: (@+ [C:$i]: ~ ((in @ C @ B) = (in @ C @ A)))) ).
+thf(sk2_def, definition, sk2 = (^ [A:$i]: (@+ [B:$i]: ~ (((in @ B @ omega) & (in @ B @ A)) => (in @ (setadjoin @ B @ B) @ A)))) ).
+thf(sk3_def, definition, sk3 = (^ [A:$i,B:($i > ($i > $o))]: (@+ [C:$i]: ~ ((in @ C @ A) => (? [D:$i]: ((B @ C @ D) & ! [E:$i]: ((B @ C @ E) => (D = E))))))) ).
+thf(sk4_def, definition, sk4 = (^ [A:$i,B:$i,C:($i > ($i > $o))]: (@+ [D:$i]: ~ ((C @ (sk3 @ B @ C) @ D) => (A = D)))) ).
+thf(sk5_def, definition, sk5 = (^ [A:$i,B:($i > ($i > $o))]: (@+ [C:$i]: ! [D:$i]: ((in @ D @ C) = (? [E:$i]: ((in @ E @ A) & (B @ E @ D)))))) ).
+thf(sk6_def, definition, sk6 = (^ [A:$i]: (@+ [B:$i]: ((in @ B @ A) & ~ (? [C:$i]: ((in @ C @ B) & (in @ C @ A)))))) ).
+thf(sk7_def, definition, sk7 = (^ [A:$i]: (@+ [B:$i]: (! [C:$i]: ((in @ C @ B) => (! [D:$i]: ((in @ D @ C) => (in @ D @ A)))) & ! [C:$i,D:$i]: (((in @ C @ A) & (in @ D @ A)) => ((! [E:$i]: ((in @ E @ B) => ((in @ C @ E) = (in @ D @ E)))) => (C = D))) & ! [C:$i,D:$i]: (((in @ C @ B) & (in @ D @ B)) => (! [E:$i]: ((in @ E @ C) => (in @ E @ D)) | ! [E:$i]: ((in @ E @ D) => (in @ E @ C)))) & ! [C:$i]: ((! [D:$i]: ((in @ D @ C) => (in @ D @ A)) & ? [D:$i]: (in @ D @ C)) => (? [D:$i]: ((in @ D @ B) & ? [E:$i]: ((in @ E @ C) & ~ (? [F:$i]: ((in @ F @ D) & (in @ F @ C))) & ! [F:$i]: ((in @ F @ B) => (! [G:$i]: ((in @ G @ F) => (in @ G @ D)) | (in @ E @ F)))))))))) ).
+thf(sk8_def, definition, sk8 = (^ [A:$i,B:$i,C:$i]: (@+ [D:$i]: ~ ((in @ D @ (sk7 @ C)) => ((in @ B @ D) = (in @ A @ D))))) ).
+thf(sk10_def, definition, sk10 = (^ [A:$i,B:$i]: (@+ [C:$i]: ~ ((in @ C @ A) => (in @ C @ B)))) ).
+thf(sk11_def, definition, sk11 = (^ [A:$i,B:$i]: (@+ [C:$i]: ((in @ C @ (sk7 @ B)) & ? [D:$i]: ((in @ D @ A) & ~ (? [E:$i]: ((in @ E @ C) & (in @ E @ A))) & ! [E:$i]: ((in @ E @ (sk7 @ B)) => (! [F:$i]: ((in @ F @ E) => (in @ F @ C)) | (in @ D @ E))))))) ).
+thf(sk12_def, definition, sk12 = (^ [A:$i,B:$i]: (@+ [C:$i]: ((in @ C @ A) & ~ (? [D:$i]: ((in @ D @ (sk11 @ A @ B)) & (in @ D @ A))) & ! [D:$i]: ((in @ D @ (sk7 @ B)) => (! [E:$i]: ((in @ E @ D) => (in @ E @ (sk11 @ A @ B))) | (in @ C @ D)))))) ).
+thf(sk13_def, definition, sk13 = (^ [A:$i,B:($i > $o)]: (@+ [C:$i]: ~ ((B @ C) => (A = C)))) ).
+thf(sk14_def, definition, sk14 = (^ [A:$i,B:($i > $o)]: (@+ [C:$i]: ~ ((B @ C) => (A = C)))) ).
+thf(sk15_def, definition, sk15 = ((@+) @ $i) ).
+thf(sk16_def, definition, sk16 = (^ [A:$i,B:$i]: (@+ [C:$i]: ~ ((in @ C @ B) => (in @ C @ A)))) ).
+thf(sk17_def, definition, sk17 = (^ [A:$i,B:$i]: (@+ [C:$i]: ~ ((in @ C @ A) => (in @ C @ B)))) ).
+thf(sk18_def, definition, sk18 = (^ [A:$i]: (@+ [B:$i]: (in @ B @ A))) ).
+thf(sk19_def, definition, sk19 = (^ [A:$i]: (@+ [B:$i]: (in @ B @ A))) ).
+thf(sk20_def, definition, sk20 = (^ [A:$i]: (@+ [B:$i]: (in @ B @ A))) ).
+thf(sk21_def, definition, sk21 = (^ [A:$i,B:$i]: (@+ [C:$i]: ~ ((in @ C @ A) => (in @ C @ B)))) ).
+thf(sk22_def, definition, sk22 = (^ [A:$o,B:$i,C:$i]: (@+ [D:$i]: ~ ((in @ B @ D) => ((in @ D @ C) => (A))))) ).
+thf(sk23_def, definition, sk23 = (^ [A:$i,B:($i > $o)]: (@+ [C:$i]: ~ ((B @ C) => (A = C)))) ).
+thf(sk24_def, definition, sk24 = (^ [A:($i > $o)]: (@+ [B:$i]: ! [C:$i]: ((A @ C) = (C = B)))) ).
+thf(sk25_def, definition, sk25 = (^ [A:$i]: (@+ [B:$i]: (in @ B @ A))) ).
+thf(sk26_def, definition, sk26 = (^ [A:($i > $o),B:$i]: (@+ [C:$i]: ((in @ C @ B) & ~ (A @ C)))) ).
+thf(sk27_def, definition, sk27 = (@+ [A:$i]: ~ (! [B:($i > $o)]: ((! [C:$i]: ((in @ C @ A) => (~ (B @ C)))) => (~ (? [C:$i]: ((in @ C @ A) & (B @ C))))))) ).
+thf(sk28_def, definition, sk28 = (@+ [A:($i > $o)]: ~ ((! [B:$i]: ((in @ B @ sk27) => (~ (A @ B)))) => (~ (? [B:$i]: ((in @ B @ sk27) & (A @ B)))))) ).
+thf(sk29_def, definition, sk29 = (@+ [A:$i]: ((in @ A @ sk27) & (sk28 @ A))) ).
+thf(1,conjecture,(((setextAx) => ((emptysetAx) => ((setadjoinAx) => ((powersetAx) => ((setunionAx) => ((omega0Ax) => ((omegaSAx) => ((omegaIndAx) => ((replAx) => ((foundationAx) => ((wellorderingAx) => ((descrp) => ((dsetconstrI) => ((dsetconstrEL) => ((dsetconstrER) => ((exuE1) => ((prop2setE) => ((emptysetE) => ((emptysetimpfalse) => ((notinemptyset) => ((exuE3e) => ((setext) => ((emptyI) => ((noeltsimpempty) => ((setbeta) => ((nonemptyE1) => ((nonemptyI) => ((nonemptyI1) => ((setadjoinIL) => ((emptyinunitempty) => ((setadjoinIR) => ((setadjoinE) => ((setadjoinOr) => ((setoftrueEq) => ((powersetI) => ((emptyinPowerset) => ((emptyInPowerset) => ((powersetE) => ((setunionI) => ((setunionE) => ((subPowSU) => ((exuE2) => ((nonemptyImpWitness) => ((uniqinunit) => ((notinsingleton) => ((eqinunit) => ((singletonsswitch) => ((upairsetE) => ((upairsetIL) => ((upairsetIR) => ((emptyE1) => ((vacuousDall) => ((quantDeMorgan1) => (! [A:$i,B:($i > $o)]: ((! [C:$i]: ((in @ C @ A) => (~ (B @ C)))) => (~ (? [C:$i]: ((in @ C @ A) & (B @ C)))))))))))))))))))))))))))))))))))))))))))))))))))))))))))),file('/home/marc/.local/share/tptp/TPTP-v9.3.1/Problems/SEU/SEU537^1.p',quantDeMorgan2)).
+thf(2,negated_conjecture,((~ ((setextAx) => ((emptysetAx) => ((setadjoinAx) => ((powersetAx) => ((setunionAx) => ((omega0Ax) => ((omegaSAx) => ((omegaIndAx) => ((replAx) => ((foundationAx) => ((wellorderingAx) => ((descrp) => ((dsetconstrI) => ((dsetconstrEL) => ((dsetconstrER) => ((exuE1) => ((prop2setE) => ((emptysetE) => ((emptysetimpfalse) => ((notinemptyset) => ((exuE3e) => ((setext) => ((emptyI) => ((noeltsimpempty) => ((setbeta) => ((nonemptyE1) => ((nonemptyI) => ((nonemptyI1) => ((setadjoinIL) => ((emptyinunitempty) => ((setadjoinIR) => ((setadjoinE) => ((setadjoinOr) => ((setoftrueEq) => ((powersetI) => ((emptyinPowerset) => ((emptyInPowerset) => ((powersetE) => ((setunionI) => ((setunionE) => ((subPowSU) => ((exuE2) => ((nonemptyImpWitness) => ((uniqinunit) => ((notinsingleton) => ((eqinunit) => ((singletonsswitch) => ((upairsetE) => ((upairsetIL) => ((upairsetIR) => ((emptyE1) => ((vacuousDall) => ((quantDeMorgan1) => (! [A:$i,B:($i > $o)]: ((! [C:$i]: ((in @ C @ A) => (~ (B @ C)))) => (~ (? [C:$i]: ((in @ C @ A) & (B @ C))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))),inference(neg_conjecture,[status(cth)],[1])).
+thf(3,plain,((~ ((! [A:$i,B:$i]: ((! [C:$i]: ((in @ C @ A) = (in @ C @ B))) => (A = B))) => ((! [A:$i]: ~ (in @ A @ emptyset)) => ((! [A:$i,B:$i,C:$i]: ((in @ C @ (setadjoin @ A @ B)) = ((C = A) | (in @ C @ B)))) => ((! [A:$i,B:$i]: ((in @ B @ (powerset @ A)) = (! [C:$i]: ((in @ C @ B) => (in @ C @ A))))) => ((! [A:$i,B:$i]: ((in @ B @ (setunion @ A)) = (? [C:$i]: ((in @ B @ C) & (in @ C @ A))))) => ((in @ emptyset @ omega) => ((! [A:$i]: ((in @ A @ omega) => (in @ (setadjoin @ A @ A) @ omega))) => ((! [A:$i]: (((in @ emptyset @ A) & ! [B:$i]: (((in @ B @ omega) & (in @ B @ A)) => (in @ (setadjoin @ B @ B) @ A))) => (! [B:$i]: ((in @ B @ omega) => (in @ B @ A))))) => ((! [A:($i > ($i > $o)),B:$i]: ((! [C:$i]: ((in @ C @ B) => (? [D:$i]: ((A @ C @ D) & ! [E:$i]: ((A @ C @ E) => (D = E)))))) => (? [C:$i]: ! [D:$i]: ((in @ D @ C) = (? [E:$i]: ((in @ E @ B) & (A @ E @ D))))))) => ((! [A:$i]: ((? [B:$i]: (in @ B @ A)) => (? [B:$i]: ((in @ B @ A) & ~ (? [C:$i]: ((in @ C @ B) & (in @ C @ A))))))) => ((! [A:$i]: ? [B:$i]: (! [C:$i]: ((in @ C @ B) => (! [D:$i]: ((in @ D @ C) => (in @ D @ A)))) & ! [C:$i,D:$i]: (((in @ C @ A) & (in @ D @ A)) => ((! [E:$i]: ((in @ E @ B) => ((in @ C @ E) = (in @ D @ E)))) => (C = D))) & ! [C:$i,D:$i]: (((in @ C @ B) & (in @ D @ B)) => (! [E:$i]: ((in @ E @ C) => (in @ E @ D)) | ! [E:$i]: ((in @ E @ D) => (in @ E @ C)))) & ! [C:$i]: ((! [D:$i]: ((in @ D @ C) => (in @ D @ A)) & ? [D:$i]: (in @ D @ C)) => (? [D:$i,E:$i]: ((in @ D @ B) & (in @ E @ C) & ~ (? [F:$i]: ((in @ F @ D) & (in @ F @ C))) & ! [F:$i]: ((in @ F @ B) => (! [G:$i]: ((in @ G @ F) => (in @ G @ D)) | (in @ E @ F)))))))) => ((! [A:($i > $o)]: ((? [B:$i]: ((A @ B) & ! [C:$i]: ((A @ C) => (B = C)))) => (A @ (descr @ (A))))) => ((! [A:$i,B:($i > $o),C:$i]: ((in @ C @ A) => ((B @ C) => (in @ C @ (dsetconstr @ A @ (B)))))) => ((! [A:$i,B:($i > $o),C:$i]: ((in @ C @ (dsetconstr @ A @ (B))) => (in @ C @ A))) => ((! [A:$i,B:($i > $o),C:$i]: ((in @ C @ (dsetconstr @ A @ (B))) => (B @ C))) => ((! [A:$o,B:$i]: ((in @ B @ (dsetconstr @ (powerset @ emptyset) @ (^ [C:$i]: (A)))) => (A))) => ((! [A:$i]: ((in @ A @ emptyset) => (! [B:$o]: (B)))) => ((! [A:$i]: ~ (in @ A @ emptyset)) => ((! [A:$i]: ~ (in @ A @ emptyset)) => ((! [A:($i > $o)]: ((? [B:$i]: ((A @ B) & ! [C:$i]: ((A @ C) => (B = C)))) => (? [B:$i]: (A @ B)))) => ((! [A:$i,B:$i]: ((! [C:$i]: ((in @ C @ A) => (in @ C @ B))) => ((! [C:$i]: ((in @ C @ B) => (in @ C @ A))) => (A = B)))) => ((! [A:$i]: ((! [B:$i]: ~ (in @ B @ A)) => (A = emptyset))) => ((! [A:$i]: ((! [B:$i]: ~ (in @ B @ A)) => (A = emptyset))) => ((! [A:$i,B:($i > $o),C:$i]: ((in @ C @ A) => ((in @ C @ (dsetconstr @ A @ (B))) = (B @ C)))) => ((! [A:$i]: ((~ (A = emptyset)) => (? [B:$i]: (in @ B @ A)))) => ((! [A:$i,B:($i > $o),C:$i]: ((in @ C @ A) => ((B @ C) => (~ ((dsetconstr @ A @ (B)) = emptyset))))) => ((! [A:$i]: ((? [B:$i]: (in @ B @ A)) => (~ (A = emptyset)))) => ((! [A:$i,B:$i]: (in @ A @ (setadjoin @ A @ B))) => ((in @ emptyset @ (setadjoin @ emptyset @ emptyset)) => ((! [A:$i,B:$i,C:$i]: ((in @ C @ B) => (in @ C @ (setadjoin @ A @ B)))) => ((! [A:$i,B:$i,C:$i]: ((in @ C @ (setadjoin @ A @ B)) => (! [D:$o]: (((C = A) => (D)) => (((in @ C @ B) => (D)) => (D)))))) => ((! [A:$i,B:$i,C:$i]: ((in @ C @ (setadjoin @ A @ B)) => ((C = A) | (in @ C @ B)))) => ((! [A:$i]: ((dsetconstr @ A @ (^ [B:$i]: (($true)))) = A)) => ((! [A:$i,B:$i]: ((! [C:$i]: ((in @ C @ B) => (in @ C @ A))) => (in @ B @ (powerset @ A)))) => ((! [A:$i]: (in @ emptyset @ (powerset @ A))) => ((! [A:$i]: (in @ emptyset @ (powerset @ A))) => ((! [A:$i,B:$i,C:$i]: ((in @ B @ (powerset @ A)) => ((in @ C @ B) => (in @ C @ A)))) => ((! [A:$i,B:$i,C:$i]: ((in @ B @ C) => ((in @ C @ A) => (in @ B @ (setunion @ A))))) => ((! [A:$i,B:$i]: ((in @ B @ (setunion @ A)) => (! [C:$o]: ((! [D:$i]: ((in @ B @ D) => ((in @ D @ A) => (C)))) => (C))))) => ((! [A:$i,B:$i]: ((in @ B @ A) => (in @ B @ (powerset @ (setunion @ A))))) => ((! [A:($i > $o)]: ((? [B:$i]: ((A @ B) & ! [C:$i]: ((A @ C) => (B = C)))) => (? [B:$i]: ! [C:$i]: ((A @ C) = (C = B))))) => ((! [A:$i]: ((~ (A = emptyset)) => (? [B:$i]: (in @ B @ A)))) => ((! [A:$i,B:$i]: ((in @ A @ (setadjoin @ B @ emptyset)) => (A = B))) => ((! [A:$i,B:$i]: ((~ (A = B)) => (~ (in @ B @ (setadjoin @ A @ emptyset))))) => ((! [A:$i,B:$i]: ((A = B) => (in @ A @ (setadjoin @ B @ emptyset)))) => ((! [A:$i,B:$i]: ((in @ A @ (setadjoin @ B @ emptyset)) => (in @ B @ (setadjoin @ A @ emptyset)))) => ((! [A:$i,B:$i,C:$i]: ((in @ C @ (setadjoin @ A @ (setadjoin @ B @ emptyset))) => ((C = A) | (C = B)))) => ((! [A:$i,B:$i]: (in @ A @ (setadjoin @ A @ (setadjoin @ B @ emptyset)))) => ((! [A:$i,B:$i]: (in @ B @ (setadjoin @ A @ (setadjoin @ B @ emptyset)))) => ((! [A:$i,B:($i > $o)]: ((? [C:$i]: ((in @ C @ A) & (B @ C))) => (~ ((dsetconstr @ A @ (B)) = emptyset)))) => ((! [A:($i > $o),B:$i]: ((in @ B @ emptyset) => (A @ B))) => ((! [A:$i,B:($i > $o)]: ((~ (! [C:$i]: ((in @ C @ A) => (B @ C)))) => (? [C:$i]: ((in @ C @ A) & ~ (B @ C))))) => (! [A:$i,B:($i > $o)]: ((! [C:$i]: ((in @ C @ A) => (~ (B @ C)))) => (~ (? [C:$i]: ((in @ C @ A) & (B @ C)))))))))))))))))))))))))))))))))))))))))))))))))))))))))))),inference(defexp_and_simp_and_etaexpand,[status(thm)],[2])).
+thf(4,plain,((~ ((! [A:$i,B:$i]: ((! [C:$i]: ((in @ C @ A) = (in @ C @ B))) => (A = B))) => ((~ (? [A:$i]: (in @ A @ emptyset))) => ((! [A:$i,B:$i,C:$i]: ((in @ C @ (setadjoin @ A @ B)) = ((C = A) | (in @ C @ B)))) => ((! [A:$i,B:$i]: ((in @ B @ (powerset @ A)) = (! [C:$i]: ((in @ C @ B) => (in @ C @ A))))) => ((! [A:$i,B:$i]: ((in @ B @ (setunion @ A)) = (? [C:$i]: ((in @ B @ C) & (in @ C @ A))))) => ((in @ emptyset @ omega) => ((! [A:$i]: ((in @ A @ omega) => (in @ (setadjoin @ A @ A) @ omega))) => ((! [A:$i]: (((in @ emptyset @ A) & ! [B:$i]: (((in @ B @ omega) & (in @ B @ A)) => (in @ (setadjoin @ B @ B) @ A))) => (! [B:$i]: ((in @ B @ omega) => (in @ B @ A))))) => ((! [A:($i > ($i > $o)),B:$i]: ((! [C:$i]: ((in @ C @ B) => (? [D:$i]: ((A @ C @ D) & ! [E:$i]: ((A @ C @ E) => (D = E)))))) => (? [C:$i]: ! [D:$i]: ((in @ D @ C) = (? [E:$i]: ((in @ E @ B) & (A @ E @ D))))))) => ((! [A:$i]: ((? [B:$i]: (in @ B @ A)) => (? [B:$i]: ((in @ B @ A) & ~ (? [C:$i]: ((in @ C @ B) & (in @ C @ A))))))) => ((! [A:$i]: ? [B:$i]: (! [C:$i]: ((in @ C @ B) => (! [D:$i]: ((in @ D @ C) => (in @ D @ A)))) & ! [C:$i,D:$i]: (((in @ C @ A) & (in @ D @ A)) => ((! [E:$i]: ((in @ E @ B) => ((in @ C @ E) = (in @ D @ E)))) => (C = D))) & ! [C:$i,D:$i]: (((in @ C @ B) & (in @ D @ B)) => (! [E:$i]: ((in @ E @ C) => (in @ E @ D)) | ! [E:$i]: ((in @ E @ D) => (in @ E @ C)))) & ! [C:$i]: ((! [D:$i]: ((in @ D @ C) => (in @ D @ A)) & ? [D:$i]: (in @ D @ C)) => (? [D:$i]: ((in @ D @ B) & ? [E:$i]: ((in @ E @ C) & ~ (? [F:$i]: ((in @ F @ D) & (in @ F @ C))) & ! [F:$i]: ((in @ F @ B) => (! [G:$i]: ((in @ G @ F) => (in @ G @ D)) | (in @ E @ F))))))))) => ((! [A:($i > $o)]: ((? [B:$i]: ((A @ B) & ! [C:$i]: ((A @ C) => (B = C)))) => (A @ (descr @ (A))))) => ((! [A:$i,B:($i > $o),C:$i]: ((in @ C @ A) => ((B @ C) => (in @ C @ (dsetconstr @ A @ (B)))))) => ((! [A:$i,B:($i > $o),C:$i]: ((in @ C @ (dsetconstr @ A @ (B))) => (in @ C @ A))) => ((! [A:$i,B:($i > $o),C:$i]: ((in @ C @ (dsetconstr @ A @ (B))) => (B @ C))) => ((! [A:$o]: ((? [B:$i]: (in @ B @ (dsetconstr @ (powerset @ emptyset) @ (^ [C:$i]: (A))))) => (A))) => (((? [A:$i]: (in @ A @ emptyset)) => (! [A:$o]: (A))) => ((~ (? [A:$i]: (in @ A @ emptyset))) => ((~ (? [A:$i]: (in @ A @ emptyset))) => ((! [A:($i > $o)]: ((? [B:$i]: ((A @ B) & ! [C:$i]: ((A @ C) => (B = C)))) => (? [B:$i]: (A @ B)))) => ((! [A:$i,B:$i]: ((! [C:$i]: ((in @ C @ A) => (in @ C @ B))) => ((! [C:$i]: ((in @ C @ B) => (in @ C @ A))) => (A = B)))) => ((! [A:$i]: ((~ (? [B:$i]: (in @ B @ A))) => (A = emptyset))) => ((! [A:$i]: ((~ (? [B:$i]: (in @ B @ A))) => (A = emptyset))) => ((! [A:$i,B:($i > $o),C:$i]: ((in @ C @ A) => ((in @ C @ (dsetconstr @ A @ (B))) = (B @ C)))) => ((! [A:$i]: ((~ (A = emptyset)) => (? [B:$i]: (in @ B @ A)))) => ((! [A:$i,B:($i > $o),C:$i]: ((in @ C @ A) => ((B @ C) => (~ ((dsetconstr @ A @ (B)) = emptyset))))) => ((! [A:$i]: ((? [B:$i]: (in @ B @ A)) => (~ (A = emptyset)))) => ((! [A:$i,B:$i]: (in @ A @ (setadjoin @ A @ B))) => ((in @ emptyset @ (setadjoin @ emptyset @ emptyset)) => ((! [A:$i,B:$i,C:$i]: ((in @ C @ B) => (in @ C @ (setadjoin @ A @ B)))) => ((! [A:$i,B:$i,C:$i]: ((in @ C @ (setadjoin @ A @ B)) => (! [D:$o]: (((C = A) => (D)) => (((in @ C @ B) => (D)) => (D)))))) => ((! [A:$i,B:$i,C:$i]: ((in @ C @ (setadjoin @ A @ B)) => ((C = A) | (in @ C @ B)))) => ((! [A:$i]: ((dsetconstr @ A @ (^ [B:$i]: (($true)))) = A)) => ((! [A:$i,B:$i]: ((! [C:$i]: ((in @ C @ B) => (in @ C @ A))) => (in @ B @ (powerset @ A)))) => ((! [A:$i]: (in @ emptyset @ (powerset @ A))) => ((! [A:$i]: (in @ emptyset @ (powerset @ A))) => ((! [A:$i,B:$i]: ((in @ B @ (powerset @ A)) => (! [C:$i]: ((in @ C @ B) => (in @ C @ A))))) => ((! [A:$i,B:$i,C:$i]: ((in @ B @ C) => ((in @ C @ A) => (in @ B @ (setunion @ A))))) => ((! [A:$i,B:$i]: ((in @ B @ (setunion @ A)) => (! [C:$o]: ((! [D:$i]: ((in @ B @ D) => ((in @ D @ A) => (C)))) => (C))))) => ((! [A:$i,B:$i]: ((in @ B @ A) => (in @ B @ (powerset @ (setunion @ A))))) => ((! [A:($i > $o)]: ((? [B:$i]: ((A @ B) & ! [C:$i]: ((A @ C) => (B = C)))) => (? [B:$i]: ! [C:$i]: ((A @ C) = (C = B))))) => ((! [A:$i]: ((~ (A = emptyset)) => (? [B:$i]: (in @ B @ A)))) => ((! [A:$i,B:$i]: ((in @ A @ (setadjoin @ B @ emptyset)) => (A = B))) => ((! [A:$i,B:$i]: ((~ (A = B)) => (~ (in @ B @ (setadjoin @ A @ emptyset))))) => ((! [A:$i,B:$i]: ((A = B) => (in @ A @ (setadjoin @ B @ emptyset)))) => ((! [A:$i,B:$i]: ((in @ A @ (setadjoin @ B @ emptyset)) => (in @ B @ (setadjoin @ A @ emptyset)))) => ((! [A:$i,B:$i,C:$i]: ((in @ C @ (setadjoin @ A @ (setadjoin @ B @ emptyset))) => ((C = A) | (C = B)))) => ((! [A:$i,B:$i]: (in @ A @ (setadjoin @ A @ (setadjoin @ B @ emptyset)))) => ((! [A:$i,B:$i]: (in @ B @ (setadjoin @ A @ (setadjoin @ B @ emptyset)))) => ((! [A:$i,B:($i > $o)]: ((? [C:$i]: ((in @ C @ A) & (B @ C))) => (~ ((dsetconstr @ A @ (B)) = emptyset)))) => ((! [A:($i > $o),B:$i]: ((in @ B @ emptyset) => (A @ B))) => ((! [A:$i,B:($i > $o)]: ((~ (! [C:$i]: ((in @ C @ A) => (B @ C)))) => (? [C:$i]: ((in @ C @ A) & ~ (B @ C))))) => (! [A:$i,B:($i > $o)]: ((! [C:$i]: ((in @ C @ A) => (~ (B @ C)))) => (~ (? [C:$i]: ((in @ C @ A) & (B @ C)))))))))))))))))))))))))))))))))))))))))))))))))))))))))))),inference(miniscope,[status(thm)],[3])).
+thf(5,plain,(! [ZZZZR:$i,ZZZZQ:$i,ZZZZP:($i > $o),ZZZZO:$i,ZZZZN:$i,ZZZZM:($i > $o),ZZZZL:$i,ZZZZK:($i > $o),ZZZZJ:$i,ZZZZI:$i,ZZZZH:$i,ZZZZG:$i,ZZZZF:$i,ZZZZE:$i,ZZZZD:$i,ZZZZC:$i,ZZZZB:$i,ZZZZA:$i,ZZZZ:$i,ZZZY:$i,ZZZX:$i,ZZZW:$i,ZZZV:$i,ZZZU:$i,ZZZT:$i,ZZZS:$i,ZZZR:$i,ZZZQ:($i > $o),ZZZP:$i,ZZZO:$i,ZZZN:$o,ZZZM:$i,ZZZL:$i,ZZZK:$i,ZZZJ:$i,ZZZI:$i,ZZZH:$i,ZZZG:$i,ZZZF:$i,ZZZE:$i,ZZZD:$i,ZZZC:$i,ZZZB:$i,ZZZA:$i,ZZZ:$i,ZZY:$i,ZZX:$i,ZZW:$o,ZZV:$i,ZZU:$i,ZZT:$i,ZZS:$i,ZZR:$i,ZZQ:$i,ZZP:$i,ZZO:$i,ZZN:$i,ZZM:$i,ZZL:$i,ZZK:($i > $o),ZZJ:$i,ZZI:$i,ZZH:$i,ZZG:($i > $o),ZZF:$i,ZZE:$i,ZZD:$i,ZZC:$i,ZZB:$i,ZZA:$i,ZZ:($i > $o),ZY:$i,ZX:$i,ZW:$o,ZV:$i,ZU:$i,ZT:$o,ZS:$i,ZR:($i > $o),ZQ:$i,ZP:$i,ZO:($i > $o),ZN:$i,ZM:$i,ZL:($i > $o),ZK:$i,ZJ:$i,ZI:($i > $o),ZH:$i,ZG:$i,ZF:$i,ZE:$i,ZD:$i,ZC:$i,ZB:$i,ZA:$i,Z:$i,Y:$i,X:$i,W:$i,V:$i,U:$i,T:$i,S:$i,R:$i,Q:$i,P:$i,O:$i,N:($i > ($i > $o)),M:$i,L:$i,K:$i,J:$i,I:$i,H:$i,G:$i,F:$i,E:$i,D:$i,C:$i,B:$i,A:$i] : (((~ ((in @ (sk1 @ B @ A) @ A) = (in @ (sk1 @ B @ A) @ B)) | (A = B)) & ~ (in @ C @ emptyset) & ((in @ F @ (setadjoin @ D @ E)) = ((F = D) | (in @ F @ E))) & ((in @ H @ (powerset @ G)) = (! [ZZZZS:$i]: ((in @ ZZZZS @ H) => (in @ ZZZZS @ G)))) & ((in @ J @ (setunion @ I)) = (? [ZZZZS:$i]: ((in @ J @ ZZZZS) & (in @ ZZZZS @ I)))) & (in @ emptyset @ omega) & (~ (in @ K @ omega) | (in @ (setadjoin @ K @ K) @ omega)) & (~ (in @ emptyset @ L) | (in @ (sk2 @ L) @ omega) | ~ (in @ M @ omega) | (in @ M @ L)) & (~ (in @ emptyset @ L) | (in @ (sk2 @ L) @ L) | ~ (in @ M @ omega) | (in @ M @ L)) & (~ (in @ emptyset @ L) | ~ (in @ (setadjoin @ (sk2 @ L) @ (sk2 @ L)) @ L) | ~ (in @ M @ omega) | (in @ M @ L)) & ((in @ (sk3 @ O @ (N)) @ O) | ((in @ Q @ (sk5 @ O @ (N))) = (? [ZZZZS:$i]: ((in @ ZZZZS @ O) & (N @ ZZZZS @ Q))))) & (~ (N @ (sk3 @ O @ (N)) @ P) | (N @ (sk3 @ O @ (N)) @ (sk4 @ P @ O @ (N))) | ((in @ Q @ (sk5 @ O @ (N))) = (? [ZZZZS:$i]: ((in @ ZZZZS @ O) & (N @ ZZZZS @ Q))))) & (~ (N @ (sk3 @ O @ (N)) @ P) | ~ (P = (sk4 @ P @ O @ (N))) | ((in @ Q @ (sk5 @ O @ (N))) = (? [ZZZZS:$i]: ((in @ ZZZZS @ O) & (N @ ZZZZS @ Q))))) & (~ (in @ S @ R) | (in @ (sk6 @ R) @ R)) & (~ (in @ S @ R) | ~ (in @ T @ (sk6 @ R)) | ~ (in @ T @ R)) & (~ (in @ V @ (sk7 @ U)) | ~ (in @ W @ V) | (in @ W @ U)) & (~ (in @ X @ U) | ~ (in @ Y @ U) | (in @ (sk8 @ Y @ X @ U) @ (sk7 @ U)) | (X = Y)) & (~ (in @ X @ U) | ~ (in @ Y @ U) | ~ ((in @ X @ (sk8 @ Y @ X @ U)) = (in @ Y @ (sk8 @ Y @ X @ U))) | (X = Y)) & (~ (in @ Z @ (sk7 @ U)) | ~ (in @ ZA @ (sk7 @ U)) | ~ (in @ ZB @ Z) | (in @ ZB @ ZA) | ~ (in @ ZC @ ZA) | (in @ ZC @ Z)) & ((in @ (sk10 @ ZD @ U) @ ZD) | ~ (in @ ZE @ ZD) | (sk9 @ U @ ZD)) & (~ (in @ (sk10 @ ZD @ U) @ U) | ~ (in @ ZE @ ZD) | (sk9 @ U @ ZD)) & (~ (sk9 @ U @ ZD) | (in @ (sk11 @ ZD @ U) @ (sk7 @ U))) & (~ (sk9 @ U @ ZD) | (in @ (sk12 @ ZD @ U) @ ZD)) & (~ (sk9 @ U @ ZD) | ~ (in @ ZF @ (sk11 @ ZD @ U)) | ~ (in @ ZF @ ZD)) & (~ (sk9 @ U @ ZD) | ~ (in @ ZG @ (sk7 @ U)) | ~ (in @ ZH @ ZG) | (in @ ZH @ (sk11 @ ZD @ U)) | (in @ (sk12 @ ZD @ U) @ ZG)) & (~ (ZI @ ZJ) | (ZI @ (sk13 @ ZJ @ (ZI))) | (ZI @ (descr @ (ZI)))) & (~ (ZI @ ZJ) | ~ (ZJ = (sk13 @ ZJ @ (ZI))) | (ZI @ (descr @ (ZI)))) & (~ (in @ ZM @ ZK) | ~ (ZL @ ZM) | (in @ ZM @ (dsetconstr @ ZK @ (ZL)))) & (~ (in @ ZP @ (dsetconstr @ ZN @ (ZO))) | (in @ ZP @ ZN)) & (~ (in @ ZS @ (dsetconstr @ ZQ @ (ZR))) | (ZR @ ZS)) & (~ (in @ ZU @ (dsetconstr @ (powerset @ emptyset) @ (^ [ZZZZS:$i]: (ZT)))) | (ZT)) & (~ (in @ ZV @ emptyset) | (ZW)) & ~ (in @ ZX @ emptyset) & ~ (in @ ZY @ emptyset) & (~ (ZZ @ ZZA) | (ZZ @ (sk14 @ ZZA @ (ZZ))) | (ZZ @ (sk15 @ (ZZ)))) & (~ (ZZ @ ZZA) | ~ (ZZA = (sk14 @ ZZA @ (ZZ))) | (ZZ @ (sk15 @ (ZZ)))) & ((in @ (sk16 @ ZZC @ ZZB) @ ZZB) | (in @ (sk17 @ ZZC @ ZZB) @ ZZC) | (ZZB = ZZC)) & ((in @ (sk16 @ ZZC @ ZZB) @ ZZB) | ~ (in @ (sk17 @ ZZC @ ZZB) @ ZZB) | (ZZB = ZZC)) & (~ (in @ (sk16 @ ZZC @ ZZB) @ ZZC) | (in @ (sk17 @ ZZC @ ZZB) @ ZZC) | (ZZB = ZZC)) & (~ (in @ (sk16 @ ZZC @ ZZB) @ ZZC) | ~ (in @ (sk17 @ ZZC @ ZZB) @ ZZB) | (ZZB = ZZC)) & ((in @ (sk18 @ ZZD) @ ZZD) | (ZZD = emptyset)) & ((in @ (sk19 @ ZZE) @ ZZE) | (ZZE = emptyset)) & (~ (in @ ZZH @ ZZF) | ((in @ ZZH @ (dsetconstr @ ZZF @ (ZZG))) = (ZZG @ ZZH))) & ((ZZI = emptyset) | (in @ (sk20 @ ZZI) @ ZZI)) & (~ (in @ ZZL @ ZZJ) | ~ (ZZK @ ZZL) | ~ ((dsetconstr @ ZZJ @ (ZZK)) = emptyset)) & (~ (in @ ZZN @ ZZM) | ~ (ZZM = emptyset)) & (in @ ZZO @ (setadjoin @ ZZO @ ZZP)) & (in @ emptyset @ (setadjoin @ emptyset @ emptyset)) & (~ (in @ ZZS @ ZZR) | (in @ ZZS @ (setadjoin @ ZZQ @ ZZR))) & (~ (in @ ZZV @ (setadjoin @ ZZT @ ZZU)) | (ZZV = ZZT) | (in @ ZZV @ ZZU) | (ZZW)) & (~ (in @ ZZV @ (setadjoin @ ZZT @ ZZU)) | (ZZV = ZZT) | ~ (ZZW) | (ZZW)) & (~ (in @ ZZV @ (setadjoin @ ZZT @ ZZU)) | ~ (ZZW) | (in @ ZZV @ ZZU) | (ZZW)) & (~ (in @ ZZV @ (setadjoin @ ZZT @ ZZU)) | ~ (ZZW) | ~ (ZZW) | (ZZW)) & (~ (in @ ZZZ @ (setadjoin @ ZZX @ ZZY)) | (ZZZ = ZZX) | (in @ ZZZ @ ZZY)) & ((dsetconstr @ ZZZA @ (^ [ZZZZS:$i]: (($true)))) = ZZZA) & ((in @ (sk21 @ ZZZC @ ZZZB) @ ZZZC) | (in @ ZZZC @ (powerset @ ZZZB))) & (~ (in @ (sk21 @ ZZZC @ ZZZB) @ ZZZB) | (in @ ZZZC @ (powerset @ ZZZB))) & (in @ emptyset @ (powerset @ ZZZD)) & (in @ emptyset @ (powerset @ ZZZE)) & (~ (in @ ZZZG @ (powerset @ ZZZF)) | ~ (in @ ZZZH @ ZZZG) | (in @ ZZZH @ ZZZF)) & (~ (in @ ZZZJ @ ZZZK) | ~ (in @ ZZZK @ ZZZI) | (in @ ZZZJ @ (setunion @ ZZZI))) & (~ (in @ ZZZM @ (setunion @ ZZZL)) | (in @ ZZZM @ (sk22 @ ZZZN @ ZZZM @ ZZZL)) | (ZZZN)) & (~ (in @ ZZZM @ (setunion @ ZZZL)) | (in @ (sk22 @ ZZZN @ ZZZM @ ZZZL) @ ZZZL) | (ZZZN)) & (~ (in @ ZZZM @ (setunion @ ZZZL)) | ~ (ZZZN) | (ZZZN)) & (~ (in @ ZZZP @ ZZZO) | (in @ ZZZP @ (powerset @ (setunion @ ZZZO)))) & (~ (ZZZQ @ ZZZR) | (ZZZQ @ (sk23 @ ZZZR @ (ZZZQ))) | ((ZZZQ @ ZZZS) = (ZZZS = (sk24 @ (ZZZQ))))) & (~ (ZZZQ @ ZZZR) | ~ (ZZZR = (sk23 @ ZZZR @ (ZZZQ))) | ((ZZZQ @ ZZZS) = (ZZZS = (sk24 @ (ZZZQ))))) & ((ZZZT = emptyset) | (in @ (sk25 @ ZZZT) @ ZZZT)) & (~ (in @ ZZZU @ (setadjoin @ ZZZV @ emptyset)) | (ZZZU = ZZZV)) & ((ZZZW = ZZZX) | ~ (in @ ZZZX @ (setadjoin @ ZZZW @ emptyset))) & (~ (ZZZY = ZZZZ) | (in @ ZZZY @ (setadjoin @ ZZZZ @ emptyset))) & (~ (in @ ZZZZA @ (setadjoin @ ZZZZB @ emptyset)) | (in @ ZZZZB @ (setadjoin @ ZZZZA @ emptyset))) & (~ (in @ ZZZZE @ (setadjoin @ ZZZZC @ (setadjoin @ ZZZZD @ emptyset))) | (ZZZZE = ZZZZC) | (ZZZZE = ZZZZD)) & (in @ ZZZZF @ (setadjoin @ ZZZZF @ (setadjoin @ ZZZZG @ emptyset))) & (in @ ZZZZI @ (setadjoin @ ZZZZH @ (setadjoin @ ZZZZI @ emptyset))) & (~ (in @ ZZZZL @ ZZZZJ) | ~ (ZZZZK @ ZZZZL) | ~ ((dsetconstr @ ZZZZJ @ (ZZZZK)) = emptyset)) & (~ (in @ ZZZZN @ emptyset) | (ZZZZM @ ZZZZN)) & (~ (in @ ZZZZQ @ ZZZZO) | (ZZZZP @ ZZZZQ) | (in @ (sk26 @ (ZZZZP) @ ZZZZO) @ ZZZZO)) & (~ (in @ ZZZZQ @ ZZZZO) | (ZZZZP @ ZZZZQ) | ~ (ZZZZP @ (sk26 @ (ZZZZP) @ ZZZZO))) & (~ (in @ ZZZZR @ sk27) | ~ (sk28 @ ZZZZR)) & (in @ sk29 @ sk27) & (sk28 @ sk29)))),inference(cnf,[status(esa)],[4])).
+thf(60,plain,((in @ sk29 @ sk27)),inference(cnfConj,[status(thm)],[5])).
+thf(18,plain,(! [A:$i] : ((~ (in @ A @ sk27)) | (~ (sk28 @ A)))),inference(cnfConj,[status(thm)],[5])).
+thf(179,plain,(! [A:$i] : ((~ (in @ A @ sk27)) | (~ (sk28 @ A)))),inference(simp,[status(thm)],[18])).
+thf(368,plain,(! [A:$i] : (~ (($true)) | (~ (sk28 @ A)) | ((in @ sk29 @ sk27) != (in @ A @ sk27)))),inference(paramod_ordered,[status(thm)],[60,179])).
+thf(369,plain,(! [A:$i] : ((~ (sk28 @ A)) | ((in @ sk29 @ sk27) != (in @ A @ sk27)))),inference(simp,[status(thm)],[368])).
+thf(370,plain,((~ (sk28 @ sk29))),inference(pattern_uni,[status(thm)],[369:[bind(A, $thf(sk29))]])).
+thf(49,plain,((sk28 @ sk29)),inference(cnfConj,[status(thm)],[5])).
+thf(396,plain,(~ (($true))),inference(rewrite,[status(thm)],[370,49])).
+thf(397,plain,(($false)),inference(simp,[status(thm)],[396])).
+% SZS output end Refutation for /home/marc/.local/share/tptp/TPTP-v9.3.1/Problems/SEU/SEU537^1.p

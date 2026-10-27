@@ -1,0 +1,20 @@
+{
+  "baseline": {
+    "thm_total": 34,
+    "csa_total": 15,
+    "csa_false_proofs": 0,
+    "lcf_failures": 0,
+    "external_unsound": [],
+    "strategy_wins": {
+      ":broad_breadth": 4,
+      ":full_inline_weight": 4,
+      ":goal_standard": 12,
+      ":sine_tight_unit": 7
+    },
+    "assisted_problems": [],
+    "external_unverified": 0,
+    "externally_assisted_lcf": 0,
+    "thm_solved_lcf": 27,
+    "wall_ms": 79768
+  }
+}
