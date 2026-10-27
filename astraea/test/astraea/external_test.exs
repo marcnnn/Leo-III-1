@@ -253,6 +253,40 @@ defmodule Astraea.ExternalTest do
       assert Reconstruct.clause_indices(MapSet.new(["c3", "c11", "d0", "ax_pa"])) == [3, 11]
     end
 
+    test "reads unsat cores with double quotes, axiom declarations, and plain UnsatCore dataforms" do
+      proof_double_quotes = [
+        ~s|fof(1, axiom, q(a), file("/tmp/test.p", "ax_q")).|,
+        ~s|cnf(2, plain, $false, file("in.p", "c5")).|
+      ]
+      assert Reconstruct.core_names(proof_double_quotes) == MapSet.new(["ax_q", "c5"])
+
+      proof_axioms = [
+        "thf(my_ax1, axiom, (p @ a), input).",
+        "cnf(my_ax2, axiom, q(b))."
+      ]
+      assert Reconstruct.core_names(proof_axioms) == MapSet.new(["my_ax1", "my_ax2"])
+
+      proof_plain = [
+        "ax_foo",
+        "\"ax_bar\"",
+        "'ax_baz'"
+      ]
+      assert Reconstruct.core_names(proof_plain) == MapSet.new(["ax_foo", "ax_bar", "ax_baz"])
+    end
+
+    test "micro_prove synthesizes a valid resolution derivation between complementary parents" do
+      arena = Arena.new()
+      {arena, p} = Arena.mk_const(arena, "p", :o)
+
+      parent_steps = [
+        {:axiom, 1, MapSet.new([{:pos, p}])},
+        {:axiom, 2, MapSet.new([{:neg, p}])}
+      ]
+
+      assert {:ok, steps} = Astraea.External.Replay.micro_prove(arena, parent_steps, MapSet.new([]))
+      assert :ok == ProofChecker.verify_refutation(arena, steps)
+    end
+
     test "re-proves a cited core with an LCF-verified proof" do
       {:ok, lowered} = TptpLower.from_string(@thm_src)
       {arena, clauses} = Clausifier.clausify(lowered)

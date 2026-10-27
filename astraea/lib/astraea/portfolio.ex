@@ -273,9 +273,18 @@ defmodule Astraea.Portfolio do
 
     external_workers =
       Map.new(externals, fn {ext_name, ext_opts} ->
+        reconstruct? = Keyword.get(ext_opts, :reconstruct, true)
+
+        ext_timeout_ms =
+          if reconstruct? do
+            max(div(timeout_ms * 70, 100), min(timeout_ms, 1_000))
+          else
+            timeout_ms
+          end
+
         ext_opts =
           ext_opts
-          |> Keyword.put_new(:timeout_ms, timeout_ms)
+          |> Keyword.put_new(:timeout_ms, ext_timeout_ms)
           |> Keyword.put(:tmp_dir, tmp_dir)
 
         strat_name = {:external, ext_name}

@@ -11,19 +11,51 @@ defmodule Astraea.External.Reconstruct do
 
   alias Astraea.{Arena, ProofChecker, Prover, TptpLower}
 
-  @source_re ~r/file\(\s*'(?:[^'\\]|\\.)*'\s*,\s*('(?:[^'\\]|\\.)*'|[A-Za-z0-9_]+)\s*\)/
+  # Matches file('...', name) or file("...", name) or file(path, name)
+  @source_re ~r/file\(\s*(?:'(?:[^'\\]|\\.)*'|"(?:[^"\\]|\\.)*"|[^,]+)\s*,\s*('(?:[^'\\]|\\.)*'|"(?:[^"\\]|\\.)*"|[A-Za-z0-9_]+)\s*\)/
+  # Matches fof/cnf/thf/tcf/tff(name, axiom/hypothesis, ...)
+  @tptp_axiom_re ~r/^[a-z]{3}\(\s*('(?:[^'\\]|\\.)*'|"(?:[^"\\]|\\.)*"|[A-Za-z0-9_]+)\s*,\s*(?:axiom|hypothesis|negated_conjecture)\b/m
+  # Plain identifiers (e.g. from an UnsatCore dataform block)
+  @plain_core_re ~r/^\s*('(?:[^'\\]|\\.)*'|"(?:[^"\\]|\\.)*"|[A-Za-z0-9_]+)\s*$/
   @clause_name_re ~r/^c(\d+)$/
+
+  @default_recon_opts [
+    pick_ratio: [weight: 4, score: 2, age: 1],
+    avatar: true
+  ]
 
   @doc """
   Returns the names of the input formulas referenced by `file(_, Name)` source
-  annotations in a TSTP proof (the lines of an SZS output block).
+  annotations or input definitions in a TSTP / UnsatCore proof (the lines of an SZS output block).
   """
   @spec core_names([String.t()]) :: MapSet.t(String.t())
   def core_names(proof_lines) do
-    proof_lines
-    |> Enum.join("\n")
-    |> then(&Regex.scan(@source_re, &1, capture: :all_but_first))
-    |> MapSet.new(fn [name] -> unquote_name(name) end)
+    joined = Enum.join(proof_lines, "\n")
+
+    file_matches =
+      Regex.scan(@source_re, joined, capture: :all_but_first)
+      |> MapSet.new(fn [name] -> unquote_name(name) end)
+
+    if MapSet.size(file_matches) > 0 do
+      file_matches
+    else
+      axiom_matches =
+        Regex.scan(@tptp_axiom_re, joined, capture: :all_but_first)
+        |> MapSet.new(fn [name] -> unquote_name(name) end)
+
+      if MapSet.size(axiom_matches) > 0 do
+        axiom_matches
+      else
+        proof_lines
+        |> Enum.flat_map(fn line ->
+          case Regex.run(@plain_core_re, line, capture: :all_but_first) do
+            [name] when name not in ["", "%", "#"] -> [unquote_name(name)]
+            _ -> []
+          end
+        end)
+        |> MapSet.new()
+      end
+    end
   end
 
   @doc """
@@ -53,8 +85,12 @@ defmodule Astraea.External.Reconstruct do
     by_index = clauses |> Enum.with_index() |> Map.new(fn {c, i} -> {i, c} end)
 
     case core |> clause_indices() |> Enum.flat_map(&List.wrap(by_index[&1])) do
-      [] -> {:error, :empty_core}
-      core_clauses -> Prover.prove_clauses(arena, core_clauses, opts)
+      [] ->
+        {:error, :empty_core}
+
+      core_clauses ->
+        merged_opts = Keyword.merge(@default_recon_opts, opts)
+        Prover.prove_clauses(arena, core_clauses, merged_opts)
     end
   end
 
@@ -73,11 +109,22 @@ defmodule Astraea.External.Reconstruct do
           role == "definition" or MapSet.member?(core, name)
         end)
 
-      Prover.prove_lowered(%{lowered | axioms: axioms}, Keyword.put(opts, :sine_limit, nil))
+      merged_opts =
+        @default_recon_opts
+        |> Keyword.merge(opts)
+        |> Keyword.put(:sine_limit, nil)
+
+      Prover.prove_lowered(%{lowered | axioms: axioms}, merged_opts)
     end
   end
 
   defp unquote_name("'" <> rest) do
+    rest
+    |> String.slice(0..-2//1)
+    |> String.replace(~r/\\(.)/, "\\1")
+  end
+
+  defp unquote_name("\"" <> rest) do
     rest
     |> String.slice(0..-2//1)
     |> String.replace(~r/\\(.)/, "\\1")
