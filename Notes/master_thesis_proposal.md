@@ -4,7 +4,7 @@
 **Candidate:** [Your Name]  
 **Degree Program:** M.Sc. in Computer Science  
 **Planned Duration:** 6 Months (30 ECTS)  
-**Keywords:** Automated Theorem Proving, Higher-Order Logic, Leo-III, AVATAR Splitting, Combinatory Superposition, Elixir/BEAM, Rustler, SIMD, Agentic Code Synthesis, Profile-Guided Proof Search
+**Keywords:** Automated Theorem Proving, Higher-Order Logic, Leo-III, AVATAR Splitting, Combinatory Superposition, Elixir/BEAM, Rustler, SIMD, Agentic Code Synthesis, Profile-Guided Proof Search, System-One Decision Models, Nx/Axon
 
 ---
 
@@ -12,7 +12,7 @@
 
 State-of-the-art Higher-Order Logic (HOL) Automated Theorem Provers (ATPs) such as Leo-III rely on tens of thousands of lines of tightly coupled, pointer-heavy code to balance calculus expressiveness with runtime performance. Earlier efforts in Leo-III to parallelize proof search via fine-grained multi-agent blackboard architectures (`AuctionBlackboard`, `RuleAgent`, and `TreeContext` splitting) encountered severe lock contention and index pollution, leading modern Leo-III to revert to sequential saturation schedules (`SeqLoop` / `ScheduledRun`). Meanwhile, modernizing ATPs toward flat data-oriented memory layouts, SIMD vectorization, incremental SAT/SMT embedding, and adaptive parallel micro-searches incurs prohibitive manual engineering cost and high risk of soundness regressions. While Large Language Model (LLM) coding agents ("vibe coding") accelerate low-level systems prototyping, unverified LLM-generated deduction code is fundamentally untrustworthy due to subtle invariants in binder manipulation, Skolemization, term orderings, and higher-order unification.
 
-This thesis proposes **Astraea**, an oracle-guided agentic synthesis harness and modular parallel micro-prover architecture that picks up where Leo-III's multi-agent architecture left off, incorporating modern insights from Vampire (AVATAR, combinatory superposition), Zipperposition ($\lambda\text{Sup}$), and Lash (integer-indexed C cores). First, we design a flat, index-addressed Intermediate Representation (IR) for classical higher-order logic (THF0)—evaluating binder-free typed combinators ($S, K, I, B, C$) alongside spine/de Bruijn representations—paired with a purely functional reference interpreter and LCF-style proof checker in Elixir. Second, we build a multi-tier verification harness (property-based testing, differential fuzzing against Leo-III, and independent proof-trace validation) to gate an LLM agent synthesizing zero-copy, SIMD-accelerated Rust micro-prover NIFs. Finally, we replace fine-grained rule-locking with coarse-grained Elixir/OTP orchestration: combining top-level goal decomposition, AVATAR-style clause splitting over an incremental SAT NIF, content-addressed Skolemization for safe lemma sharing, and Profile-Guided Optimization (PGO) via parallel shallow probes.
+This thesis proposes **Astraea**, an oracle-guided agentic synthesis harness and modular parallel micro-prover architecture that picks up where Leo-III's multi-agent architecture left off, incorporating modern insights from Vampire (AVATAR, combinatory superposition), Zipperposition ($\lambda\text{Sup}$), and Lash (integer-indexed C cores). First, we design a flat, index-addressed Intermediate Representation (IR) for classical higher-order logic (THF0)—evaluating binder-free typed combinators ($S, K, I, B, C$) alongside spine/de Bruijn representations—paired with a purely functional reference interpreter and LCF-style proof checker in Elixir. Second, we build a multi-tier verification harness (property-based testing, differential fuzzing against Leo-III, and independent proof-trace validation) to gate an LLM agent synthesizing zero-copy, SIMD-accelerated Rust micro-prover NIFs. Finally, we replace fine-grained rule-locking with coarse-grained Elixir/OTP orchestration: combining top-level goal decomposition, AVATAR-style clause splitting over an incremental SAT NIF, content-addressed Skolemization for safe lemma sharing, and Profile-Guided Optimization (PGO) via parallel shallow probes and native in-loop Nx decision models.
 
 ---
 
@@ -105,6 +105,7 @@ An automated Elixir driver orchestrates an LLM coding agent to synthesize and op
    * **Lemma / Watchlist Harvesting:** Compact, high-utility unit equalities discovered by any worker are shared and added to a prioritized watchlist.
    * **Dynamic KBO Precedence Re-Weighting:** Symbols frequently participating in simplifying rewrites are promoted in the KBO precedence ordering.
    * **Rule Pruning:** Unused higher-order rules (e.g., Boolean extensionality or primitive substitution on purely applicative sub-goals) are compiled out for a focused follow-up saturation burst.
+4. **In-Loop System-One Guidance (Nx / Axon):** Beyond coarse PGO, native `Nx.Defn` decision heads (compiled via `EXLA` / `NxSimd`) provide sub-50µs in-process proof guidance (Given-Clause batch re-ranking, strategy selection, and premise slicing) directly over Astraea's 16-lane feature vector tables without Python or IPC overhead (see detailed architecture in [Notes/nx_proof_guidance_plan.md](file:///Users/marcnickert/Projects/opensource/Leo-III/Notes/nx_proof_guidance_plan.md)).
 
 ---
 
@@ -120,7 +121,8 @@ To ensure rigorous completion within 6 months (30 ECTS), deliverables are bounde
   * Multi-core Elixir/OTP orchestrator implementing goal splitting, parallel shallow probes, and watchlist/precedence PGO.
 * **Out-of-Scope / Stretch Goals (Optional Extensions):**
   * Full rank-1 polymorphism (TH1), general Axiom of Choice, and modal logic pre-processors.
-  * Multi-machine BEAM cluster distribution (architecturally supported via OTP, benchmarked on single multi-core node first).
+  * Multi-machine BEAM cluster distribution (architecturally supported via OTP, benchmarked on single multi-core node first; see [Notes/distributed_parallelism_plan.md](file:///Users/marcnickert/Projects/opensource/Leo-III/Notes/distributed_parallelism_plan.md)).
+  * In-loop System-One decision models via native `Nx.Defn` / `Axon` for given-clause re-ranking and unification branch selection (see [Notes/nx_proof_guidance_plan.md](file:///Users/marcnickert/Projects/opensource/Leo-III/Notes/nx_proof_guidance_plan.md)).
   * Compiling the binder-free combinator arena directly to WebGPU/WGSL compute shaders.
 
 ---
@@ -165,3 +167,4 @@ To ensure rigorous completion within 6 months (30 ECTS), deliverables are bounde
 11. **[JU17]** Jakubův, J., Urban, J. (2017). *ENIGMA: Efficient Learning-Based Inference Guiding Machine*. In CICM 2017 (LNCS 10383). Springer.
 12. **[BBN16]** Blanchette, J. C., Kaliszyk, C., Paulson, L. C., Urban, J. (2016). *Hammering towards QED*. Journal of Formalized Reasoning, 9(1), 101–148.
 13. **[Hue75]** Huet, G. P. (1975). *A Unification Algorithm for Typed $\lambda$-Calculus*. Theoretical Computer Science, 1(1), 27–57.
+14. **[Sud21]** Suda, M. (2021). *Vampire with Deep Reinforcement Learning*. In LPAR-23, EPiC Series in Computing 73, 341–357.
