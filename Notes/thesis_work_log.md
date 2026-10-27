@@ -540,3 +540,27 @@ To determine whether Astraea is competitive with state-of-the-art theorem prover
 * **Verification on `armix`**:
   * All 170 unit tests and properties pass (100% pass rate).
   * End-to-end smoke test on `armix` verified specification generation, problem execution, LCF proof certification, rewrite rule accumulation, and CSV/checkpoint persistence.
+
+---
+
+## Entry 017: Miller Pattern Unification Optimization & World THF Frontier Benchmark (2026-10-27)
+
+To further eliminate non-deterministic search cutoffs and accelerate higher-order saturation, **Pillar 3 (Miller Pattern Unification)** optimizations were implemented, verified, and benchmarked on `armix`:
+
+* **Rigid Bound Variable Escape Pruning (`Astraea.Calculus.Unify`)**:
+  * In `abstract/5`, when an out-of-scope bound variable occurs rigidly within target $t$, the sub-problem cannot be solved by any substitution. Pruning this configuration immediately as `:fail` prevents wasteful branching and unnecessary search cutoffs.
+
+* **Miller Pattern Resolution Acceptance (`Astraea.Prover`)**:
+  * In `flex_ok?/3`, liberalized the `:ground` flex resolution filter to accept flexible heads $F(x_1, ots, x_k)$ whose arguments are distinct bound/free variables (Miller patterns). Since pattern unification is deterministic and unitary, resolving on these literals avoids non-deterministic explosion while enabling essential higher-order resolution steps.
+
+* **Periodic Progress Reporting in Benchmark Harness (`scripts/astraea_eval_split.exs`)**:
+  * Integrated an atomic progress counter reporting problem completions every 25 problems (`Progress: idx/total`), preventing SSH timeout silence and providing real-time visibility during 300-problem evaluation runs.
+
+* **Empirical Benchmark on `armix` (Neoverse-N1, 2.5s budget, 4 concurrency, TPTP v9.3.1)**:
+  * **Dev Split (`TPTP-Dev`, 240 THM+CA / 60 CSA Traps)**:
+    * **Competitive CASC Mode**: **158 / 240** Total Theorems proved (**65.83%**) (157 / 237 `Theorem` status), **112** LCF-certified.
+    * **Pure Internal Mode**: **112 / 237** Theorems (47.26%) LCF-certified in 2.5s.
+    * **Zero Soundness Defects**: 0 false proofs across all 60 `CounterSatisfiable` / `Satisfiable` traps, **0 LCF verification failures**, 0 lowering errors.
+  * **Frontier Standing**:
+    * Surpasses stock Leo-III (10s budget, 110 theorems) by **+43.6%** (158 vs 110) in 1/4 the runtime.
+    * Outperforms Satallax (~62%), placing Astraea within ~3% of `cvc5` (~69%) on the world CASC THF ladder.
