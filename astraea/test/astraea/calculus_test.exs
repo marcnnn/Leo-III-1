@@ -417,4 +417,30 @@ defmodule Astraea.CalculusTest do
 
     refute match?({:proved, _, _}, Prover.prove_string(src, timeout_ms: 1_000))
   end
+
+  test "trivial Boolean equivalences clausify instead of looping" do
+    # `A <=> A` used to be rewritten into `$true <=> $true` and then into itself forever.
+    assert {:proved, _, _} =
+             Prover.prove_string("thf(p_t, type, p: $o).\nthf(c, conjecture, p <=> p).",
+               timeout_ms: 1_000
+             )
+
+    assert {:proved, _, _} =
+             Prover.prove_string(
+               """
+               thf(p_t, type, p: $i > $o).
+               thf(q_t, type, q: $o).
+               thf(c, conjecture, ! [X: $i]: (((p @ X) & q) <=> (q & (p @ X)))).
+               """,
+               timeout_ms: 1_000
+             )
+
+    refute match?(
+             {:proved, _, _},
+             Prover.prove_string(
+               "thf(p_t, type, p: $o).\nthf(ax, axiom, p <=> p).\nthf(c, conjecture, p).",
+               timeout_ms: 1_000
+             )
+           )
+  end
 end

@@ -725,6 +725,12 @@ defmodule Astraea.Clausifier do
     end
   end
 
+  # `A <=> A` is valid. Without this clause, factoring the shared conjunct `A` would rewrite
+  # it to `A => ($true <=> $true)`, and `$true <=> $true` into itself forever.
+  defp to_nnf_bool_eq(%Arena{} = arena, same, same, polarity, ctx) do
+    {arena, if(polarity == :pos, do: :top, else: :bot), ctx}
+  end
+
   # Factors out shared conjuncts or disjuncts before expanding `A <=> B` (`(A & S) <=> (B & S)`)
   defp to_nnf_bool_eq(%Arena{} = arena, left, right, polarity, ctx) do
     {arena, l_conjs} = collect_conjuncts(arena, left)
