@@ -4,13 +4,14 @@ defmodule Astraea.External.Provers do
 
   Ported from `leo.modules.external.TPTPProvers` in Leo-III. Clause sets are
   printed in the first format a prover lists: THF0 via
-  `Astraea.External.ThfPrinter`, or first-order TFF0 via the applicative encoding
-  of `Astraea.External.TffPrinter`.
+  `Astraea.External.ThfPrinter`, first-order TFF0 via
+  `Astraea.External.TffPrinter`, or untyped FOF with type guards via
+  `Astraea.External.FofPrinter` (see `Astraea.External.FolEncoding`).
 
   A spec is a map with:
     * `:name` - prover name used in results and portfolio telemetry
     * `:executables` - candidate executable names looked up on `$PATH`
-    * `:formats` - accepted clause-set formats (`:thf`, `:tff`), preferred first
+    * `:formats` - accepted clause-set formats (`:thf`, `:tff`, `:fof`), preferred first
     * `:args` - `fn %{seconds: s, ms: ms}, problem_file -> [arg] end`, builds the
       call including the prover's own time limit (a second line of defense
       behind the MuonTrap timeout)
@@ -20,7 +21,7 @@ defmodule Astraea.External.Provers do
 
   @type limits :: %{seconds: pos_integer(), ms: pos_integer()}
 
-  @type format :: :thf | :tff
+  @type format :: :thf | :tff | :fof
 
   @type spec :: %{
           required(:name) => atom(),

@@ -18,8 +18,10 @@ defmodule Astraea.External do
        are resolved by the prover from `$TPTP`).
     2. `prove_clauses/4` / `prove_lowered/3` - hands Astraea's own clausified
        (SInE-filtered, Skolemized) clause set to the prover, as THF0
-       (`Astraea.External.ThfPrinter`) or as first-order TFF0
-       (`Astraea.External.TffPrinter`) depending on the prover.
+       (`Astraea.External.ThfPrinter`), as first-order TFF0
+       (`Astraea.External.TffPrinter`) or as untyped FOF
+       (`Astraea.External.FofPrinter`) depending on the prover and the
+       `:encoding` option (see `Astraea.External.FolEncoding`).
 
   External answers are oracle results: they are not checked by
   `Astraea.ProofChecker`. `Astraea.External.Reconstruct` turns refutations into
@@ -28,7 +30,7 @@ defmodule Astraea.External do
   """
 
   alias Astraea.{Arena, Clausifier, ProofChecker, TptpCorpus, TptpLower}
-  alias Astraea.External.{Provers, SZS, TffPrinter, ThfPrinter}
+  alias Astraea.External.{FofPrinter, FolEncoding, Provers, SZS, TffPrinter, ThfPrinter}
 
   @default_timeout_ms 10_000
   @default_grace_ms 1_000
@@ -74,6 +76,16 @@ defmodule Astraea.External do
     * `:process_group` - run the prover via `priv/process_group.sh` so that its
       whole process tree is killed (default `true`)
     * `:keep_output` - keep the full stdout/stderr in the result (default `false`)
+  The same option list is shared with the clause-set entry points
+  (`prove_clauses/4`, `prove_lowered/3`, `write_clause_problem/4`), which
+  additionally read:
+    * `:format` - `:thf`, `:tff` or `:fof` (default: the prover's preferred one)
+    * `:encoding` - first-order encoding for `:tff` and `:fof`: a keyword list
+      `[lambda: :lambda_lifting | :ski, arity: :applicative | :min_arity,
+      booleans: :lift | :proxies, types: :mono_native | :mono_guards |
+      :mono_guards_light]` or a preset `:default` / `:leo3` (see
+      `Astraea.External.FolEncoding`). A guard `:types` value prints FOF even for
+      TFF provers; `format: :fof` defaults `:types` to `:mono_guards_light`.
   """
   @spec run(prover(), Path.t(), keyword()) :: {:ok, Result.t()} | {:error, term()}
   def run(prover, problem_file, opts \\ []) do
@@ -140,7 +152,8 @@ defmodule Astraea.External do
   they clean up themselves.
 
   Clause `i` of `clauses` is named `c<i>`, which `Astraea.External.Reconstruct`
-  relies on to map proof cores back to clauses.
+  relies on to map proof cores back to clauses; this holds for every
+  `:encoding`. An invalid `:encoding` yields `{:error, {:invalid_encoding, msg}}`.
   """
   @spec prove_clauses(prover(), Arena.t(), [ProofChecker.clause()], keyword()) ::
           {:ok, Result.t()} | {:error, term()}
@@ -162,18 +175,38 @@ defmodule Astraea.External do
   @spec write_clause_problem(prover(), Arena.t(), [ProofChecker.clause()], keyword()) ::
           {:ok, Path.t()} | {:error, term()}
   def write_clause_problem(prover, %Arena{} = arena, clauses, opts \\ []) do
-    with {:ok, spec} <- resolve_spec(prover) do
+    with {:ok, spec} <- resolve_spec(prover),
+         {:ok, source} <- clause_problem(spec, arena, clauses, opts) do
       tmp_dir = Keyword.get_lazy(opts, :tmp_dir, &System.tmp_dir!/0)
       file = Path.join(tmp_dir, "astraea_#{spec.name}_#{System.unique_integer([:positive])}.p")
-
-      source =
-        case Provers.format(spec, opts) do
-          :thf -> ThfPrinter.problem(arena, clauses)
-          :tff -> TffPrinter.problem(arena, clauses)
-        end
-
       File.write!(file, source)
       {:ok, file}
+    end
+  end
+
+  @doc """
+  Renders `clauses` as the problem text that `write_clause_problem/4` writes for
+  `prover`, honouring `:format` and `:encoding`.
+  """
+  @spec clause_problem(prover(), Arena.t(), [ProofChecker.clause()], keyword()) ::
+          {:ok, String.t()} | {:error, term()}
+  def clause_problem(prover, %Arena{} = arena, clauses, opts \\ []) do
+    requested = Keyword.get(opts, :encoding)
+
+    with {:ok, spec} <- resolve_spec(prover),
+         {:ok, encoding} <- FolEncoding.normalize(requested) do
+      case Provers.format(spec, opts) do
+        :thf ->
+          {:ok, ThfPrinter.problem(arena, clauses)}
+
+        :fof ->
+          {:ok, FofPrinter.problem(arena, clauses, encoding: FofPrinter.encoding(requested))}
+
+        :tff ->
+          if encoding[:types] == :mono_native,
+            do: {:ok, TffPrinter.problem(arena, clauses, encoding: encoding)},
+            else: {:ok, FofPrinter.problem(arena, clauses, encoding: encoding)}
+      end
     end
   end
 
