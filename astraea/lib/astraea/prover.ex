@@ -148,7 +148,9 @@ defmodule Astraea.Prover do
             sat_atom_map: %{},
             sat_clauses: %{},
             next_sat_var: 1,
-            avatar_splits: 0
+            avatar_splits: 0,
+            sos: false,
+            sos_ids: MapSet.new()
 
   @type result ::
           {:proved, [ProofChecker.step()], map()}
@@ -198,7 +200,39 @@ defmodule Astraea.Prover do
       |> Keyword.put(:sine_filtered, info.axioms_dropped > 0)
       |> Keyword.put(:input_incomplete, input_incomplete(lowered, info))
 
+    {arena, opts} =
+      if Keyword.get(opts, :sos, false) and not Keyword.has_key?(opts, :sos_clauses),
+        do: sos_clauses(lowered, arena, clauses, clausify_opts, opts),
+        else: {arena, opts}
+
     prove_clauses(arena, clauses, opts)
+  end
+
+  # Leo-III marks the negated conjecture as set of support (`PropSOS`). The
+  # clausifier does not report where a clause comes from, so the axioms are
+  # clausified again without conjectures and `negated_conjecture` formulas: every
+  # clause that is not a variant of one of those is a conjecture clause.
+  defp sos_clauses(%TptpLower{} = lowered, arena, clauses, clausify_opts, opts) do
+    axioms =
+      Enum.reject(lowered.axioms, fn {_name, role, _id} -> role == "negated_conjecture" end)
+
+    {arena, axiom_clauses} =
+      Clausifier.clausify(
+        %{lowered | arena: arena, axioms: axioms, conjectures: []},
+        Keyword.merge(clausify_opts, sine_limit: nil, relevance_filter: nil, sine: nil)
+      )
+
+    axiom_sigs = MapSet.new(axiom_clauses, &canonical_clause_sig(arena, &1))
+
+    sos =
+      clauses
+      |> Enum.with_index()
+      |> Enum.reject(fn {lits, _i} ->
+        MapSet.member?(axiom_sigs, canonical_clause_sig(arena, lits))
+      end)
+      |> MapSet.new(&elem(&1, 1))
+
+    {arena, Keyword.put(opts, :sos_clauses, sos)}
   end
 
   # Fragments whose clause sets are faithful in both directions, so that a model of
@@ -263,6 +297,12 @@ defmodule Astraea.Prover do
     * `:sine_filtered` - the input omits axioms (set by `prove_lowered/2`)
     * `:input_incomplete` - reasons why a model of the input clauses need not be a
       model of the problem (set by `prove_lowered/2`)
+  Leo-III preprocessing and strategy parameters (`RunStrategy`, `Configuration`):
+    * `:sos` - set of support (Leo-III `sos`): binary inferences (resolution,
+      paramodulation) need a premise descending from the conjecture. The conjecture
+      clauses are the indices `:sos_clauses` of `input_clauses` (computed by
+      `prove_lowered/2`); without conjecture clauses the option has no effect. The
+      run counts as incomplete (default `false`)
   """
   @spec prove_clauses(Arena.t(), [ProofChecker.clause()], keyword()) ::
           result() | {:proved_external, map()}
@@ -300,7 +340,10 @@ defmodule Astraea.Prover do
       coop_interval: Keyword.get(opts, :cooperate_interval, 40),
       coop_max_clauses: Keyword.get(opts, :cooperate_max_clauses, 400),
       avatar: Keyword.get(opts, :avatar, false),
-      sat_solver: if(Keyword.get(opts, :avatar, false), do: CdclSat.new(), else: nil)
+      sat_solver: if(Keyword.get(opts, :avatar, false), do: CdclSat.new(), else: nil),
+      sos:
+        Keyword.get(opts, :sos, false) and
+          MapSet.size(Keyword.get(opts, :sos_clauses, MapSet.new())) > 0
     }
 
     {state, seed_ids} =
@@ -410,14 +453,22 @@ defmodule Astraea.Prover do
     # Pass 1: Register all initial clauses as `:axiom` steps in their original order;
     # seeded clauses keep the ids of their existing derivations instead.
     entries = if seed_ids, do: Enum.zip(clauses, seed_ids), else: Enum.map(clauses, &{&1, nil})
+    sos_input = state.opts |> Keyword.get(:sos_clauses, []) |> MapSet.new()
 
     {state, axiom_items} =
-      Enum.reduce(entries, {state, []}, fn {clause, seed_id}, {st, acc} ->
+      entries
+      |> Enum.with_index()
+      |> Enum.reduce({state, []}, fn {{clause, seed_id}, index}, {st, acc} ->
         {st, c_item} =
           case seed_id do
             nil -> add_step(st, {:axiom, st.next_step_id, clause}, clause, 0)
             id -> {st, clause_item(st, id, clause, 0)}
           end
+
+        st =
+          if st.sos and MapSet.member?(sos_input, index),
+            do: %{st | sos_ids: MapSet.put(st.sos_ids, c_item.id)},
+            else: st
 
         st =
           if calculus_opt(st, :choice, true) do
@@ -1655,7 +1706,7 @@ defmodule Astraea.Prover do
 
     each_inference(
       state,
-      Enum.filter(state.active, &partner?(partners, &1)),
+      Enum.filter(state.active, &(partner?(partners, &1) and sos_partner?(state, given, &1))),
       &resolve_clause_pair(&1, given, &2)
     )
   end
@@ -1775,7 +1826,8 @@ defmodule Astraea.Prover do
   defp try_superposition(%__MODULE__{} = state, given) do
     {state, into_active, from_active} = paramod_partners(state, given)
 
-    each_inference(state, state.active, fn st, active_c ->
+    each_inference(state, Enum.filter(state.active, &sos_partner?(state, given, &1)), fn st,
+                                                                                         active_c ->
       with {:cont, st, items1} <-
              maybe_paramod(st, partner?(into_active, active_c), given, active_c),
            {:cont, st, items2} <-
@@ -2604,8 +2656,22 @@ defmodule Astraea.Prover do
         next_step_id: id + 1
     }
 
-    {state, item}
+    {inherit_sos(state, step, id), item}
   end
+
+  # Set of support (Leo-III `PropSOS`): a clause inherits the mark from any premise.
+  defp inherit_sos(%__MODULE__{sos: false} = state, _step, _id), do: state
+
+  defp inherit_sos(%__MODULE__{} = state, step, id) do
+    if Enum.any?(step_parents(step), &MapSet.member?(state.sos_ids, &1)),
+      do: %{state | sos_ids: MapSet.put(state.sos_ids, id)},
+      else: state
+  end
+
+  defp sos_partner?(%__MODULE__{sos: false}, _given, _other), do: true
+
+  defp sos_partner?(%__MODULE__{} = state, given, other),
+    do: MapSet.member?(state.sos_ids, given.id) or MapSet.member?(state.sos_ids, other.id)
 
   defp clause_item(%__MODULE__{} = state, id, lits, depth, guards \\ MapSet.new()) do
     fvars =
@@ -2865,7 +2931,8 @@ defmodule Astraea.Prover do
       sine: state.sine_filtered,
       input: state.input_incomplete != [],
       partial_input: Keyword.has_key?(state.opts, :seed),
-      unification_cutoffs: state.unification_cutoffs > 0
+      unification_cutoffs: state.unification_cutoffs > 0,
+      sos: state.sos
     ]
     |> Enum.filter(&elem(&1, 1))
     |> Enum.map(&elem(&1, 0))
