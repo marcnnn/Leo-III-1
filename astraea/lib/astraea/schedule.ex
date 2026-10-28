@@ -25,7 +25,7 @@ defmodule Astraea.Schedule do
   | `uniDepth` | `:unify_depth` |
   | `boolExt` | `:ext_inferences` |
   | `choice` | `:choice` |
-  | `ordering` | `:ordered` (`false` for Leo-III's `NO_ORDERING`) |
+  | `ordering` | `:ordered` (`false` for Leo-III's `NO_ORDERING`), `:term_ordering` (`:cpo` for `CPO_Naive`) |
   | `restrictUniAttempts` | `:flex_resolution` (`:ground` when restricted, else `:all`) |
 
   Leo-III parameters without an Astraea counterpart yet (`sos`, `renaming`,
@@ -120,6 +120,7 @@ defmodule Astraea.Schedule do
       ext_inferences: params.bool_ext,
       choice: params.choice,
       ordered: params.ordering != :none,
+      term_ordering: if(params.ordering == :cpo_naive, do: :cpo, else: :kbo),
       flex_resolution: if(params.restrict_uni_attempts, do: :ground, else: :all),
       sos: params.sos,
       renaming: params.renaming,

@@ -582,7 +582,11 @@ defmodule Astraea.Prover do
       do: %{
         state
         | rules:
-            Demodulator.add_rules(state.rules, state.arena, Demodulator.rules(state.arena, item, bool_rules: state.higher_order))
+            Demodulator.add_rules(
+              state.rules,
+              state.arena,
+              Demodulator.rules(state.arena, item, demod_opts(state))
+            )
       },
       else: state
   end
@@ -1146,7 +1150,7 @@ defmodule Astraea.Prover do
   defp backward_demodulate(%__MODULE__{demodulation: false} = state, _given), do: state
 
   defp backward_demodulate(%__MODULE__{} = state, given) do
-    case Demodulator.rules(state.arena, given, bool_rules: state.higher_order) do
+    case Demodulator.rules(state.arena, given, demod_opts(state)) do
       [] ->
         state
 
@@ -1377,6 +1381,9 @@ defmodule Astraea.Prover do
     do: Keyword.get(state.opts, key, default)
 
   defp ordering(%__MODULE__{} = state), do: Ordering.opts(state.opts)
+
+  defp demod_opts(%__MODULE__{} = state),
+    do: [bool_rules: state.higher_order, term_ordering: ordering(state).term_ordering]
 
   defp cutoff(%__MODULE__{} = state, n \\ 1),
     do: %{state | unification_cutoffs: state.unification_cutoffs + n}
@@ -1935,7 +1942,7 @@ defmodule Astraea.Prover do
       for {:pos, eq_id} = lit <- eq_clause.lits,
           MapSet.member?(eligible, lit),
           {@tag_eq, _, _, lhs, rhs} <- [Arena.get_node(state.arena, eq_id)],
-          {from_term, to_term} <- orient_equation(state.arena, lhs, rhs),
+          {from_term, to_term} <- orient_equation(state, lhs, rhs),
           not fvar_node?(state.arena, from_term),
           do: {eq_id, from_term, to_term}
 
@@ -1968,8 +1975,8 @@ defmodule Astraea.Prover do
     eq_sides ++ bool_sides
   end
 
-  defp orient_equation(%Arena{} = arena, lhs, rhs) do
-    case Arena.kbo_compare(arena, lhs, rhs) do
+  defp orient_equation(%__MODULE__{} = state, lhs, rhs) do
+    case Ordering.compare_terms(state.arena, lhs, rhs, ordering(state)) do
       :gt -> [{lhs, rhs}]
       :lt -> [{rhs, lhs}]
       :eq -> []

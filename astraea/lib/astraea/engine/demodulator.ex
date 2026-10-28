@@ -2,7 +2,8 @@ defmodule Astraea.Engine.Demodulator do
   @moduledoc """
   Demodulation (Leo-III `SimplificationControl.rewriteSimp` / `rewritable`): rewriting
   with positive unit equations `l = r` as rules `lσ -> rσ` wherever the instance is
-  KBO-decreasing (`lσ > rσ`). Orientable equations give one rule; incomparable ones
+  decreasing (`lσ > rσ`) in the term ordering, KBO unless `rules/3` gets
+  `term_ordering: :cpo` (each rule keeps the ordering it was oriented with). Orientable equations give one rule; incomparable ones
   give both directions and act as ordered rewriting (this covers commutativity, the
   part of Leo-III's `acSimp` that is expressible without a new kernel rule).
 
@@ -17,6 +18,7 @@ defmodule Astraea.Engine.Demodulator do
   """
 
   alias Astraea.Arena
+  alias Astraea.Calculus.Ordering
   alias Astraea.Engine.DiscriminationTree
 
   @tag_fvar 3
@@ -33,12 +35,14 @@ defmodule Astraea.Engine.Demodulator do
   @spec rules(Arena.t(), map()) :: [map()]
   def rules(%Arena{} = arena, item, opts \\ []) do
     bool_rules? = Keyword.get(opts, :bool_rules, true)
+    ord = Keyword.get(opts, :term_ordering, :kbo)
+
     case MapSet.to_list(item.lits) do
       [{:pos, eq}] ->
         case Arena.get_node(arena, eq) do
           {@tag_eq, _, _, l, r} ->
             directions =
-              case Arena.kbo_compare(arena, l, r) do
+              case Ordering.compare_terms(arena, l, r, ord) do
                 :gt -> [{l, r}]
                 :lt -> [{r, l}]
                 :inc -> [{l, r}, {r, l}]
@@ -46,7 +50,7 @@ defmodule Astraea.Engine.Demodulator do
               end
 
             for {lhs, rhs} <- directions, not var?(arena, lhs) do
-              %{id: item.id, item: item, eq: eq, lhs: lhs, rhs: rhs, kind: :eq}
+              %{id: item.id, item: item, eq: eq, lhs: lhs, rhs: rhs, kind: :eq, ordering: ord}
             end
 
           _ ->
@@ -124,14 +128,15 @@ defmodule Astraea.Engine.Demodulator do
     |> DiscriminationTree.lookup(arena, :rule, sub)
     |> Enum.reduce_while({:none, arena}, fn rule, {:none, ar} ->
       is_bool_rule = Map.get(rule, :kind) in [:pos_bool, :neg_bool]
+      ord = Map.get(rule, :ordering, :kbo)
 
       with true <- rule.id != item.id,
            true <- not is_bool_rule or sub != elem(lit, 1),
            {:ok, subst} <- Arena.match_pattern(ar, rule.lhs, sub),
            true <- idempotent?(ar, subst),
            {ar, to} = Arena.subst_fvar(ar, rule.rhs, subst),
-           true <- is_bool_rule or Arena.kbo_compare(ar, sub, to) == :gt,
-           true <- side_condition?(ar, lit, sub, to, subst, is_bool_rule) do
+           true <- is_bool_rule or Ordering.compare_terms(ar, sub, to, ord) == :gt,
+           true <- is_bool_rule or side_condition?(ar, lit, sub, to, subst, ord) do
         {:halt, {:ok, ar, %{rule: rule, subst: subst, lit: lit, from: sub, to: to}}}
       else
         _ -> {:cont, {:none, ar}}
@@ -139,23 +144,18 @@ defmodule Astraea.Engine.Demodulator do
     end)
   end
 
-  defp side_condition?(_arena, _lit, _sub, _to, _subst, true), do: true
-
-  defp side_condition?(arena, lit, sub, to, subst, false),
-    do: side_condition?(arena, lit, sub, to, subst)
-
-  defp side_condition?(arena, {:pos, atom}, sub, to, subst) do
+  defp side_condition?(arena, {:pos, atom}, sub, to, subst, ord) do
     case Arena.get_node(arena, atom) do
       {@tag_eq, _, _, s, t} when sub in [s, t] ->
         other = if sub == s, do: t, else: s
-        not renaming?(arena, subst) or Arena.kbo_compare(arena, other, to) == :gt
+        not renaming?(arena, subst) or Ordering.compare_terms(arena, other, to, ord) == :gt
 
       _ ->
         true
     end
   end
 
-  defp side_condition?(_arena, {:neg, _}, _sub, _to, _subst), do: true
+  defp side_condition?(_arena, {:neg, _}, _sub, _to, _subst, _ord), do: true
 
   defp renaming?(arena, subst) do
     targets = Map.values(subst)
