@@ -1,11 +1,12 @@
 defmodule Astraea.Leo3RemainingTest do
   @moduledoc """
-  The kernel's type check on substitutions and the axiom counts for Leo-III's
-  SInE table.
+  The kernel's type check on substitutions, Leo-III's subsumption methods and
+  the axiom counts for Leo-III's SInE table.
   """
   use ExUnit.Case, async: true
 
   alias Astraea.{Arena, ProofChecker, Prover, TptpLower}
+  alias Astraea.Engine.Subsumption
 
   @thm_src """
   thf(q_type, type, q: ($i > $i) > $o).
@@ -75,6 +76,27 @@ defmodule Astraea.Leo3RemainingTest do
 
       assert {:error, _} =
                ProofChecker.derive_steps(arena, [axiom, {:subst, 2, 1, %{1 => fy, 2 => b}}])
+    end
+  end
+
+  describe "subsumption methods" do
+    test "trivial subsumption only accepts literal inclusion" do
+      %{arena: arena, i: i, p: p, px: px} = p_of_x()
+      {arena, a} = Arena.mk_const(arena, "a", i)
+      {arena, pa} = Arena.mk_app(arena, p, a)
+      general = %{lits: MapSet.new([{:pos, px}])}
+      instance = %{lits: MapSet.new([{:pos, pa}])}
+
+      assert Subsumption.subsumes?(arena, general, instance)
+      refute Subsumption.subsumes?(arena, general, instance, :trivial)
+      assert Subsumption.subsumes?(arena, instance, instance, :trivial)
+    end
+
+    test "the prover finds verified proofs with either method" do
+      for method <- [:matching, :trivial] do
+        assert {:proved, steps, stats} = Prover.prove_string(@thm_src, subsumption: method)
+        assert :ok = ProofChecker.verify_refutation(stats.arena, steps)
+      end
     end
   end
 

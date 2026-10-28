@@ -1142,7 +1142,12 @@ defmodule Astraea.Prover do
 
   defp subsumed_by_any?(%__MODULE__{} = state, candidate_ids, item) do
     Enum.any?(candidate_ids, fn id ->
-      Subsumption.subsumes?(state.arena, Map.fetch!(state.active_by_id, id), item)
+      Subsumption.subsumes?(
+        state.arena,
+        Map.fetch!(state.active_by_id, id),
+        item,
+        subsumption(state)
+      )
     end)
   end
 
@@ -1154,13 +1159,18 @@ defmodule Astraea.Prover do
 
     active_ids =
       for id <- FVIndex.subsumed(state.active_index, fv),
-          Subsumption.subsumes?(state.arena, given, Map.fetch!(state.active_by_id, id)),
+          Subsumption.subsumes?(
+            state.arena,
+            given,
+            Map.fetch!(state.active_by_id, id),
+            subsumption(state)
+          ),
           do: id
 
     passive_ids =
       for id <- FVIndex.subsumed(state.passive_index, fv),
           item = state.passive.items[id],
-          Subsumption.subsumes?(state.arena, given, item),
+          Subsumption.subsumes?(state.arena, given, item, subsumption(state)),
           do: id
 
     state = remove_active(state, active_ids)
@@ -1514,6 +1524,9 @@ defmodule Astraea.Prover do
     do: Keyword.get(state.opts, key, default)
 
   defp ordering(%__MODULE__{} = state), do: Ordering.opts(state.opts)
+
+  # Leo-III `--subsumption trivial | ho-pattern` (`Engine.Subsumption.subsumes?/4`).
+  defp subsumption(%__MODULE__{} = state), do: calculus_opt(state, :subsumption, :matching)
 
   defp demod_opts(%__MODULE__{} = state),
     do: [bool_rules: state.higher_order, term_ordering: ordering(state).term_ordering]

@@ -87,10 +87,17 @@ defmodule Astraea.Engine.Subsumption do
 
   @doc """
   Whether clause item `c` subsumes clause item `d` (items carry `:lits`, optionally
-  the cached `:lits_by_weight` of `Astraea.Prover`).
+  the cached `:lits_by_weight` of `Astraea.Prover`). `method` follows Leo-III's
+  `--subsumption`: `:matching` (default, `ho-pattern`) matches the literals of `c`
+  onto those of `d`, `:trivial` only accepts `c` whose literals all occur in `d`.
   """
-  @spec subsumes?(Arena.t(), map(), map()) :: boolean()
-  def subsumes?(%Arena{} = arena, c, d) do
+  @spec subsumes?(Arena.t(), map(), map(), :matching | :trivial) :: boolean()
+  def subsumes?(arena, c, d, method \\ :matching)
+
+  def subsumes?(%Arena{}, c, d, :trivial),
+    do: MapSet.size(c.lits) <= MapSet.size(d.lits) and MapSet.subset?(c.lits, d.lits)
+
+  def subsumes?(%Arena{} = arena, c, d, :matching) do
     MapSet.size(c.lits) <= MapSet.size(d.lits) and
       (MapSet.subset?(c.lits, d.lits) or
          match_lits(arena, heaviest_first(arena, c), MapSet.to_list(d.lits), %{}))
