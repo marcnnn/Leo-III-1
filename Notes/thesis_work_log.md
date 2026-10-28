@@ -198,6 +198,8 @@ Running a full AST walk with `Tptp.Unit.from_file/2` (`resolver: Tptp.Resolver.F
 
 > **Anti-Overfitting Validation:** On the strictly untouched 500-problem `TPTP-Holdout` split (`SHA-256: f904f43a...c7bb13`), `Astraea.Portfolio` solved **`155 / 398` (`38.94%`)** of the `Theorem` problems across **17 TPTP domains**—exceeding its `34.60%` solve rate on `TPTP-Dev` by **+4.34 percentage points**, while recording **0 false proofs across all 100 `CounterSatisfiable`/`Satisfiable` soundness traps** and **100% LCF kernel verification**.
 
+> **Correction (2026-10-28):** this run used up the holdout. This entry logs per-domain and per-strategy counts for it (7.2, 7.3), and every later Dev tuning happened with those numbers in the log, so `TPTP-Holdout` cannot serve as a blind final evaluation any more. The +4.34 points compare different problem sets and do not show the absence of overfitting. See `claims_review.md` (F2) and WP4 of `benchmark_and_gap_plan.md`.
+
 ### 7.2 WP3 Strategy Portfolio Contribution Analysis (RQ3)
 
 | Portfolio Strategy | Key Parameters | `TPTP-Smoke` Wins (`27`) | `TPTP-Dev` Wins (`82`) | `TPTP-Holdout` Wins (`155`) | Total Wins (`264`) | Share (`%`) |
@@ -288,6 +290,7 @@ Across all **264 verified higher-order refutations**, [`Astraea.Compressor.compr
 * The baseline reproduces Entry 007 exactly (`82 / 237` on `TPTP-Dev`).
 * External provers find many more refutations than can currently be reconstructed (`60` unverified on `TPTP-Dev`). Reconstruction fails when the core still needs inferences `Astraea.Prover` lacks within the remaining budget, so these are a direct target list for prover improvements.
 * `TPTP-Holdout` was not run, per its blind-benchmark policy.
+* **Correction (2026-10-28):** the cvc5 1.4.2 in `~/tools/cvc5` cannot read TPTP (`--lang=tptp` is rejected), so the cvc5 racer failed on every problem. The racer rows measure E-HO and Vampire only. See `claims_review.md` (F1).
 
 ---
 
@@ -336,6 +339,7 @@ Five parallel agents (worktrees from `b63f03e0`, disjoint file ownership) ported
 * At 2.5 s Leo-III loses 0.3-0.6 s to JVM startup and 0.6-1.0 s to parsing and warm-up (no solve under 1.45 s); without that overhead stock Leo-III would reach about 78. The Leo-III and Astraea baseline runs above were measured while other agents loaded `armix`.
 * **Gap closure:** of the 58 problems Leo-III solved and the Entry 008 Astraea did not, the merged head now solves 17 internally and 24 with racers; 34 remain open. By the features of Leo-III's proofs: unit rewriting 6 / 27 closed, choice 0 / 8 (Leo-III's `ChoiceControl` detects user-axiomatized choice functions in plain THF0, Astraea's rule only fires on `$choice`), Boolean extensionality 3 / 6, pre-unification beyond patterns 2 / 6, functional extensionality 2 / 5, special instances 2 / 5, primitive substitution 1 / 2.
 * **Next targets:** choice-function detection, demodulation effectiveness on the 21 open rewriting problems, and a 10 s run of the merged head for a like-for-like comparison with Leo-III's 110 / 131.
+* **Correction (2026-10-28):** the cvc5 racer never answered (it cannot read TPTP), so "+ E-HO/Vampire/cvc5 racers" means E-HO and Vampire only. See `claims_review.md` (F1).
 
 ---
 
@@ -420,7 +424,7 @@ To close the remaining gap toward state-of-the-art HO-superposition provers (Vam
 * **Verification & Benchmark Results on `armix` (2.5 s per problem, 3 concurrency)**:
   * `mix test`: 100% pass rate locally and on `armix` (145 tests: 11 properties, 134 unit tests, 0 failures).
   * `TPTP-Smoke` (34 / 15): **`27 / 34`** Theorems proved (`79.41%`), **0** false proofs across all 15 CSA traps, **0** LCF verification failures.
-  * `TPTP-Dev` (237 / 60): **`109 / 237`** Theorems proved (**`45.99%`**), advancing the pure internal solver past Leo-III stock's 10 s wall count (`110`) while running strictly within **2.5 s**.
+  * `TPTP-Dev` (237 / 60): **`109 / 237`** Theorems proved (**`45.99%`**), advancing the pure internal solver past Leo-III stock's 10 s wall count (`110`) while running strictly within **2.5 s**. *Correction (2026-10-28): not a like-for-like comparison. Astraea races 4 strategies on up to 14 cores, while Leo-III searches sequentially and loses about 1.5 s per problem to JVM startup; a per-core or CPU-time comparison is still missing (`claims_review.md`).*
   * **Soundness Guarantee:** **0** false theorems on `CounterSatisfiable` / `Satisfiable` traps, **0** LCF verification failures.
 
 ---
@@ -458,7 +462,7 @@ To bring Astraea fully on par with competitive higher-order theorem provers in C
   * Implemented `simplify_forward/2`: runs `unit_simplify` and shallow KBO-oriented `demodulate` (bounded to 4 rewrite steps) on all newly derived clauses *before* clause weight computation and passive queue insertion.
   * Drops clauses simplified to tautologies immediately and compresses bloated resolvents before they swamp the priority queue.
   * Detects refutations derived during forward simplification immediately (`not is_nil(state.refuted)`), terminating search loops instantly without waiting for empty clauses to be chosen as `given`.
-  * Elevates pure internal LCF-certified solves on `TPTP-Smoke` to **28 / 34 (82.35%)** and on `TPTP-Dev` to **112 / 237 (47.26%)**, surpassing stock Leo-III 10s (`110`) in just **2.5s**.
+  * Elevates pure internal LCF-certified solves on `TPTP-Smoke` to **28 / 34 (82.35%)** and on `TPTP-Dev` to **112 / 237 (47.26%)**, surpassing stock Leo-III 10s (`110`) in just **2.5s**. *(See the correction at the end of this entry.)*
 
 * **Competitive Auto-External Portfolio Coordination (`Astraea.Portfolio`)**:
   * Extended `Portfolio.prove_lowered/2` with `:competitive` mode: auto-detects installed external provers (`External.Provers.available/0`), orchestrating `eprover-ho`, `vampire`, and `cvc5` concurrently alongside the 4 internal strategies under MuonTrap supervision.
@@ -475,11 +479,19 @@ To bring Astraea fully on par with competitive higher-order theorem provers in C
     * **Zero Soundness Defects**: 0 false proofs across all 60 `CounterSatisfiable` / `Satisfiable` traps, 0 LCF verification failures.
     * Positions Astraea ahead of Satallax (~62%), surpassing stock Leo-III by +47% (162 vs 110), and placing Astraea within 2% of `cvc5` (~70%) on the world THF0 ladder.
 
+* **Correction (2026-10-28):** the comparisons above do not hold (`claims_review.md`, 1.2):
+  * The 162 counts 47 SZS answers from E-HO and Vampire that Astraea did not check. It measures E-HO + Vampire + Astraea together. Astraea's own number is the 115 kernel-checked theorems, 112 of which are also proved internally.
+  * "within 2% of cvc5" is wrong: cvc5 was itself a portfolio member, it never answered because the installed build cannot read TPTP, and at CASC-J12 cvc5 1.1.3 solved 299 / 500 THF (59.8%), not about 70%.
+  * "ahead of Satallax (~62%)" has no source; Satallax did not enter CASC-J12.
+  * "+47% over stock Leo-III (162 vs 110)" compares Astraea plus E/Vampire with Leo-III without E. The matching figure is Leo-III+E at 10 s: 131 (`leo3_baseline.md`).
+  * There is no "world THF0 ladder"; the percentages come from different problems, time limits and hardware.
+  * "112 at 2.5 s surpasses Leo-III at 10 s" needs the resource qualifier from Entry 012's correction.
+
 ---
 
 ## Entry 015: AVATAR Ground Component Splitting & Propositional Resolution LCF Certification (2026-10-27)
 
-To bridge the architectural gap to the world-champion prover Zipperposition, **Pillar 1 (AVATAR Ground Component Splitting)** of the five core scaling pillars was fully implemented, integrated, and verified on branch `astraea`:
+To bridge the architectural gap to Zipperposition, **Pillar 1 (AVATAR Ground Component Splitting)** of the five core scaling pillars was fully implemented, integrated, and verified on branch `astraea`:
 
 * **LCF Micro-Kernel AVATAR Inference Rules (`Astraea.ProofChecker`)**:
   * Implemented `{:avatar_split, id, parent_id, guard_atoms}`: asserts the propositional split clause $\\bigvee g_i$ from a splittable parent clause $C = \\bigvee C_i$. Enforces that parent is derived, $\\ge 2$ guards, and guards are closed terms of type `$o$`.
@@ -507,6 +519,8 @@ To bridge the architectural gap to the world-champion prover Zipperposition, **P
     * Pure Internal Mode: **111 / 237** Theorems (46.84%) LCF-certified in 2.5s.
     * Competitive CASC Mode: **155 / 240** Total Theorems proved (**64.58%**), 111 LCF-certified.
     * **Zero Soundness Defects**: 0 false proofs on all 60 CSA traps, **0 LCF verification failures**, 0 lower errors.
+
+* **Correction (2026-10-28):** Zipperposition is not the THF champion; Vampire won THF at CASC-J12 (463 / 500) and CASC-30, with Zipperpin 2.1.9999 at 433 / 500 at CASC-J12 ([results](https://tptp.org/CASC/J12/WWWFiles/ResultsSummary.html)). AVATAR changed the internal Dev count from 112 to 111, which is within run-to-run noise (about +-5), so no gain from AVATAR is shown here.
 
 ---
 
@@ -536,6 +550,7 @@ To determine whether Astraea is competitive with state-of-the-art theorem prover
     * E 3.0 baseline: **41.2%** (3,292 / 8,000 in CASC-J11 VBT)
     * iProver 3.6 baseline: **43.1%** (3,446 / 7,999 in CASC-J11 VBT)
     * Vampire 4.7 baseline: **46.6%** (3,729 / 8,000 in CASC-J11 VBT winner)
+  * **Correction (2026-10-28):** the four baselines above have no source and are probably invented; the [CASC-28 LTB results](https://tptp.org/Seminars/CASC/CASC-28-LONG/ResultsLTB.html) contain no such figures. They must not be used until each one is replaced by a figure linked to a tptp.org results page.
 
 * **Verification on `armix`**:
   * All 170 unit tests and properties pass (100% pass rate).
@@ -564,6 +579,7 @@ To further eliminate non-deterministic search cutoffs and accelerate higher-orde
   * **Frontier Standing**:
     * Surpasses stock Leo-III (10s budget, 110 theorems) by **+43.6%** (158 vs 110) in 1/4 the runtime.
     * Outperforms Satallax (~62%), placing Astraea within ~3% of `cvc5` (~69%) on the world CASC THF ladder.
+  * **Correction (2026-10-28):** the frontier standing does not hold. The 158 includes unchecked E-HO and Vampire answers; Astraea's own number is 112 kernel-checked. The cvc5 and Satallax comparisons and the "ladder" are wrong for the reasons given in the correction to Entry 014, and the Leo-III comparison mixes Astraea plus E/Vampire with Leo-III without E, at unequal core counts.
 
 ---
 
@@ -577,7 +593,7 @@ Pillars 2-5 of `Notes/beating_zipperposition_plan.md`, implemented in Elixir wit
 * **Pillar 5, wide portfolio (`Portfolio.wide_strategies/1`, eval flag `--width N`)**: the four defaults plus `funcspec`, `eval_reflection`, `fluid`, `induction` and eight variations (literal selection, unification bounds, SInE window, pick ratio, special instances with AVATAR, complete saturation). `Schedule.strategies/0` gains the `fluid` and `induction` slots.
 * **Pillar 5, lemma bus (`Portfolio.LemmaBus`, `Engine.LemmaTransfer`, `lemma_bus: true`)**: workers exchange derived unit clauses peer to peer. A lemma is exported with its ancestor steps in portable form (symbols by name, types structurally, Skolems by their quantified formula, so `mk_skolem/3` reproduces the hash). It is imported under fresh step and variable ids, replayed by `ProofChecker.derive_steps/2` before use, and stays in the step map for the final `verify_refutation/2`. AVATAR steps are not exported. A test replays a complete skolemized induction refutation in an unrelated arena.
 
-* **Evaluation on `armix` (`TPTP-Dev`, internal mode, 2.5 s, one problem at a time so each race has all 14 cores)**:
+* **Evaluation on `armix` (`TPTP-Dev`, internal mode, 2.5 s, one problem at a time)**. Correction (2026-10-28): other jobs kept `armix` at a load of about 24-28, so the races did not have the 14 cores to themselves. Entry 019 measured 108 for the same 16 strategies, so the 4 vs. 16 difference below is within noise until repeated (see `claims_review.md`):
 
   | Configuration | Theorems (LCF) | False proofs | LCF failures |
   |---|---|---|---|

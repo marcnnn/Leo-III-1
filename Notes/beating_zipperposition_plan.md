@@ -1,17 +1,21 @@
-# Architectural & Engineering Plan: Surpassing Zipperposition in CASC THF
+# Architectural & Engineering Plan: Zipperposition's Core Techniques in Astraea
 
-> **Objective:** Close the remaining ~16%–20% solve-rate gap to surpass **Zipperposition** (84%–88% on CASC THF benchmarks), establishing Astraea as the world-leading higher-order automated theorem prover while strictly preserving 100% LCF micro-kernel certification and zero false proofs.
+> **Superseded (2026-10-28).** The replacement plan is [`benchmark_and_gap_plan.md`](benchmark_and_gap_plan.md). The standing figures, the comparison with cvc5 and the per-phase targets in the original version did not hold up (see [`claims_review.md`](claims_review.md)); sections 1, 4 and 5 now give the corrected figures and the measured results. The pillar specifications are kept as the design record.
+
+> **Objective:** Add the five techniques that distinguish Zipperposition from Astraea, while keeping every counted theorem kernel-checked and 0 false proofs. The size of the gap to Zipperposition on Dev is unknown, because no reference prover has been run on Dev under the same conditions (WP3 of `benchmark_and_gap_plan.md`).
 
 ---
 
-## 1. Executive Summary & Benchmark Target
+## 1. Starting Point
 
-Astraea has completed the foundational higher-order calculus gap against Leo-III and Satallax:
-- **Pure Internal Solver (2.5s budget, `armix` Neoverse-N1):** **112 / 237** (47.26%), beating stock Leo-III 10s (`110`) in 1/4th the time.
-- **Competitive CASC Mode (2.5s budget, `armix`):** **162 / 237** (**68.35%** total, 115 LCF-certified), within 2% of `cvc5` (~70%).
-- **Frontier Target (Zipperposition):** ~84%–88% solve rate (approx. 200–210 theorems on `TPTP-Dev`).
+Corrected 2026-10-28; see `claims_review.md`.
 
-To reach **205+ / 237 (86.5%+)** theorems within 2.5s to 10s budgets, Astraea must address the 5 architectural differences that give Zipperposition its decisive edge.
+- **Astraea, internal and kernel-checked (Dev, 2.5 s, shared `armix`):** 112 / 237 (47.3%) when this plan was written. Stock Leo-III solves 110 at 10 s, but Astraea races several strategies on many cores while Leo-III searches sequentially, so this is not a like-for-like comparison.
+- **Astraea + E-HO/Vampire:** 162 / 237, of which only 115 are kernel-checked; the other 47 are unchecked E-HO and Vampire answers. This measures the three provers together, not Astraea. cvc5 was listed as a member but never answered, because its build cannot read TPTP.
+- **Zipperposition:** Zipperpin 2.1.9999 solved 433 / 500 THF (86.6%) at [CASC-J12](https://tptp.org/CASC/J12/WWWFiles/ResultsSummary.html); Vampire won THF there (463 / 500) and at CASC-30. CASC problems, time limits and hardware differ from Dev at 2.5 s, so these percentages say nothing about a Dev target.
+- **Upper bound on Dev:** 32 of the 237 theorems have rating 1.00, so no current prover is expected to solve more than 205.
+
+The five pillars below are the techniques in which Zipperposition differs from Astraea. Whether they close a gap on Dev has to be measured per problem (section 4).
 
 ---
 
@@ -78,7 +82,7 @@ In saturation, clauses with multiple ground literals (e.g., $p(a) \lor q(b) \lor
 ### Pillar 2: Deep Discrimination Tree Demodulation (`Astraea.Engine.DiscriminationTree`)
 
 #### Motivation & Gap Analysis
-Zipperposition simplifies *all* subterms across all clauses using thousands of active equalities in sub-microsecond time. Astraea currently indexes rules via `HeadIndex`, which only indexes top heads.
+Zipperposition indexes rewrite rules on all subterms, not only on head symbols. Astraea currently indexes rules via `HeadIndex`, which only indexes top heads.
 
 #### Specification
 1. **Perfect Discrimination Tree (PDT):**
@@ -87,9 +91,8 @@ Zipperposition simplifies *all* subterms across all clauses using thousands of a
 2. **Subterm Replacement Engine:**
    - Extend `Astraea.ProofChecker.replace_subterm/4` with a batched top-down term rewriter.
    - Normalize every newly generated literal to normal form before passive queue scoring.
-3. **Expected Speedup:**
-   - Passive queue size reduced by 60%–75%.
-   - Redundant clause derivations eliminated before enqueueing.
+3. **Expected Effect:**
+   - Faster rule retrieval when rule sets are large. The passive queue reduction originally estimated here (60%-75%) was never measured.
 
 ---
 
@@ -132,7 +135,7 @@ Dozens of theorems in `SEU`, `NUM`, and `ITP` require proving universal statemen
 ### Pillar 5: Multi-Core OTP Bayesian Portfolio Schedule (16 Parallel Slices)
 
 #### Motivation & Gap Analysis
-While Zipperposition runs 30–50 short slices *sequentially*, Astraea has access to 14–64 physical ARM64 cores on `armix` and server clusters. We can run 16 distinct strategies concurrently with zero lock contention.
+Zipperposition runs a schedule of short strategy slices one after another; Astraea can run strategies concurrently on the 14 cores of `armix`. Note that parallel slices need a per-core or CPU-time comparison to be fair against a sequential prover. We can run 16 distinct strategies concurrently with zero lock contention.
 
 #### Specification
 1. **16-Strategy Portfolio Matrix:**
@@ -150,13 +153,17 @@ While Zipperposition runs 30–50 short slices *sequentially*, Astraea has acces
 
 ## 4. Phase-by-Phase Implementation Roadmap
 
-| Phase | Milestone | Primary Modules | Success Criteria |
+The original per-phase targets (+15 / +6 / +8 / +10 theorems, ending at 205 / 237) had no basis and are removed. The measured column is from the thesis log; run-to-run noise on Dev at 2.5 s is about +-5 problems.
+
+| Phase | Milestone | Primary Modules | Measured on Dev (2.5 s, internal) |
 | :---: | :--- | :--- | :--- |
-| **Phase 1** | **AVATAR Ground Component Splitting** | `Astraea.Calculus.Avatar`<br>`Astraea.Engine.CdclSat` | +15 theorems on `TPTP-Dev` (target: 177 / 237). 0 false proofs. |
-| **Phase 2** | **Deep Discrimination Tree Demodulation** | `Astraea.Engine.DiscriminationTree` | 2.5x speedup on equational benchmarks; +6 theorems (target: 183 / 237). |
-| **Phase 3** | **Fluid Superposition with Constraints** | `Astraea.Calculus.Fluid`<br>`Astraea.Prover` | Unlocks inductive higher-order synthesis (`ITP`); +8 theorems (target: 191 / 237). |
-| **Phase 4** | **Structural Datatype Induction** | `Astraea.Calculus.Induction` | Solves structural recursion goals; +10 theorems (target: 201 / 237). |
-| **Phase 5** | **16-Worker OTP Concurrent Portfolio** | `Astraea.Portfolio`<br>`Astraea.Portfolio.LemmaBus` | Exceeds **205 / 237 (86.5%)**, officially overtaking Zipperposition. |
+| **Phase 1** | **AVATAR Ground Component Splitting** | `Astraea.Calculus.Avatar`<br>`Astraea.Engine.CdclSat` | 112 → 111, within noise (Entry 015). 0 false proofs. |
+| **Phase 2** | **Deep Discrimination Tree Demodulation** | `Astraea.Engine.DiscriminationTree` | About 0 (106 vs. 104 side by side). Rule sets on Dev are small; to be tested on LTB (Entry 018). |
+| **Phase 3** | **Fluid Superposition with Constraints** | `Astraea.Calculus.Fluid`<br>`Astraea.Prover` | Fired 0 times on Dev (Entry 018). |
+| **Phase 4** | **Stated Induction** (restricted, see Pillar 4) | `Astraea.Calculus.Induction` | Fired 0 times; Dev has no problem with a stated induction principle (Entry 018). |
+| **Phase 5** | **16-Worker OTP Concurrent Portfolio** | `Astraea.Portfolio`<br>`Astraea.Portfolio.LemmaBus` | 16 vs. 4 strategies: between -5 and +6, not yet shown with repeated runs. The lemma bus loses problems and stays off (Entry 018). |
+
+Further work and its acceptance criteria are in `benchmark_and_gap_plan.md`.
 
 ---
 
@@ -168,4 +175,5 @@ While Zipperposition runs 30–50 short slices *sequentially*, Astraea has acces
 2. **Gate 2 (Soundness Traps):**
    - 0 false proofs across all 60 `CounterSatisfiable` / `Satisfiable` traps in `TPTP-Dev` and all 15 in `TPTP-Smoke`.
 3. **Gate 3 (Blind Holdout Protection):**
-   - `TPTP-Holdout` (500 problems) remains strictly unread, untouched, and uninspected until the final thesis evaluation.
+   - A holdout split stays unread, untouched and uninspected until the final thesis evaluation.
+   - The current `TPTP-Holdout` no longer meets this: Entry 007 ran it and logged per-domain and per-strategy counts. Whether to freeze a new one is WP4 of `benchmark_and_gap_plan.md`.
