@@ -56,6 +56,7 @@ defmodule Astraea.Prover do
     ArgCong,
     Avatar,
     BoolHoist,
+    Disagreement,
     Choice,
     Cnf,
     DomainConstraint,
@@ -1469,6 +1470,8 @@ defmodule Astraea.Prover do
   #   :choice (true) - Hilbert choice instances
   #   :choice_flex (true) - instantiate applied choice-typed variables with choice operators
   #   :bool_hoist (true) - case split on formulas in argument positions (`Calculus.BoolHoist`)
+  #   :constraint_resolution (false) - resolve atoms that differ at function or Boolean
+  #     type, keeping the differences as negative equations (`Calculus.Disagreement`)
   #   :ordered (false), :literal_selection (:none | :neg_max) - see `Calculus.Ordering`
   #   :fingerprints (true), :fingerprint_backend (:auto) - partner retrieval
   #   :paramod_flex (false) - also paramodulate into flex-headed subterms
@@ -1500,7 +1503,8 @@ defmodule Astraea.Prover do
            {:cont, state, items11} <- try_induction(state, given),
            {:cont, state, items12} <- try_domain_instances(state, given),
            {:cont, state, items13} <- try_inverse_instances(state, given),
-           {:cont, state, items14} <- try_bool_hoist(state, given) do
+           {:cont, state, items14} <- try_bool_hoist(state, given),
+           {:cont, state, items15} <- try_constraint_resolution(state, given) do
         clausify_items(
           state,
           items0 ++
@@ -1519,7 +1523,8 @@ defmodule Astraea.Prover do
             items11 ++
             items12 ++
             items13 ++
-            items14
+            items14 ++
+            items15
         )
       end
     else
@@ -2377,6 +2382,79 @@ defmodule Astraea.Prover do
     else
       {:cont, st, items} -> {st, items ++ acc}
       _ -> {st, acc}
+    end
+  end
+
+  @max_disagreements 2
+
+  # Resolution up to extensionality (`Calculus.Disagreement`): `C | p(s)` and
+  # `D | ~p(t)` yield `C | D | s != t`, via `:paramod` with the tautology
+  # `~(s = t) | s = t` and `:resolve`.
+  defp try_constraint_resolution(%__MODULE__{} = state, given) do
+    if state.higher_order and calculus_opt(state, :constraint_resolution, false) do
+      partners = Enum.filter(state.active, &sos_partner?(state, given, &1))
+
+      each_inference(state, partners, fn st, partner ->
+        {st, partner} = ensure_disjoint_fvars(st, given, partner)
+        ord = ordering(st)
+
+        targets =
+          for {pol1, a1} <- Ordering.eligible(st.arena, given.lits, ord),
+              {pol2, a2} <- Ordering.eligible(st.arena, partner.lits, ord),
+              pol1 != pol2,
+              {pos_c, pos_atom, neg_c, neg_atom} =
+                if(pol1 == :pos, do: {given, a1, partner, a2}, else: {partner, a2, given, a1}),
+              {:ok, pairs} <- [
+                Disagreement.pairs(st.arena, pos_atom, neg_atom, @max_disagreements)
+              ],
+              do: {pos_c, pos_atom, neg_c, neg_atom, pairs}
+
+        each_inference(st, targets, &resolve_with_constraints/2)
+      end)
+    else
+      {:cont, state, []}
+    end
+  end
+
+  defp resolve_with_constraints(st, {pos_c, pos_atom, neg_c, neg_atom, pairs}) do
+    depth = max(pos_c.depth, neg_c.depth) + 1
+    guards = MapSet.union(pos_c.guards, neg_c.guards)
+
+    {st, cur, atom} =
+      Enum.reduce(pairs, {st, pos_c, pos_atom}, fn {s, t}, {st, cur, atom} ->
+        {arena, eq} = Arena.mk_eq(st.arena, s, t)
+        {arena, eq_eq} = Arena.mk_eq(arena, eq, eq)
+        refl_step = {:refl, st.next_step_id, eq}
+        {st, refl} = add_step(%{st | arena: arena}, refl_step, MapSet.new([{:pos, eq_eq}]), 0)
+        taut_step = {:cnf, st.next_step_id, refl.id, {:pos, eq_eq}, {:bool_eq, :left}}
+        {st, taut} = add_step(st, taut_step, MapSet.new([{:neg, eq}, {:pos, eq}]), 0)
+
+        {arena, replaced} = ProofChecker.replace_subterm(st.arena, atom, s, t)
+        {arena, new_atom} = Arena.beta_eta_norm(arena, replaced)
+
+        lits =
+          cur.lits
+          |> MapSet.delete({:pos, atom})
+          |> MapSet.put({:pos, new_atom})
+          |> MapSet.put({:neg, eq})
+
+        step = {:paramod, st.next_step_id, taut.id, cur.id, eq, {:pos, atom}, {:pos, new_atom}}
+        {st, next} = add_step(%{st | arena: arena}, step, lits, depth, guards)
+        {st, next, new_atom}
+      end)
+
+    if atom == neg_atom and MapSet.member?(cur.lits, {:pos, atom}) do
+      resolvent =
+        MapSet.union(
+          MapSet.delete(cur.lits, {:pos, atom}),
+          MapSet.delete(neg_c.lits, {:neg, atom})
+        )
+
+      step = {:resolve, st.next_step_id, cur.id, neg_c.id, {:pos, atom}}
+      {st, item} = add_step(st, step, resolvent, depth, guards)
+      {:cont, st, [item]}
+    else
+      {:cont, st, []}
     end
   end
 

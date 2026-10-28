@@ -381,6 +381,22 @@ defmodule Astraea.CalculusTest do
     assert {:saturated, _} = Prover.prove_string(src, timeout_ms: 2_000, bool_hoist: false)
   end
 
+  test "constraint resolution keeps functional disagreements (SYO026^1)" do
+    src = """
+    thf(p_decl, type, p: ($o > $o) > $o).
+    thf(conj, conjecture,
+        (((p @ ^[X: $o]: X) & (p @ ^[X: $o]: ~ X) & (p @ ^[X: $o]: $false)
+          & (p @ ^[X: $o]: $true))
+         => ! [Y: $o > $o]: (p @ Y))).
+    """
+
+    assert {:proved, steps, _} =
+             Prover.prove_string(src, timeout_ms: 5_000, constraint_resolution: true)
+
+    assert :paramod in kinds(steps)
+    assert {:saturated, _} = Prover.prove_string(src, timeout_ms: 5_000)
+  end
+
   test "primitive substitution plus search-time clausification" do
     src = """
     thf(a_type, type, a: $i).
