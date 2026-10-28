@@ -421,6 +421,31 @@ defmodule Astraea.CalculusTest do
              Prover.prove_clauses(arena, clauses, timeout_ms: 1_000, choice: false)
   end
 
+  test "applied choice-typed variables are instantiated with $choice" do
+    {arena, s} = prop_sig()
+    {arena, x} = Arena.mk_fvar(arena, 10, {:arrow, s.io, :i})
+    {arena, b} = Arena.mk_const(arena, "b", :i)
+    {arena, pb} = Arena.mk_app(arena, s.p, b)
+    {arena, x_p} = Arena.mk_app(arena, x, s.p)
+    {arena, x_q} = Arena.mk_app(arena, x, s.q)
+    {arena, p_x_p} = Arena.mk_app(arena, s.p, x_p)
+    {arena, q_x_q} = Arena.mk_app(arena, s.q, x_q)
+
+    # p(b), q(a), ~p(X @ p) | ~q(X @ q): no constant function works for X, the
+    # proof needs X := $choice and two choice instances
+    clauses = [
+      MapSet.new([{:pos, pb}]),
+      MapSet.new([{:pos, s.qa}]),
+      MapSet.new([{:neg, p_x_p}, {:neg, q_x_q}])
+    ]
+
+    assert {:proved, steps, _} = Prover.prove_clauses(arena, clauses, timeout_ms: 2_000)
+    assert :choice in kinds(steps)
+
+    assert {:saturated, _} =
+             Prover.prove_clauses(arena, clauses, timeout_ms: 1_000, choice_flex: false)
+  end
+
   test "user-defined choice axiom detection and instantiation" do
     {arena, s} = prop_sig()
     # Define a choice operator constant: eps: (i > $o) > i

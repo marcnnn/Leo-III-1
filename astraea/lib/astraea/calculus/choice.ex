@@ -102,6 +102,47 @@ defmodule Astraea.Calculus.Choice do
     |> MapSet.to_list()
   end
 
+  @doc """
+  Free variables of a choice type `(T > $o) > T` that occur applied in `lits`, as
+  `{var_id, choice_ty}` (E `choice_inst`, Leo-III `instantiateChoice` on flexible
+  heads). Instantiating such a variable with a choice operator lets the choice rule
+  fire on the resulting `eps @ P` occurrences.
+  """
+  @spec flex_vars(Arena.t(), Astraea.ProofChecker.clause()) ::
+          [{non_neg_integer(), Arena.type_id()}]
+  def flex_vars(%Arena{} = arena, lits) do
+    lits
+    |> Enum.reduce(MapSet.new(), fn {_pol, atom}, acc -> collect_flex(arena, atom, acc) end)
+    |> MapSet.to_list()
+  end
+
+  defp collect_flex(arena, term_id, acc) do
+    case Terms.view(arena, term_id) do
+      {:rigid, _head, children} ->
+        Enum.reduce(children, acc, fn {c, _}, a -> collect_flex(arena, c, a) end)
+
+      {:flex, f, [_ | _] = args} ->
+        {@tag_fvar, _, ty, var_id, _} = Arena.get_node(arena, f)
+        acc = if choice_type?(arena, ty), do: MapSet.put(acc, {var_id, ty}), else: acc
+        Enum.reduce(args, acc, &collect_flex(arena, &1, &2))
+
+      {:flex, _f, []} ->
+        acc
+
+      {:lam, _dom, body} ->
+        collect_flex(arena, body, acc)
+    end
+  end
+
+  defp choice_type?(arena, ty) do
+    with {:arrow, p_ty, t} <- Map.get(arena.type_table, ty),
+         {:arrow, ^t, o} <- Map.get(arena.type_table, p_ty) do
+      o == Arena.ty_o()
+    else
+      _ -> false
+    end
+  end
+
   defp collect(arena, term_id, heads_set, acc) do
     acc =
       case Terms.spine(arena, term_id) do

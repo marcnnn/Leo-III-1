@@ -1466,6 +1466,7 @@ defmodule Astraea.Prover do
   #   :prim_subst (1, level 0-3), :prim_subst_depth (2) - primitive substitution
   #   :ext_inferences (true) - BoolExt / FuncExt on given clauses
   #   :choice (true) - Hilbert choice instances
+  #   :choice_flex (true) - instantiate applied choice-typed variables with choice operators
   #   :ordered (false), :literal_selection (:none | :neg_max) - see `Calculus.Ordering`
   #   :fingerprints (true), :fingerprint_backend (:auto) - partner retrieval
   #   :paramod_flex (false) - also paramodulate into flex-headed subterms
@@ -2272,44 +2273,107 @@ defmodule Astraea.Prover do
           |> Enum.reject(&MapSet.member?(state.choice_done, &1)),
         else: []
 
-    each_inference(state, targets, fn st, {op, pred} ->
-      st = %{st | choice_done: MapSet.put(st.choice_done, {op, pred})}
+    with {:cont, state, items} <- each_inference(state, targets, &choice_instance(&1, given, &2)),
+         {:cont, state, flex_items} <- try_choice_flex(state, given) do
+      {:cont, state, items ++ flex_items}
+    end
+  end
 
-      case op do
-        :builtin ->
-          fvar = st.next_fvar_id
-          st = %{st | next_fvar_id: fvar + 1}
+  defp choice_instance(st, given, {op, pred}) do
+    st = %{st | choice_done: MapSet.put(st.choice_done, {op, pred})}
 
-          case ProofChecker.choice_instance(st.arena, pred, fvar) do
-            {:ok, arena, clause} ->
-              {st, item} =
-                add_step(
-                  %{st | arena: arena},
-                  {:choice, st.next_step_id, pred, fvar},
-                  clause,
-                  given.depth
-                )
+    case op do
+      :builtin ->
+        fvar = st.next_fvar_id
+        st = %{st | next_fvar_id: fvar + 1}
 
-              {:cont, st, [item]}
+        case ProofChecker.choice_instance(st.arena, pred, fvar) do
+          {:ok, arena, clause} ->
+            {st, item} =
+              add_step(
+                %{st | arena: arena},
+                {:choice, st.next_step_id, pred, fvar},
+                clause,
+                given.depth
+              )
 
-            :error ->
-              {:cont, st, []}
-          end
+            {:cont, st, [item]}
 
-        user_head ->
-          case Map.fetch(st.choice_axioms, user_head) do
-            {:ok, info} ->
-              {arena, fresh_witness} = Arena.mk_fvar(st.arena, st.next_fvar_id, info.dom_ty)
-              subst = %{info.pred_fvar_id => pred, info.witness_fvar_id => fresh_witness}
-              st = %{st | arena: arena, next_fvar_id: st.next_fvar_id + 1}
-              {st, item} = emit_subst_step(st, info.ax_item, subst, given.depth)
-              {:cont, st, [item]}
+          :error ->
+            {:cont, st, []}
+        end
 
-            :error ->
-              {:cont, st, []}
-          end
-      end
+      user_head ->
+        case Map.fetch(st.choice_axioms, user_head) do
+          {:ok, info} ->
+            {arena, fresh_witness} = Arena.mk_fvar(st.arena, st.next_fvar_id, info.dom_ty)
+            subst = %{info.pred_fvar_id => pred, info.witness_fvar_id => fresh_witness}
+            st = %{st | arena: arena, next_fvar_id: st.next_fvar_id + 1}
+            {st, item} = emit_subst_step(st, info.ax_item, subst, given.depth)
+            {:cont, st, [item]}
+
+          :error ->
+            {:cont, st, []}
+        end
+    end
+  end
+
+  # Applied free variables of a choice type `(T > $o) > T` are instantiated with
+  # `$choice` and every detected user choice function of that type, and the instance
+  # is resolved with the choice instance of each of its negative `P @ (eps @ P)`
+  # literals (E `choice_inst`). The bare instance would be subsumed by its parent.
+  defp try_choice_flex(%__MODULE__{} = state, given) do
+    targets =
+      if calculus_opt(state, :choice, true) and calculus_opt(state, :choice_flex, true),
+        do: Choice.flex_vars(state.arena, given.lits),
+        else: []
+
+    each_inference(state, targets, fn st, {var_id, ty} ->
+      {arena, eps} = Arena.mk_const(st.arena, Choice.name(), ty)
+      users = Enum.filter(Map.keys(st.choice_axioms), &(Arena.type_of(arena, &1) == ty))
+
+      Enum.reduce(
+        [{:builtin, eps} | Enum.map(users, &{&1, &1})],
+        {:cont, %{st | arena: arena}, []},
+        fn
+          {op, op_term}, {:cont, st, acc} ->
+            {st, inst} = emit_subst_step(st, given, %{var_id => op_term}, given.depth + 1)
+
+            heads = if op == :builtin, do: [], else: [op]
+
+            preds =
+              for {^op, _} = target <- Choice.predicates(st.arena, inst.lits, heads),
+                  do: target
+
+            {st, items} = Enum.reduce(preds, {st, []}, &resolve_choice_instance(&2, inst, &1))
+            {:cont, st, [inst | items] ++ acc}
+        end
+      )
     end)
+  end
+
+  defp resolve_choice_instance({st, acc}, inst, target) do
+    with {:cont, st, [choice_item]} <- choice_instance(st, inst, target),
+         [{:pos, atom}] <- Enum.filter(choice_item.lits, &match?({:pos, _}, &1)),
+         {:ok, arena, atom, pos_lit, neg_lit} <-
+           find_resolvable_atom(st.arena, choice_item.lits, inst.lits, atom) do
+      lits =
+        MapSet.union(MapSet.delete(choice_item.lits, pos_lit), MapSet.delete(inst.lits, neg_lit))
+
+      {st, item} =
+        add_step(
+          %{st | arena: arena},
+          {:resolve, st.next_step_id, choice_item.id, inst.id, {:pos, atom}},
+          lits,
+          inst.depth,
+          MapSet.union(choice_item.guards, inst.guards)
+        )
+
+      {st, [item, choice_item | acc]}
+    else
+      {:cont, st, items} -> {st, items ++ acc}
+      _ -> {st, acc}
+    end
   end
 
 
