@@ -219,6 +219,59 @@ defmodule Astraea.ProverLeo3FeaturesTest do
     end
   end
 
+  describe "despairSubmit" do
+    setup do
+      dir = Path.join(System.tmp_dir!(), "astraea_despair_#{System.unique_integer([:positive])}")
+      File.mkdir_p!(dir)
+      on_exit(fn -> File.rm_rf(dir) end)
+      {:ok, dir: dir}
+    end
+
+    # An oracle that claims unsatisfiability and cites every clause of its input.
+    @cite_all_clauses """
+    echo "% SZS status Unsatisfiable"
+    echo "% SZS output start CNFRefutation"
+    grep -o '^t[hf]f(c[0-9]*' "$1" | sed 's/^t.f(//' | while read n; do
+      echo "cnf($n, axiom, \\$false, file('input.p', $n))."
+    done
+    echo "% SZS output end CNFRefutation"
+    """
+
+    @open_src """
+    thf(f_type, type, f: $i > $i).
+    thf(p_type, type, p: $i > $o).
+    thf(a_type, type, a: $i).
+    thf(b_type, type, b: $i).
+    thf(ax_pa, axiom, p @ a).
+    thf(ax_step, axiom, ! [X: $i]: ((p @ X) => (p @ (f @ X)))).
+    thf(conj, conjecture, p @ b).
+    """
+
+    defp oracle(dir) do
+      path = Path.join(dir, "oracle")
+      File.write!(path, "#!/bin/sh\n" <> @cite_all_clauses <> "\n")
+      File.chmod!(path, 0o755)
+      %{name: :oracle, executables: [path], formats: [:thf], args: fn _l, file -> [file] end}
+    end
+
+    @tag :external
+    test "a run that hits its iteration limit asks the external provers once more", %{dir: dir} do
+      opts = [
+        cooperate: [{:oracle, spec: oracle(dir), tmp_dir: dir}],
+        cooperate_interval: 1_000_000,
+        trust_external: true,
+        max_iterations: 2,
+        timeout_ms: 3_000
+      ]
+
+      assert {:proved_external, stats} = prove(@open_src, opts)
+      assert [%{prover: :oracle}] = stats.external_calls
+
+      assert {:resource_out, stats} = prove(@open_src, [despair_submit: false] ++ opts)
+      assert stats.external_calls == []
+    end
+  end
+
   test "the Leo-III schedule passes sos, domConstr and injectivity to the prover" do
     s3 = Enum.find(Schedule.leo3_strategies(), &(&1.name == :s3))
     s5a = Enum.find(Schedule.leo3_strategies(), &(&1.name == :s5a))

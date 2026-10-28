@@ -138,6 +138,7 @@ defmodule Astraea.Prover do
             opts: [],
             cooperate: [],
             coop_interval: 40,
+            coop_max_jobs: 1,
             coop_max_clauses: 400,
             coop_last_dispatch: 0,
             coop_inflight: %{},
@@ -156,7 +157,8 @@ defmodule Astraea.Prover do
             sos_ids: MapSet.new(),
             domains: %{},
             domain_instances: 0,
-            inverses: %{}
+            inverses: %{},
+            despaired: false
 
   @type result ::
           {:proved, [ProofChecker.step()], map()}
@@ -293,6 +295,8 @@ defmodule Astraea.Prover do
     * `:cooperate` - external provers to call during search, as names or
       `{name, opts}` (options of `Astraea.External.run/3`, plus `:spec`, `:format`)
     * `:cooperate_interval` - iterations between external calls (default 40)
+    * `:cooperate_max_jobs` - calls per external prover running at once (Leo-III
+      `--atp-max-jobs`, default 1)
     * `:cooperate_max_clauses` - clauses per call: all active and unit clauses, then
       the best-scored passive ones (default 400)
     * `:trust_external` - return `{:proved_external, stats}` when an external
@@ -303,6 +307,10 @@ defmodule Astraea.Prover do
     * `:sine_filtered` - the input omits axioms (set by `prove_lowered/2`)
     * `:input_incomplete` - reasons why a model of the input clauses need not be a
       model of the problem (set by `prove_lowered/2`)
+    * `:despair_submit` - with `:cooperate`, a run that gives up early (incomplete
+      saturation, iteration or reduction limit) hands its clauses to the external
+      provers once more and waits for them until the deadline (Leo-III
+      `despairSubmit`, default `true`)
   Leo-III preprocessing and strategy parameters (`RunStrategy`, `Configuration`):
     * `:sos` - set of support (Leo-III `sos`): binary inferences (resolution,
       paramodulation) need a premise descending from the conjecture. The conjecture
@@ -357,6 +365,7 @@ defmodule Astraea.Prover do
       opts: opts,
       cooperate: opts |> Keyword.get(:cooperate, []) |> Enum.map(&normalize_external/1),
       coop_interval: Keyword.get(opts, :cooperate_interval, 40),
+      coop_max_jobs: Keyword.get(opts, :cooperate_max_jobs, 1),
       coop_max_clauses: Keyword.get(opts, :cooperate_max_clauses, 400),
       avatar: Keyword.get(opts, :avatar, false),
       sat_solver: if(Keyword.get(opts, :avatar, false), do: CdclSat.new(), else: nil),
@@ -553,7 +562,7 @@ defmodule Astraea.Prover do
 
   defp saturation_loop(%__MODULE__{iterations: iters, max_iterations: max_iters} = state)
        when is_integer(max_iters) and iters >= max_iters do
-    finish(state, {:resource_out, stats(state)})
+    despair(state, :resource_out)
   end
 
   defp saturation_loop(%__MODULE__{} = state) do
@@ -562,10 +571,10 @@ defmodule Astraea.Prover do
         finish(state, finalize_proof(state, state.refuted))
 
       PassiveQueue.empty?(state.passive) ->
-        finish(state, {:saturated, stats(state)})
+        despair(state, :saturated)
 
       reductions_exceeded?(state) ->
-        finish(state, {:resource_out, stats(state)})
+        despair(state, :resource_out)
 
       System.monotonic_time(:millisecond) >= state.deadline_ms ->
         finish(state, {:resource_out, stats(state)})
@@ -3292,6 +3301,62 @@ defmodule Astraea.Prover do
     end
   end
 
+  # Leo-III `despairSubmit`: a run that gives up with time left (incomplete
+  # saturation, iteration or reduction limit) hands its clauses to the external
+  # provers once more, unless a call is still open, and waits for the answers until
+  # the deadline. A complete saturation is a model answer and skips this.
+  defp despair(%__MODULE__{} = state, kind) do
+    result = {kind, stats(state)}
+
+    cond do
+      state.cooperate == [] or state.despaired or
+          not calculus_opt(state, :despair_submit, true) ->
+        finish(state, result)
+
+      kind == :saturated and elem(result, 1).complete ->
+        finish(state, result)
+
+      true ->
+        state = %{state | despaired: true}
+        remaining = state.deadline_ms - System.monotonic_time(:millisecond)
+
+        state =
+          if map_size(state.coop_inflight) == 0 and remaining >= @min_external_ms do
+            items = coop_snapshot(state)
+            clauses = Enum.map(items, & &1.lits)
+
+            Enum.reduce(state.cooperate, state, fn {name, ext_opts}, st ->
+              dispatch_external(st, name, ext_opts, items, clauses, remaining)
+            end)
+          else
+            state
+          end
+
+        await_external(state, kind)
+    end
+  end
+
+  defp await_external(%__MODULE__{coop_inflight: inflight} = state, kind)
+       when map_size(inflight) == 0,
+       do: finish(state, {kind, stats(state)})
+
+  defp await_external(%__MODULE__{coop_inflight: inflight} = state, kind) do
+    remaining = max(state.deadline_ms - System.monotonic_time(:millisecond), 0)
+
+    receive do
+      {:astraea_external, ref, res} when is_map_key(inflight, ref) ->
+        {call, inflight} = Map.pop(inflight, ref)
+        File.rm(call.file)
+
+        case handle_external_answer(%{state | coop_inflight: inflight}, call, res) do
+          {:done, result, state} -> finish(state, result)
+          {:cont, state} -> await_external(state, kind)
+        end
+    after
+      remaining -> finish(state, {:resource_out, stats(state)})
+    end
+  end
+
   defp cooperate(%__MODULE__{cooperate: []} = state), do: {:cont, state}
 
   defp cooperate(%__MODULE__{} = state) do
@@ -3308,19 +3373,34 @@ defmodule Astraea.Prover do
     end
   end
 
-  # One round of calls at a time: the next snapshot is only taken once every
-  # prover of the previous round has answered.
+  # With one job per prover (the default) calls go in rounds: the next snapshot is
+  # only taken once every prover of the previous round has answered. With
+  # `:cooperate_max_jobs` above 1 (Leo-III `ATP_MAX_JOBS`) each prover gets a new
+  # snapshot while it runs fewer calls than that.
   defp maybe_dispatch_external(%__MODULE__{} = state) do
     remaining = state.deadline_ms - System.monotonic_time(:millisecond)
 
-    if map_size(state.coop_inflight) == 0 and
+    free =
+      cond do
+        state.coop_max_jobs <= 1 and map_size(state.coop_inflight) > 0 ->
+          []
+
+        true ->
+          running = Enum.frequencies_by(Map.values(state.coop_inflight), & &1.prover)
+
+          Enum.filter(state.cooperate, fn {name, _} ->
+            Map.get(running, name, 0) < state.coop_max_jobs
+          end)
+      end
+
+    if free != [] and
          state.iterations - state.coop_last_dispatch >= state.coop_interval and
          remaining >= @min_external_ms do
       items = coop_snapshot(state)
       clauses = Enum.map(items, & &1.lits)
 
-      state.cooperate
-      |> Enum.reduce(%{state | coop_last_dispatch: state.iterations}, fn {name, ext_opts}, st ->
+      Enum.reduce(free, %{state | coop_last_dispatch: state.iterations}, fn {name, ext_opts},
+                                                                            st ->
         dispatch_external(st, name, ext_opts, items, clauses, remaining)
       end)
     else
