@@ -1898,7 +1898,11 @@ defmodule Astraea.Prover do
 
     if rewritten_atom != target_atom_inst and
          MapSet.member?(eq_parent_inst.lits, {:pos, eq_atom_for_paramod}) and
-         MapSet.member?(target_inst.lits, {pol, target_atom_inst}) do
+         MapSet.member?(target_inst.lits, {pol, target_atom_inst}) and
+         paramod_ordered?(st, {from_inst, to_inst}, {eq_inst, eq_atom_inst}, target_inst, {
+           pol,
+           target_atom_inst
+         }) do
       new_lits =
         MapSet.union(
           MapSet.delete(eq_parent_inst.lits, {:pos, eq_atom_for_paramod}),
@@ -1935,6 +1939,31 @@ defmodule Astraea.Prover do
       {:cont, st, []}
     end
   end
+
+  # Leo-III's ordering restrictions after unification (`Control.scala` paramodulation):
+  # (1) the instance of the rewritten side must not be smaller than its replacement,
+  # (2) a positive target literal and (3) the equation literal must stay maximal in
+  # their instantiated clauses. Only with `:ordered`; `no_ord_check: [1, 2, 3]`
+  # (Leo-III `--noOrdCheck1` ... `--noOrdCheck3`) skips single checks. The kernel
+  # does not depend on them, they only prune the search.
+  defp paramod_ordered?(
+         %__MODULE__{} = st,
+         {from_inst, to_inst},
+         {eq_inst, eq_lit_atom},
+         target,
+         lit
+       ) do
+    ord = ordering(st)
+    skip = calculus_opt(st, :no_ord_check, [])
+
+    not ord.ordered or
+      ((1 in skip or Ordering.compare_terms(st.arena, to_inst, from_inst, ord) != :gt) and
+         (2 in skip or elem(lit, 0) == :neg or maximal_lit?(st.arena, target.lits, lit, ord)) and
+         (3 in skip or maximal_lit?(st.arena, eq_inst.lits, {:pos, eq_lit_atom}, ord)))
+  end
+
+  defp maximal_lit?(arena, lits, lit, ord),
+    do: not Enum.any?(lits, &(Ordering.compare(arena, &1, lit, ord.term_ordering) == :gt))
 
   # Oriented rewrite sides `{eq_atom, from, to}` of the eligible positive equations.
   defp paramod_sides(%__MODULE__{} = state, eq_clause, eligible) do

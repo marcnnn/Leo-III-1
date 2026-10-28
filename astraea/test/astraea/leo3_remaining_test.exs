@@ -4,7 +4,18 @@ defmodule Astraea.Leo3RemainingTest do
   """
   use ExUnit.Case, async: true
 
-  alias Astraea.{Arena, ProofChecker}
+  alias Astraea.{Arena, ProofChecker, Prover}
+
+  @thm_src """
+  thf(q_type, type, q: ($i > $i) > $o).
+  thf(p_type, type, p: $i > $o).
+  thf(g_type, type, g: $i > $i).
+  thf(a_type, type, a: $i).
+  thf(ax_pa, axiom, p @ a).
+  thf(ax_cond_id, axiom, ! [X: $i]: ((p @ a) => ((g @ X) = X))).
+  thf(ax_q_id, axiom, q @ (^ [X: $i]: X)).
+  thf(conj_qg, conjecture, q @ g).
+  """
 
   defp p_of_x do
     arena = Arena.new()
@@ -45,6 +56,21 @@ defmodule Astraea.Leo3RemainingTest do
 
       assert {:error, _} =
                ProofChecker.derive_steps(arena, [axiom, {:subst, 2, 1, %{1 => fy, 2 => b}}])
+    end
+  end
+
+  describe "ordering checks after unification" do
+    test "ordered proofs stay verified with and without Leo-III's checks" do
+      for skip <- [[], [1, 2, 3]], ord <- [:kbo, :cpo] do
+        assert {:proved, steps, stats} =
+                 Prover.prove_string(@thm_src,
+                   ordered: true,
+                   term_ordering: ord,
+                   no_ord_check: skip
+                 )
+
+        assert :ok = ProofChecker.verify_refutation(stats.arena, steps)
+      end
     end
   end
 end
