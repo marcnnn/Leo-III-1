@@ -10,6 +10,7 @@ defmodule Astraea.CalculusTest do
     Cnf,
     EqFact,
     FingerprintIndex,
+    Fluid,
     FuncSpec,
     Ordering,
     PrimSubst,
@@ -514,6 +515,46 @@ defmodule Astraea.CalculusTest do
 
     assert {:proved, steps, _} = Prover.prove_string(src, funcspec: true, timeout_ms: 2_000)
     assert :subst in kinds(steps)
+  end
+
+  test "fluid superposition binds the applied variable so the instance contains the redex" do
+    arena = Arena.new()
+    {arena, ii} = Arena.intern_type(arena, {:arrow, :i, :i})
+    {arena, a} = Arena.mk_const(arena, "a", :i)
+    {arena, f} = Arena.mk_const(arena, "f", ii)
+    {arena, y} = Arena.mk_fvar(arena, 7, ii)
+    {arena, fa} = Arena.mk_app(arena, f, a)
+    {arena, ya} = Arena.mk_app(arena, y, a)
+
+    assert Fluid.fluid?(arena, ya)
+    refute Fluid.fluid?(arena, y)
+    refute Fluid.fluid?(arena, fa)
+    assert :error == Fluid.binding(arena, 100, fa, fa)
+
+    # `Y` occurring in the rewritten side has no such binding.
+    {arena, f_ya} = Arena.mk_app(arena, f, ya)
+    assert :error == Fluid.binding(arena, 100, ya, f_ya)
+
+    assert {:ok, arena, 101, %{7 => _} = subst} = Fluid.binding(arena, 100, ya, fa)
+    {arena, inst} = Arena.subst_fvar(arena, ya, subst)
+    {g, [^a, ^fa]} = Terms.spine(arena, inst)
+    assert {3, _, _, 100, _} = Arena.get_node(arena, g)
+
+    src = """
+    thf(f_t, type, f: $i > $i). thf(p_t, type, p: $i > $o). thf(q_t, type, q: $o).
+    thf(a_t, type, a: $i). thf(b_t, type, b: $i).
+    thf(ax1, axiom, (f @ a) = b).
+    thf(ax2, axiom, ! [Y: $i > $i]: (p @ (Y @ (f @ a)))).
+    thf(c, conjecture, q).
+    """
+
+    assert {:saturated, %{fluid_inferences: n}} =
+             Prover.prove_string(src, fluid_sup: true, timeout_ms: 1_000, max_iterations: 30)
+
+    assert n > 0
+
+    assert {:saturated, %{fluid_inferences: 0}} =
+             Prover.prove_string(src, timeout_ms: 1_000, max_iterations: 30)
   end
 
   test "special instances instantiates higher-order variables with canonical terms" do

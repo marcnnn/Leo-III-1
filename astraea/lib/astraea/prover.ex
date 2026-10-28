@@ -55,6 +55,7 @@ defmodule Astraea.Prover do
     Cnf,
     EqFact,
     FingerprintIndex,
+    Fluid,
     FuncSpec,
     Ordering,
     PrimSubst,
@@ -116,6 +117,7 @@ defmodule Astraea.Prover do
             backward_subsumed: 0,
             rewrites: 0,
             backward_rewritten: 0,
+            fluid_inferences: 0,
             wide_equations: false,
             arith: false,
             higher_order: false,
@@ -1288,6 +1290,7 @@ defmodule Astraea.Prover do
   #   :ordered (false), :literal_selection (:none | :neg_max) - see `Calculus.Ordering`
   #   :fingerprints (true), :fingerprint_backend (:auto) - partner retrieval
   #   :paramod_flex (false) - also paramodulate into flex-headed subterms
+  #   :fluid_sup (false), :fluid_max (8) - FluidSup into applied variables (`Calculus.Fluid`)
   #   :flex_resolution (:ground | :all) - a flex-headed literal atom with arguments
   #     (never a pattern at the top level) is resolved and factored only against
   #     ground atoms or atoms containing one of its arguments under `:ground`, since
@@ -1755,12 +1758,60 @@ defmodule Astraea.Prover do
             {eq_id, from_term, to_term, pol, target_atom, subterm_id}
           end
 
-        each_inference(state, candidates, fn st,
-                                             {_eq, from_term, _to, _pol, _ta, subterm_id} = cand ->
-          {st, substs} = unifiers(st, [{from_term, subterm_id}])
-          each_inference(st, substs, &paramod_with(&1, eq_clause, target_disjoint, cand, &2))
-        end)
+        with {:cont, state, items} <-
+               each_inference(state, candidates, fn st,
+                                                    {_eq, from_term, _to, _pol, _ta, subterm_id} =
+                                                      cand ->
+                 {st, substs} = unifiers(st, [{from_term, subterm_id}])
+
+                 each_inference(
+                   st,
+                   substs,
+                   &paramod_with(&1, eq_clause, target_disjoint, cand, &2)
+                 )
+               end),
+             {:cont, state, fluid_items} <-
+               fluid_sup(state, eq_clause, target_disjoint, sides, target_eligible) do
+          {:cont, state, fluid_items ++ items}
+        end
       end
+    end
+  end
+
+  # FluidSup (`Calculus.Fluid`): rewrites inside applied free variables `Y us` by
+  # binding `Y` so that the instance contains the rewritten side.
+  defp fluid_sup(%__MODULE__{} = state, eq_clause, target_disjoint, sides, target_eligible) do
+    if calculus_opt(state, :fluid_sup, false) do
+      candidates =
+        for {eq_id, from_term, to_term} <- sides,
+            {pol, target_atom} <- target_eligible,
+            subterm_id <- collect_subterms(state.arena, target_atom, MapSet.new()),
+            Fluid.fluid?(state.arena, subterm_id) do
+          {eq_id, from_term, to_term, pol, target_atom, subterm_id}
+        end
+
+      candidates
+      |> Enum.take(calculus_opt(state, :fluid_max, 8))
+      |> then(
+        &each_inference(state, &1, fn st, {_eq, from_term, _, _, _, subterm_id} = cand ->
+          case Fluid.binding(st.arena, st.next_fvar_id, subterm_id, from_term) do
+            {:ok, arena, next_fvar, subst} ->
+              st = %{
+                st
+                | arena: arena,
+                  next_fvar_id: next_fvar,
+                  fluid_inferences: st.fluid_inferences + 1
+              }
+
+              paramod_with(st, eq_clause, target_disjoint, cand, subst)
+
+            :error ->
+              {:cont, st, []}
+          end
+        end)
+      )
+    else
+      {:cont, state, []}
     end
   end
 
@@ -2299,7 +2350,31 @@ defmodule Astraea.Prover do
       state |> query_ids(state.fp_index.subterms, from_terms) |> List.flatten() |> MapSet.new()
 
     from = state |> query_ids(state.fp_index.sides, subterms) |> List.flatten() |> MapSet.new()
+
+    if calculus_opt(state, :fluid_sup, false),
+      do: fluid_partners(state, given, from_terms, into, from),
+      else: {state, into, from}
+  end
+
+  # The fingerprint index only holds rigid subterms; FluidSup also pairs every
+  # equation with the clauses containing a fluid subterm.
+  defp fluid_partners(%__MODULE__{} = state, given, from_terms, into, from) do
+    into =
+      if from_terms == [],
+        do: into,
+        else:
+          state.active
+          |> Enum.filter(&has_fluid?(state.arena, &1))
+          |> Enum.reduce(into, &MapSet.put(&2, &1.id))
+
+    from = if has_fluid?(state.arena, given), do: :all, else: from
     {state, into, from}
+  end
+
+  defp has_fluid?(%Arena{} = arena, item) do
+    Enum.any?(item.lits, fn {_pol, a} ->
+      arena |> collect_subterms(a, MapSet.new()) |> Enum.any?(&Fluid.fluid?(arena, &1))
+    end)
   end
 
   # `:flex_resolution` policy; skipped pairs are counted as search cutoffs.
@@ -2651,6 +2726,7 @@ defmodule Astraea.Prover do
       backward_subsumed: state.backward_subsumed,
       rewrites: state.rewrites,
       backward_rewritten: state.backward_rewritten,
+      fluid_inferences: state.fluid_inferences,
       index_backend: state.active_index.backend,
       unification_cutoffs: state.unification_cutoffs,
       complete: reasons == [],
