@@ -1,8 +1,8 @@
 defmodule Astraea.ProverLeo3FeaturesTest do
   use ExUnit.Case, async: true
 
-  alias Astraea.{Arena, ProofChecker, Prover, TptpLower}
-  alias Astraea.Calculus.DomainConstraint
+  alias Astraea.{Arena, ProofChecker, Prover, Schedule, TptpLower}
+  alias Astraea.Calculus.{DomainConstraint, Injectivity}
 
   defp prove(src, opts) do
     Prover.prove_string(src, Keyword.merge([timeout_ms: 1_500], opts))
@@ -102,4 +102,66 @@ defmodule Astraea.ProverLeo3FeaturesTest do
     end
   end
 
+  describe "injectivity (Leo-III detectInjectivity / InverseFunction)" do
+    @inj_unary """
+    thf(f_t, type, f: $i > $i).
+    thf(inj, axiom, ! [X: $i, Y: $i]: (((f @ X) = (f @ Y)) => (X = Y))).
+    thf(c, conjecture, ? [G: $i > $i]: ! [X: $i]: ((G @ (f @ X)) = X)).
+    """
+
+    @inj_binary """
+    thf(f_t, type, f: $i > $i > $i).
+    thf(inj, axiom,
+      ! [X1: $i, X2: $i, Y1: $i, Y2: $i]: (((f @ X1 @ X2) = (f @ Y1 @ Y2)) => (X2 = Y2))).
+    thf(c, conjecture, ? [G: $i > $i > $i]: ! [X: $i, Y: $i]: ((G @ X @ (f @ X @ Y)) = Y)).
+    """
+
+    @inj_csa """
+    thf(f_t, type, f: $i > $i). thf(a_t, type, a: $i).
+    thf(inj, axiom, ! [X: $i, Y: $i]: (((f @ X) = (f @ Y)) => (X = Y))).
+    thf(c, conjecture, ? [X: $i]: ((f @ X) = a)).
+    """
+
+    test "the inverse of a unary injective function is derived through choice" do
+      steps = assert_kernel_proof(prove(@inj_unary, injectivity: true))
+      assert Enum.any?(steps, &match?({:choice, _, _, _}, &1))
+      refute match?({:proved, _, _}, prove(@inj_unary, max_iterations: 200))
+    end
+
+    test "injectivity in one argument of a binary function" do
+      assert_kernel_proof(prove(@inj_binary, injectivity: true))
+    end
+
+    test "injectivity does not make a function surjective" do
+      refute match?(
+               {:proved, _, _},
+               prove(@inj_csa, injectivity: true, max_iterations: 200, timeout_ms: 1_500)
+             )
+    end
+
+    test "detection reads the injective argument position" do
+      arena = Arena.new()
+      {arena, ty} = Arena.intern_type(arena, {:arrow, :i, {:arrow, :i, :i}})
+      {arena, f} = Arena.mk_const(arena, "f", ty)
+      {[x1, x2, y1, y2], arena} = fvars(arena, 4)
+      {arena, fx} = Astraea.Calculus.Terms.mk_apps(arena, f, [x1, x2])
+      {arena, fy} = Astraea.Calculus.Terms.mk_apps(arena, f, [y1, y2])
+      {arena, neg} = Arena.mk_eq(arena, fx, fy)
+      {arena, pos} = Arena.mk_eq(arena, y2, x2)
+
+      assert {:ok, %{head: ^f, index: 1}} =
+               Injectivity.detect(arena, MapSet.new([{:neg, neg}, {:pos, pos}]))
+
+      {arena, pos1} = Arena.mk_eq(arena, x1, y2)
+      assert :none == Injectivity.detect(arena, MapSet.new([{:neg, neg}, {:pos, pos1}]))
+    end
+  end
+
+  test "the Leo-III schedule passes sos, domConstr and injectivity to the prover" do
+    s3 = Enum.find(Schedule.leo3_strategies(), &(&1.name == :s3))
+    s5a = Enum.find(Schedule.leo3_strategies(), &(&1.name == :s5a))
+    assert Schedule.leo3_opts(s3.params)[:sos] == true
+    assert Schedule.leo3_opts(s5a.params)[:dom_constr] == -1
+    assert Schedule.leo3_opts(s3.params)[:injectivity] == true
+  end
 end

@@ -27,10 +27,14 @@ defmodule Astraea.Schedule do
   | `choice` | `:choice` |
   | `ordering` | `:ordered` (`false` for Leo-III's `NO_ORDERING`), `:term_ordering` (`:cpo` for `CPO_Naive`) |
   | `restrictUniAttempts` | `:flex_resolution` (`:ground` when restricted, else `:all`) |
+  | `sos` | `:sos` |
+  | `funcspec` | `:funcspec` |
+  | `domConstr` | `:dom_constr` |
+  | `specialInstances` | `:special_instances` (bit set, `-1` for all) |
+  | `renaming` | `:renaming`, forwarded to the clausifier |
 
-  Leo-III parameters without an Astraea counterpart yet (`sos`, `renaming`,
-  `funcspec`, `domConstr`, `specialInstances`) are passed through under their
-  snake_case names and ignored by the engine.
+  Leo-III always derives inverse functions from injectivity axioms
+  (`detectInjectivity`); the translated strategies set `injectivity: true`.
   """
 
   alias Astraea.{Portfolio, TptpLower}
@@ -126,7 +130,8 @@ defmodule Astraea.Schedule do
       renaming: params.renaming,
       funcspec: params.funcspec,
       dom_constr: params.dom_constr,
-      special_instances: params.special_instances
+      special_instances: params.special_instances,
+      injectivity: true
     ]
   end
 

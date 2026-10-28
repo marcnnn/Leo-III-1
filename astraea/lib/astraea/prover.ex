@@ -61,6 +61,7 @@ defmodule Astraea.Prover do
     Fluid,
     FuncSpec,
     Induction,
+    Injectivity,
     Ordering,
     PrimSubst,
     SpecialInstances,
@@ -153,7 +154,8 @@ defmodule Astraea.Prover do
             sos: false,
             sos_ids: MapSet.new(),
             domains: %{},
-            domain_instances: 0
+            domain_instances: 0,
+            inverses: %{}
 
   @type result ::
           {:proved, [ProofChecker.step()], map()}
@@ -310,6 +312,8 @@ defmodule Astraea.Prover do
       `X = t1 | ... | X = tn` bound the domain of `X`'s type, and clauses with
       variables of that type are also instantiated with the `ti`; at most this
       many instances per clause, `-1` for no bound, `0` off (default `0`)
+    * `:injectivity` - derive inverse-function lemmas from injectivity clauses
+      (Leo-III `detectInjectivity`, always on there; default `false`)
   """
   @spec prove_clauses(Arena.t(), [ProofChecker.clause()], keyword()) ::
           result() | {:proved_external, map()}
@@ -498,8 +502,12 @@ defmodule Astraea.Prover do
 
     axiom_items = Enum.reverse(axiom_items)
 
+    # Leo-III preprocessing lemmas (`detectInjectivity`), derived by kernel steps
+    # from the input clauses.
+    {state, lemma_items} = preprocessing_lemmas(state, axiom_items)
+
     # Pass 2: Condense, unit-simplify, and equality-resolve initial clauses
-    Enum.reduce_while(axiom_items, {:cont, state}, fn c_item, {:cont, st} ->
+    Enum.reduce_while(axiom_items ++ lemma_items, {:cont, state}, fn c_item, {:cont, st} ->
       choice_ax? =
         calculus_opt(st, :choice, true) and
           Enum.any?(st.choice_axioms, fn {_head, info} -> info.ax_item.id == c_item.id end)
@@ -1427,7 +1435,8 @@ defmodule Astraea.Prover do
            {:cont, state, items9} <- try_special_instances(state, given),
            {:cont, state, items10} <- try_choice(state, given),
            {:cont, state, items11} <- try_induction(state, given),
-           {:cont, state, items12} <- try_domain_instances(state, given) do
+           {:cont, state, items12} <- try_domain_instances(state, given),
+           {:cont, state, items13} <- try_inverse_instances(state, given) do
         clausify_items(
           state,
           items0 ++
@@ -1444,7 +1453,8 @@ defmodule Astraea.Prover do
             items9 ++
             items10 ++
             items11 ++
-            items12
+            items12 ++
+            items13
         )
       end
     else
@@ -2401,6 +2411,121 @@ defmodule Astraea.Prover do
       %{state | domains: DomainConstraint.add(state.domains, ty, terms)}
     else
       _ -> state
+    end
+  end
+
+  # Inverse-function lemmas (`Calculus.Injectivity`) of the input clauses.
+  defp preprocessing_lemmas(%__MODULE__{} = state, items) do
+    {state, inverses} =
+      if calculus_opt(state, :injectivity, false) do
+        items
+        |> Enum.flat_map(fn item ->
+          case Injectivity.detect(state.arena, item.lits) do
+            {:ok, info} -> [{item, info}]
+            :none -> []
+          end
+        end)
+        |> Enum.uniq_by(fn {_item, info} -> {info.head, info.index} end)
+        |> Enum.reduce({state, []}, fn {item, info}, {st, acc} ->
+          case inverse_lemma(st, item, info) do
+            {:ok, st, lemma} -> {add_inverse(st, info), [lemma | acc]}
+            :error -> {st, acc}
+          end
+        end)
+      else
+        {state, []}
+      end
+
+    {state, Enum.reverse(inverses)}
+  end
+
+  defp add_inverse(%__MODULE__{} = state, info) do
+    {arena, inv} = Injectivity.inverse_term(state.arena, info)
+    ty = Arena.type_of(arena, inv)
+    %{state | arena: arena, inverses: Map.update(state.inverses, ty, [inv], &[inv | &1])}
+  end
+
+  # The inverse functions stand in for Leo-III's Skolem `G`: variables of their type
+  # in shallow clauses are also instantiated with them.
+  defp try_inverse_instances(%__MODULE__{inverses: inverses} = state, _given)
+       when map_size(inverses) == 0,
+       do: {:cont, state, []}
+
+  defp try_inverse_instances(%__MODULE__{} = state, given) do
+    substs =
+      if given.depth <= 2,
+        do:
+          for(
+            {var, ty} <- given.fvars,
+            inv <- Map.get(state.inverses, ty, []),
+            do: %{var => inv}
+          ),
+        else: []
+
+    each_inference(state, substs, fn st, subst ->
+      {st, item} = emit_subst_step(st, given, subst, given.depth + 1)
+      {:cont, st, [item]}
+    end)
+  end
+
+  defp inverse_lemma(%__MODULE__{} = state, inj_item, info) do
+    {arena, next_fvar, zs} =
+      Enum.reduce(info.left_args, {state.arena, state.next_fvar_id, []}, fn arg, {ar, nf, acc} ->
+        {ar, z} = Arena.mk_fvar(ar, nf, Arena.type_of(ar, arg))
+        {ar, nf + 1, [z | acc]}
+      end)
+
+    zs = Enum.reverse(zs)
+    state = %{state | arena: arena, next_fvar_id: next_fvar}
+    {_, _, _, zi_id, _} = Arena.get_node(state.arena, Enum.at(zs, info.index))
+
+    with {:ok, arena, parts} <- Injectivity.inverse_parts(state.arena, info, zs),
+         {:ok, arena, choice_clause} <- ProofChecker.choice_instance(arena, parts.pred, zi_id),
+         {arena, fz_norm} = Arena.beta_eta_norm(arena, parts.fz),
+         {arena, refl_eq} = Arena.mk_eq(arena, fz_norm, fz_norm),
+         [{:neg, ^refl_eq}] <- choice_clause |> Enum.filter(&match?({:neg, _}, &1)),
+         [{:pos, image_atom}] <- choice_clause |> Enum.filter(&match?({:pos, _}, &1)) do
+      state = %{state | arena: arena}
+
+      {state, choice_item} =
+        add_step(state, {:choice, state.next_step_id, parts.pred, zi_id}, choice_clause, 1)
+
+      {state, refl_item} =
+        add_step(state, {:refl, state.next_step_id, parts.fz}, MapSet.new([{:pos, refl_eq}]), 1)
+
+      {state, image_item} =
+        add_step(
+          state,
+          {:resolve, state.next_step_id, refl_item.id, choice_item.id, {:pos, refl_eq}},
+          MapSet.new([{:pos, image_atom}]),
+          1
+        )
+
+      {state, inj_inst} = emit_subst_step(state, inj_item, parts.subst, 1)
+
+      case find_resolvable_atom(state.arena, image_item.lits, inj_inst.lits, image_atom) do
+        {:ok, arena, atom, pos_lit, neg_lit} ->
+          lits =
+            MapSet.union(
+              MapSet.delete(image_item.lits, pos_lit),
+              MapSet.delete(inj_inst.lits, neg_lit)
+            )
+
+          {state, lemma} =
+            add_step(
+              %{state | arena: arena},
+              {:resolve, state.next_step_id, image_item.id, inj_inst.id, {:pos, atom}},
+              lits,
+              1
+            )
+
+          {:ok, state, lemma}
+
+        :error ->
+          :error
+      end
+    else
+      _ -> :error
     end
   end
 
