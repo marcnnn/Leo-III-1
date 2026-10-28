@@ -8,17 +8,17 @@ defmodule Astraea.Session.DemodCache do
   arbitrary generating clauses in the given-clause queue.
   """
 
-  alias Astraea.{Arena, Engine.Demodulator, Engine.HeadIndex, Session.Lineage}
+  alias Astraea.{Arena, Engine.Demodulator, Engine.DiscriminationTree, Session.Lineage}
 
   @type t :: %__MODULE__{
           rules: [map()],
-          rule_index: HeadIndex.t(),
+          rule_index: DiscriminationTree.t(),
           thf_rules: [String.t()],
           count: non_neg_integer()
         }
 
   defstruct rules: [],
-            rule_index: HeadIndex.new(),
+            rule_index: DiscriminationTree.new(),
             thf_rules: [],
             count: 0
 
@@ -32,7 +32,7 @@ defmodule Astraea.Session.DemodCache do
 
   @doc """
   Filters orientable unit equational lemmas from harvested lineage lemmas,
-  constructs Demodulator rule records, and installs them into the `HeadIndex`.
+  constructs Demodulator rule records, and installs them into the `DiscriminationTree`.
   """
   @spec insert_lemmas(t(), Arena.t(), [Lineage.lemma()]) :: {t(), non_neg_integer()}
   def insert_lemmas(%__MODULE__{} = cache, %Arena{} = arena, lemmas) when is_list(lemmas) do

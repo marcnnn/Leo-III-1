@@ -34,7 +34,17 @@ defmodule Astraea.Prover do
   """
 
   alias Astraea.{Arena, Clausifier, Evaluator, External, ProofChecker, TptpCorpus, TptpLower}
-  alias Astraea.Engine.{Demodulator, Fragment, FVIndex, HeadIndex, PassiveQueue, Subsumption}
+
+  alias Astraea.Engine.{
+    Demodulator,
+    DiscriminationTree,
+    Fragment,
+    FVIndex,
+    HeadIndex,
+    PassiveQueue,
+    Subsumption
+  }
+
   alias Astraea.External.Reconstruct
   alias Astraea.Input.Arith
 
@@ -86,7 +96,7 @@ defmodule Astraea.Prover do
             passive_index: nil,
             units: %{},
             unit_count: 0,
-            rules: %{},
+            rules: DiscriminationTree.new(),
             seen_clauses: MapSet.new(),
             iterations: 0,
             max_iterations: :infinity,
@@ -604,7 +614,7 @@ defmodule Astraea.Prover do
         active_index: FVIndex.delete(state.active_index, ids),
         units: units,
         unit_count: length(HeadIndex.values(units)),
-        rules: HeadIndex.reject(state.rules, gone)
+        rules: DiscriminationTree.reject(state.rules, gone)
     }
     |> fingerprint_remove(gone)
   end
@@ -698,7 +708,7 @@ defmodule Astraea.Prover do
         {:dropped, st}
 
       {:ok, st, item} ->
-        if st.demodulation and map_size(st.rules) > 0 do
+        if st.demodulation and not DiscriminationTree.empty?(st.rules) do
           case demodulate(st, item, 4) do
             {:proved, st2, empty_id} ->
               {:proved, st2, empty_id}
@@ -1105,7 +1115,7 @@ defmodule Astraea.Prover do
         state
 
       rules ->
-        index = Demodulator.add_rules(HeadIndex.new(), state.arena, rules)
+        index = Demodulator.add_rules(DiscriminationTree.new(), state.arena, rules)
         queries = Enum.map(rules, &Subsumption.term_query_fv(state.arena, &1.lhs))
 
         candidates =

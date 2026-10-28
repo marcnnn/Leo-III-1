@@ -3,7 +3,16 @@ defmodule Astraea.EngineTest do
   use ExUnitProperties
 
   alias Astraea.{Arena, NxKernel, ProofChecker, Prover}
-  alias Astraea.Engine.{Demodulator, FVIndex, HeadIndex, Kernels, PassiveQueue, Subsumption}
+
+  alias Astraea.Engine.{
+    Demodulator,
+    DiscriminationTree,
+    FVIndex,
+    Kernels,
+    PassiveQueue,
+    Subsumption
+  }
+
   alias Astraea.Calculus.Terms
 
   # ---------------------------------------------------------------------------
@@ -255,6 +264,112 @@ defmodule Astraea.EngineTest do
     assert Subsumption.subsumes?(arena, item(arena, [{:pos, px}], 3), one)
   end
 
+  defp subterms(arena, term) do
+    case Arena.get_node(arena, term) do
+      {tag, _, _, l, r} when tag in [4, 6, 8] -> [term | subterms(arena, l) ++ subterms(arena, r)]
+      {tag, _, _, l, _} when tag == 7 -> [term | subterms(arena, l)]
+      {tag, _, _, _, r} when tag in [5, 9] -> [term | subterms(arena, r)]
+      _ -> [term]
+    end
+  end
+
+  defp build_atom(arena, s, {:not, lit}) do
+    {arena, {_, atom}} = build_lit(arena, s, {:pos, lit})
+    Arena.mk_not(arena, atom)
+  end
+
+  defp build_atom(arena, s, lit) do
+    {arena, {_, atom}} = build_lit(arena, s, {:pos, lit})
+    {arena, atom}
+  end
+
+  defp atom_gen do
+    lit = map(lit_gen(), &elem(&1, 1))
+    one_of([lit, map(lit, &{:not, &1})])
+  end
+
+  property "discrimination tree retrieves every matching pattern" do
+    check all(
+            term_patterns <- list_of(term_gen(3), max_length: 12),
+            atom_patterns <- list_of(atom_gen(), max_length: 6),
+            targets <- list_of(atom_gen(), min_length: 1, max_length: 4)
+          ) do
+      {arena, s} = signature()
+
+      {patterns, arena} =
+        Enum.map_reduce(term_patterns, arena, fn t, ar -> ar |> build(s, t) |> swap() end)
+
+      {atoms, arena} =
+        Enum.map_reduce(atom_patterns ++ targets, arena, fn a, ar ->
+          ar |> build_atom(s, a) |> swap()
+        end)
+
+      {pattern_atoms, target_atoms} = Enum.split(atoms, length(atom_patterns))
+      patterns = Enum.with_index(patterns ++ pattern_atoms)
+
+      index =
+        Enum.reduce(patterns, DiscriminationTree.new(), fn {pat, i}, idx ->
+          DiscriminationTree.put(idx, arena, :rule, pat, %{id: i, lhs: pat})
+        end)
+
+      for target <- target_atoms, sub <- subterms(arena, target) do
+        found = index |> DiscriminationTree.lookup(arena, :rule, sub) |> Enum.map(& &1.id)
+        assert found == Enum.uniq(found)
+
+        for {pat, i} <- patterns, match?({:ok, _}, Arena.match_pattern(arena, pat, sub)) do
+          assert i in found
+        end
+      end
+    end
+  end
+
+  test "discrimination tree handles binders, swapped equations and removal" do
+    {arena, s} = signature()
+    {arena, bv} = Arena.mk_bvar(arena, 0, :i)
+    {arena, f_bv} = Arena.mk_app(arena, s.f, bv)
+    {arena, g_bv_x} = Arena.mk_app(arena, s.g, bv)
+    {arena, g_bv_x} = Arena.mk_app(arena, g_bv_x, s.x)
+    {arena, g_bv_a} = Arena.mk_app(arena, s.g, bv)
+    {arena, g_bv_a} = Arena.mk_app(arena, g_bv_a, s.a)
+    {arena, lam_x} = Arena.mk_lam(arena, :i, g_bv_x)
+    {arena, lam_a} = Arena.mk_lam(arena, :i, g_bv_a)
+    {arena, lam_f} = Arena.mk_lam(arena, :i, f_bv)
+
+    # `x = f(a)` against `f(a) = b` needs the swapped orientation.
+    {arena, fa} = Arena.mk_app(arena, s.f, s.a)
+    {arena, eq_pat} = Arena.mk_eq(arena, s.x, fa)
+    {arena, eq_tgt} = Arena.mk_eq(arena, fa, s.b)
+    {arena, not_pat} = Arena.mk_not(arena, eq_pat)
+    {arena, not_tgt} = Arena.mk_not(arena, eq_tgt)
+
+    index =
+      DiscriminationTree.new()
+      |> DiscriminationTree.put(arena, :rule, lam_x, %{id: 1})
+      |> DiscriminationTree.put(arena, :rule, eq_pat, %{id: 2})
+      |> DiscriminationTree.put(arena, :rule, not_pat, %{id: 3})
+      |> DiscriminationTree.put(arena, :rule, s.x, %{id: 4})
+
+    assert ids(index, arena, lam_a) == [1]
+    assert ids(index, arena, s.a) == [4]
+    assert ids(index, arena, lam_f) == []
+    assert ids(index, arena, eq_tgt) == [2]
+    assert ids(index, arena, not_tgt) == [3]
+    assert {:ok, _} = Arena.match_pattern(arena, eq_pat, eq_tgt)
+
+    index = DiscriminationTree.reject(index, MapSet.new([1, 2, 99]))
+    assert DiscriminationTree.size(index) == 2
+    assert ids(index, arena, lam_a) == []
+    assert ids(index, arena, eq_tgt) == []
+    assert Enum.map(DiscriminationTree.values(index), & &1.id) == [4, 3]
+
+    index = DiscriminationTree.reject(index, MapSet.new([3, 4]))
+    assert DiscriminationTree.empty?(index)
+    assert index.roots == %{}
+  end
+
+  defp ids(index, arena, target),
+    do: index |> DiscriminationTree.lookup(arena, :rule, target) |> Enum.map(& &1.id)
+
   test "demodulation finds KBO-decreasing redexes only" do
     {arena, s} = signature()
     # f(f(X)) = X orients left to right.
@@ -262,7 +377,7 @@ defmodule Astraea.EngineTest do
     {arena, rule_eq} = Arena.mk_eq(arena, ffx, s.x)
     rule = %{id: 1, lits: MapSet.new([{:pos, rule_eq}]), fvar_ids: MapSet.new([1])}
     assert [%{lhs: ^ffx}] = rules = Demodulator.rules(arena, rule)
-    index = Demodulator.add_rules(HeadIndex.new(), arena, rules)
+    index = Demodulator.add_rules(DiscriminationTree.new(), arena, rules)
 
     {arena, {_, target}} = build_lit(arena, s, {:neg, {:p, {:f, {:f, {:f, :a}}}}})
     d = %{id: 2, lits: MapSet.new([{:neg, target}]), fvar_ids: MapSet.new()}
@@ -368,7 +483,7 @@ defmodule Astraea.EngineTest do
     assert Terms.const_named?(arena, false_const, "$false")
 
     index =
-      HeadIndex.new()
+      DiscriminationTree.new()
       |> Demodulator.add_rules(arena, Demodulator.rules(arena, unit_pos))
       |> Demodulator.add_rules(arena, Demodulator.rules(arena, unit_neg))
 

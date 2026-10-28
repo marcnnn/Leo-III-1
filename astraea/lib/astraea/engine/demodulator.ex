@@ -17,7 +17,7 @@ defmodule Astraea.Engine.Demodulator do
   """
 
   alias Astraea.Arena
-  alias Astraea.Engine.HeadIndex
+  alias Astraea.Engine.DiscriminationTree
 
   @tag_fvar 3
   @tag_app 4
@@ -91,16 +91,16 @@ defmodule Astraea.Engine.Demodulator do
     end
   end
 
-  @spec add_rules(HeadIndex.t(), Arena.t(), [map()]) :: HeadIndex.t()
+  @spec add_rules(DiscriminationTree.t(), Arena.t(), [map()]) :: DiscriminationTree.t()
   def add_rules(index, %Arena{} = arena, rules) do
-    Enum.reduce(rules, index, &HeadIndex.put(&2, arena, :rule, &1.lhs, &1))
+    Enum.reduce(rules, index, &DiscriminationTree.put(&2, arena, :rule, &1.lhs, &1))
   end
 
   @doc """
   The first redex of `item` for the rules in `index`:
   `{:ok, arena, %{rule:, subst:, lit:, from:, to:}}`, or `{:none, arena}`.
   """
-  @spec find_redex(Arena.t(), HeadIndex.t(), map()) ::
+  @spec find_redex(Arena.t(), DiscriminationTree.t(), map()) ::
           {:ok, Arena.t(), map()} | {:none, Arena.t()}
   def find_redex(%Arena{} = arena, index, item) do
     Enum.reduce_while(item.lits, {:none, arena}, fn {_pol, atom} = lit, {:none, ar} ->
@@ -121,7 +121,7 @@ defmodule Astraea.Engine.Demodulator do
 
   defp rewrite_at(arena, index, item, lit, sub) do
     index
-    |> HeadIndex.lookup(arena, :rule, sub)
+    |> DiscriminationTree.lookup(arena, :rule, sub)
     |> Enum.reduce_while({:none, arena}, fn rule, {:none, ar} ->
       is_bool_rule = Map.get(rule, :kind) in [:pos_bool, :neg_bool]
 
