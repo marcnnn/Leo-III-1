@@ -11,7 +11,7 @@ defmodule Astraea.ProofChecker do
   - `{:refl, id, term_id}` — reflexivity `|- t = t`
   - `{:symm, id, parent_id}` — symmetry `s = t |- t = s`
   - `{:trans, id, p1_id, p2_id}` — transitivity `a = b, b = c |- a = c`
-  - `{:subst, id, parent_id, subst_map}` — capture-avoiding free-variable instantiation + beta-eta norm
+  - `{:subst, id, parent_id, subst_map}` — capture-avoiding, type-preserving free-variable instantiation + beta-eta norm
   - `{:cong, id, parent_id, eq_atom_id, arg_id}` — functional congruence `f = g |- (f @ a) = (g @ a)`
   - `{:func_ext, id, parent_id, fvar_id, var_ty}` — lambda congruence / xi-rule `u = v |- (^ [X]: u) = (^ [X]: v)`
   - `{:paramod, id, eq_id, target_id, eq_atom_id, target_lit, rewritten_lit}` — Leibniz subterm replacement
@@ -179,7 +179,7 @@ defmodule Astraea.ProofChecker do
   defp check_step(%Arena{} = arena, derived, {:subst, id, parent_id, subst_map})
        when is_map(subst_map) do
     with {:ok, parent} <- fetch_clause(derived, parent_id),
-         {:ok, arena} <- validate_subst_types(arena, subst_map) do
+         {:ok, arena} <- validate_subst_types(arena, subst_map, parent) do
       {arena, new_lits} =
         Enum.reduce(parent, {arena, MapSet.new()}, fn {pol, atom_id}, {ar, acc} ->
           {ar, subbed_id} = Arena.subst_fvar(ar, atom_id, subst_map)
@@ -596,13 +596,37 @@ defmodule Astraea.ProofChecker do
 
   def choice_instance(_arena, _pred_id, _fvar_id), do: :error
 
-  defp validate_subst_types(%Arena{} = arena, subst_map) do
-    valid? =
-      Enum.all?(subst_map, fn {_fvar_id, rep_id} ->
-        not Arena.has_loose_bvar?(arena, rep_id, 0)
+  # A replacement must be closed under binders and have the type of every occurrence
+  # of its variable, in the parent or in another replacement (`Arena.subst_fvar/3`
+  # also instantiates inside replacements). Variables are keyed by id only, so an
+  # ill-typed replacement would otherwise build a well-formed-looking but
+  # meaningless instance.
+  defp validate_subst_types(%Arena{} = arena, subst_map, parent) do
+    occurrences =
+      Enum.reduce(parent, MapSet.new(), fn {_pol, atom}, acc ->
+        MapSet.union(acc, Arena.free_vars(arena, atom))
       end)
 
-    if valid?, do: {:ok, arena}, else: {:error, :escaping_bvar_in_subst}
+    occurrences =
+      Enum.reduce(subst_map, occurrences, fn {_v, rep}, acc ->
+        MapSet.union(acc, Arena.free_vars(arena, rep))
+      end)
+
+    cond do
+      Enum.any?(subst_map, fn {_v, rep} -> Arena.has_loose_bvar?(arena, rep, 0) end) ->
+        {:error, :escaping_bvar_in_subst}
+
+      Enum.any?(occurrences, fn {var_id, ty} ->
+        case Map.fetch(subst_map, var_id) do
+          {:ok, rep} -> Arena.type_of(arena, rep) != ty
+          :error -> false
+        end
+      end) ->
+        {:error, :ill_typed_subst}
+
+      true ->
+        {:ok, arena}
+    end
   end
 
   defp find_complementary_lit(%Arena{} = arena, c1, c2, atom_id) do
