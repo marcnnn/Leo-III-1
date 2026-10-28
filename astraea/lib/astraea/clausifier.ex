@@ -9,7 +9,9 @@ defmodule Astraea.Clausifier do
   2. Recognizes & rewrites Leibniz equality (`! [Q: ty > $o]: (Q @ u => Q @ v)` -> `u = v`),
      Andrews equality (`! [Q: ty > ty > $o]: ((! [X]: Q @ X @ X) => Q @ u @ v)` -> `u = v`,
      option `:andrews_eq`) and unfolded bi-implications (`(~A | B) & (~B | A)` -> `A = B`).
-  3. Applies SInE (Sumo Inference Engine) symbol-rarity premise selection when `length(axioms) > sine_limit`.
+  3. Applies SInE (Sumo Inference Engine) symbol-rarity premise selection when
+     `length(axioms) > sine_limit`, or Leo-III's relevance filter
+     (`Astraea.RelevanceFilter`, option `:relevance_filter`) instead.
   4. Expands higher-order positive congruence, negative functional extensionality (`FuncExt`),
      and Boolean extensionality (`BoolExt`) with shared-conjunct factoring during NNF +
      content-addressed Skolemization.
@@ -58,7 +60,7 @@ defmodule Astraea.Clausifier do
   already is an equational literal.
   """
 
-  alias Astraea.{Arena, ProofChecker, TptpLower}
+  alias Astraea.{Arena, ProofChecker, RelevanceFilter, TptpLower}
 
   # Node tags (u8) matching `Astraea.Arena`
   @tag_const 1
@@ -112,6 +114,9 @@ defmodule Astraea.Clausifier do
       it, default `true`)
     * `:instantiate_sets` - add instances of axioms quantifying over sets of functions
       or properties (Leo-III `--instantiate-sets`, default `false`)
+    * `:relevance_filter` - `nil` (default), `:auto` or `%{passmark: p, aging: a}`:
+      Leo-III's relevance filter (`--relevance-passmark`, `--relevance-aging`, see
+      `Astraea.RelevanceFilter`) instead of SInE
   """
   @spec clausify(TptpLower.t(), keyword()) :: {Arena.t(), [ProofChecker.clause()]}
   def clausify(%TptpLower{} = lowered, opts \\ []) do
@@ -127,6 +132,7 @@ defmodule Astraea.Clausifier do
     sine_limit = Keyword.get(opts, :sine_limit, 55)
     inline_bridges = Keyword.get(opts, :inline_bridges, false)
     andrews_eq = Keyword.get(opts, :andrews_eq, true)
+    relevance_filter = Keyword.get(opts, :relevance_filter)
 
     # 1. Extract constant definitions `c = rhs` and inline across axioms & conjectures
     {arena, def_map, defined_names} = extract_definitions(arena, lowered.axioms)
@@ -137,12 +143,24 @@ defmodule Astraea.Clausifier do
         role == "definition" and MapSet.member?(defined_names, name)
       end)
 
-    # 2. Apply SInE filter if large theory (> sine_limit axioms) and conjectures exist
+    # 2. Apply the relevance filter if requested, else SInE if large theory
+    #    (> sine_limit axioms) and conjectures exist
     selected_axioms =
-      if is_integer(sine_limit) and length(raw_axioms) > sine_limit and lowered.conjectures != [] do
-        sine_filter(arena, raw_axioms, lowered.conjectures, sine_limit)
-      else
-        raw_axioms
+      cond do
+        relevance_filter != nil ->
+          RelevanceFilter.select(
+            arena,
+            raw_axioms,
+            lowered.conjectures,
+            def_map,
+            relevance_filter
+          )
+
+        is_integer(sine_limit) and length(raw_axioms) > sine_limit and lowered.conjectures != [] ->
+          sine_filter(arena, raw_axioms, lowered.conjectures, sine_limit)
+
+        true ->
+          raw_axioms
       end
 
     # Identify bridge predicates: quantified arrow definitions that are directly referenced

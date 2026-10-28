@@ -1,6 +1,7 @@
 defmodule Astraea.Leo3WiringTest do
   @moduledoc """
-  Leo-III features reached through the prover options: the CPO term ordering in
+  Leo-III features reached through the prover options: clausifier options
+  forwarded by `Astraea.Prover.prove_lowered/2`, the CPO term ordering in
   demodulation and set instantiation.
   """
   use ExUnit.Case, async: true
@@ -31,6 +32,27 @@ defmodule Astraea.Leo3WiringTest do
 
   defp assert_verified({:proved, steps, stats}) do
     assert :ok = ProofChecker.verify_refutation(stats.arena, steps)
+  end
+
+  describe "prover options forwarded to the clausifier" do
+    test "renaming, equality rewrites and the relevance filter keep proofs verified" do
+      for opts <- [
+            [renaming: true, renaming_threshold: 0],
+            [leibniz_eq: false, andrews_eq: false],
+            [instantiate_sets: true],
+            [relevance_filter: %{passmark: 0.1, aging: 2.35}]
+          ] do
+        assert {:proved, _, _} = result = Prover.prove_string(@thm_src, opts)
+        assert_verified(result)
+      end
+    end
+
+    test "axioms dropped by the relevance filter make a saturation incomplete" do
+      assert {:saturated, stats} =
+               Prover.prove_string(@thm_src, relevance_filter: %{passmark: 0.99, aging: 2.35})
+
+      assert :sine in stats.incomplete_reasons
+    end
   end
 
   describe "set instantiation" do

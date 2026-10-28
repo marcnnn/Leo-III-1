@@ -1,7 +1,7 @@
 defmodule Astraea.ClausifierLeoTest do
   use ExUnit.Case, async: true
 
-  alias Astraea.{Arena, Clausifier, ProofChecker, Prover, TptpLower}
+  alias Astraea.{Arena, Clausifier, ProofChecker, Prover, RelevanceFilter, TptpLower}
   alias Astraea.External.{TffPrinter, ThfPrinter}
 
   defp lower(src) do
@@ -200,4 +200,97 @@ defmodule Astraea.ClausifierLeoTest do
     end
   end
 
+  describe "relevance filter" do
+    # A chain `c -> h1 -> h2` reaches the goal symbols; `junk*` axioms share no symbol.
+    defp rf_problem(extra_junk) do
+      decls =
+        for s <- ~w(c h1 h2 g), do: "thf(#{s}_decl, type, #{s}: $i > $o).\n"
+
+      junk =
+        for i <- 1..extra_junk do
+          "thf(j#{i}_decl, type, j#{i}: $i > $o).\nthf(junk#{i}, axiom, ! [X: $i]: ((j#{i} @ X) => ((j#{i} @ X) | (j#{rem(i, extra_junk) + 1} @ X)))).\n"
+        end
+
+      Enum.join(decls) <>
+        "thf(a_decl, type, a: $i).\n" <>
+        Enum.join(junk) <>
+        """
+        thf(r1, axiom, c @ a).
+        thf(r2, axiom, ! [X: $i]: ((c @ X) => (h1 @ X))).
+        thf(r3, axiom, ! [X: $i]: ((h1 @ X) => (h2 @ X))).
+        thf(r4, axiom, ! [X: $i]: ((h2 @ X) => (g @ X))).
+        thf(goal, conjecture, g @ a).
+        """
+    end
+
+    test "keeps the relevant chain and drops unrelated axioms" do
+      lowered = lower(rf_problem(20))
+
+      {arena, clauses, info} =
+        Clausifier.clausify_with_info(lowered, relevance_filter: %{}, sine_limit: nil)
+
+      assert info.axioms_dropped == 20
+      assert_kernel_refutation(arena, clauses)
+
+      {_arena, _clauses, info} = Clausifier.clausify_with_info(lowered, sine_limit: nil)
+      assert info.axioms_dropped == 0
+    end
+
+    test "parameters follow Leo-III" do
+      assert RelevanceFilter.params(%{}, 100) == {0.56, 2.35}
+      assert RelevanceFilter.params(%{passmark: 0.7}, 100) == {0.7, 2.35}
+      assert RelevanceFilter.params(:auto, 10) == :all
+      assert RelevanceFilter.params(:auto, 150) == {0.60, 2.35}
+
+      {_arena, _clauses, info} =
+        Clausifier.clausify_with_info(lower(rf_problem(5)),
+          relevance_filter: :auto,
+          sine_limit: nil
+        )
+
+      assert info.axioms_dropped == 0
+    end
+
+    test "a high passmark can cut the chain; a symbol-free conjecture keeps everything" do
+      lowered = lower(rf_problem(20))
+
+      {arena, clauses, info} =
+        Clausifier.clausify_with_info(lowered,
+          relevance_filter: %{passmark: 0.99, aging: 100.0},
+          sine_limit: nil
+        )
+
+      assert info.axioms_dropped > 20
+      refute_refutation(arena, clauses)
+
+      trivial =
+        String.replace(
+          rf_problem(20),
+          "thf(goal, conjecture, g @ a).",
+          "thf(goal, conjecture, $true)."
+        )
+
+      {_arena, _clauses, info} =
+        Clausifier.clausify_with_info(lower(trivial), relevance_filter: %{}, sine_limit: nil)
+
+      assert info.axioms_dropped == 0
+    end
+
+    test "definitions are delta-expanded" do
+      src =
+        rf_problem(20)
+        |> String.replace("thf(r4, axiom, ! [X: $i]: ((h2 @ X) => (g @ X))).", """
+        thf(gg_decl, type, gg: $i > $o).
+        thf(gg_def, definition, gg = (^ [X: $i]: (g @ X))).
+        thf(r4, axiom, ! [X: $i]: ((h2 @ X) => (g @ X))).
+        """)
+        |> String.replace("thf(goal, conjecture, g @ a).", "thf(goal, conjecture, gg @ a).")
+
+      {arena, clauses, info} =
+        Clausifier.clausify_with_info(lower(src), relevance_filter: %{}, sine_limit: nil)
+
+      assert info.axioms_dropped == 20
+      assert_kernel_refutation(arena, clauses)
+    end
+  end
 end

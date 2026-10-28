@@ -220,7 +220,8 @@ defmodule Astraea.Prover do
     :renaming_threshold,
     :leibniz_eq,
     :andrews_eq,
-    :instantiate_sets
+    :instantiate_sets,
+    :relevance_filter
   ]
 
   defp clausify_opts(opts),
