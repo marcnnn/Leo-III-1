@@ -108,8 +108,10 @@ defmodule Astraea.Calculus.AvatarTest do
 
     {arena, p} = Arena.mk_const(arena, "p", :o)
     {arena, q} = Arena.mk_const(arena, "q", :o)
-    {arena, g1} = Arena.mk_const(arena, "$avatar_g_1", :o)
-    {arena, g2} = Arena.mk_const(arena, "$avatar_g_2", :o)
+    # The guard of a ground component is the literal itself.
+    {arena, g1} = ProofChecker.avatar_guard(arena, MapSet.new([{:pos, p}]))
+    {arena, g2} = ProofChecker.avatar_guard(arena, MapSet.new([{:pos, q}]))
+    assert {g1, g2} == {p, q}
 
     # Axiom 1: p | q
     # Axiom 2: ~p
@@ -133,5 +135,53 @@ defmodule Astraea.Calculus.AvatarTest do
     ]
 
     assert :ok == ProofChecker.verify_refutation(arena, steps)
+  end
+
+  test "ProofChecker rejects AVATAR guards that are not the components' closures", %{
+    arena: arena
+  } do
+    alias Astraea.ProofChecker
+
+    {arena, i} = Arena.intern_type(arena, :i)
+    {arena, pt} = Arena.intern_type(arena, {:arrow, i, Arena.ty_o()})
+    {arena, p} = Arena.mk_const(arena, "p", pt)
+    {arena, q} = Arena.mk_const(arena, "q", pt)
+    {arena, x} = Arena.mk_fvar(arena, 1, i)
+    {arena, y} = Arena.mk_fvar(arena, 2, i)
+    {arena, px} = Arena.mk_app(arena, p, x)
+    {arena, qy} = Arena.mk_app(arena, q, y)
+    {arena, qx} = Arena.mk_app(arena, q, x)
+    {arena, fake} = Arena.mk_const(arena, "$avatar_g_1", :o)
+
+    c1 = MapSet.new([{:pos, px}])
+    c2 = MapSet.new([{:neg, qy}])
+    parent = MapSet.union(c1, c2)
+    {arena, g1} = ProofChecker.avatar_guard(arena, c1)
+    {arena, g2} = ProofChecker.avatar_guard(arena, c2)
+
+    # `! [X]: p @ X` and `! [Y]: ~ (q @ Y)`
+    assert {9, _, _, _, _} = Arena.get_node(arena, g1)
+    assert {9, _, _, _, _} = Arena.get_node(arena, g2)
+
+    ok = [{:axiom, 1, parent}, {:avatar_split, 2, 1, [g1, g2]}, {:avatar_comp, 3, 1, g1, c1}]
+    assert {:ok, _, derived} = ProofChecker.derive_steps(arena, ok)
+    assert derived[2] == MapSet.new([{:pos, g1}, {:pos, g2}])
+    assert derived[3] == MapSet.new([{:pos, px}, {:neg, g1}])
+
+    forged = [
+      # arbitrary guard constants
+      [{:axiom, 1, parent}, {:avatar_split, 2, 1, [fake, g2]}],
+      [{:axiom, 1, parent}, {:avatar_comp, 2, 1, fake, c1}],
+      # a guard that is not the closure of its component
+      [{:axiom, 1, parent}, {:avatar_comp, 2, 1, g2, c1}],
+      # the parent is not split into these components
+      [{:axiom, 1, parent}, {:avatar_split, 2, 1, [g1, g1]}],
+      # components sharing a variable cannot be split
+      [{:axiom, 1, MapSet.new([{:pos, px}, {:neg, qx}])}, {:avatar_split, 2, 1, [g1, g2]}]
+    ]
+
+    for steps <- forged do
+      assert {:error, _} = ProofChecker.derive_steps(arena, steps)
+    end
   end
 end

@@ -50,9 +50,24 @@ defmodule Astraea.ProofChecker do
     literal then becomes a Skolem witness via `:skolem`).
   The Hilbert choice instance is an axiom of the TPTP choice operator `$choice`
   (one constant per type `(T > $o) > T`, shared with the input agent).
+
+  AVATAR splitting (`Astraea.Calculus.Avatar`). The guard of a component `C` with
+  free variables `X1 < ... < Xn` (by id) is the closed formula
+  `[C] = ! [X1, ..., Xn]: C` (`avatar_guard/2`), built by the kernel itself:
+  - `{:avatar_comp, id, parent_id, guard, comp_lits}` concludes `C | ~[C]`, an
+    instance of universal instantiation. `guard` must equal `avatar_guard(C)`.
+  - `{:avatar_split, id, parent_id, guards}` concludes `[C1] | ... | [Ck]` from the
+    parent `C1 | ... | Ck`. The kernel partitions the parent into its
+    variable-disjoint components (`Avatar.components/2`, an untrusted proposal),
+    checks that they are pairwise disjoint, share no free variables and cover the
+    parent, and that `guards` are exactly their guards. With disjoint variables
+    `! [X]: (C1 | ... | Ck)` entails `(! [X1]: C1) | ... | (! [Xk]: Ck)`.
+  Guards are closed and carry no free-variable flag, so substitutions never enter
+  them, and they mean the same in every arena (no counter-named symbols).
   """
 
   alias Astraea.Arena
+  alias Astraea.Calculus.Avatar
 
   @tag_const 1
   @tag_app 4
@@ -335,9 +350,13 @@ defmodule Astraea.ProofChecker do
 
   defp check_step(%Arena{} = arena, derived, {:avatar_split, id, parent_id, guard_atoms})
        when is_list(guard_atoms) do
-    with {:ok, _parent} <- fetch_clause(derived, parent_id),
+    with {:ok, parent} <- fetch_clause(derived, parent_id),
          true <- length(guard_atoms) >= 2,
-         true <- Enum.all?(guard_atoms, &valid_guard_atom?(arena, &1)) do
+         comps = Avatar.components(arena, parent),
+         true <- length(comps) == length(guard_atoms),
+         true <- partition?(arena, parent, comps),
+         {guards, arena} = Enum.map_reduce(comps, arena, &swap(avatar_guard(&2, &1))),
+         true <- MapSet.new(guards) == MapSet.new(guard_atoms) do
       split_clause = MapSet.new(guard_atoms, &{:pos, &1})
       {:ok, arena, id, split_clause}
     else
@@ -349,7 +368,7 @@ defmodule Astraea.ProofChecker do
     with {:ok, parent} <- fetch_clause(derived, parent_id),
          true <- MapSet.subset?(comp_lits, parent),
          true <- MapSet.size(comp_lits) > 0,
-         true <- valid_guard_atom?(arena, guard_atom),
+         {arena, ^guard_atom} <- avatar_guard(arena, comp_lits),
          remainder = MapSet.difference(parent, comp_lits),
          true <- disjoint_free_vars?(arena, comp_lits, remainder) do
       comp_clause = MapSet.put(comp_lits, {:neg, guard_atom})
@@ -359,10 +378,60 @@ defmodule Astraea.ProofChecker do
     end
   end
 
-  defp valid_guard_atom?(%Arena{} = arena, atom_id) do
-    Arena.type_of(arena, atom_id) == Arena.ty_o() and
-      MapSet.size(Arena.free_vars(arena, atom_id)) == 0
+  @doc """
+  The AVATAR guard of a component: the universal closure `! [X1, ..., Xn]: C` of the
+  disjunction of `comp_lits` over its free variables in increasing id order.
+  """
+  @spec avatar_guard(Arena.t(), clause()) :: {Arena.t(), Arena.term_id()}
+  def avatar_guard(%Arena{} = arena, comp_lits) do
+    {lits, arena} =
+      Enum.map_reduce(comp_lits, arena, fn
+        {:pos, atom}, ar -> {atom, ar}
+        {:neg, atom}, ar -> swap(Arena.mk_not(ar, atom))
+      end)
+
+    {arena, body} =
+      case lits do
+        [] ->
+          Arena.mk_const(arena, "$false", :o)
+
+        [first | rest] ->
+          Enum.reduce(rest, {arena, first}, fn l, {ar, acc} -> Arena.mk_or(ar, acc, l) end)
+      end
+
+    comp_lits
+    |> Enum.reduce(MapSet.new(), fn {_pol, atom}, acc ->
+      MapSet.union(acc, Arena.free_vars(arena, atom))
+    end)
+    |> Enum.sort()
+    |> Enum.reverse()
+    |> Enum.reduce({arena, body}, fn {var_id, ty}, {ar, acc} ->
+      {ar, var} = Arena.mk_fvar(ar, var_id, ty)
+      {ar, abstracted} = Arena.abstract_subterm(ar, acc, var, 0)
+      Arena.mk_forall(ar, ty, abstracted)
+    end)
   end
+
+  defp swap({a, b}), do: {b, a}
+
+  # `comps` are non-empty, pairwise disjoint, cover `parent` and share no free variables.
+  defp partition?(%Arena{} = arena, parent, comps) do
+    Enum.all?(comps, &(MapSet.size(&1) > 0)) and
+      Enum.reduce(comps, MapSet.new(), &MapSet.union/2) == parent and
+      Enum.sum(Enum.map(comps, &MapSet.size/1)) == MapSet.size(parent) and
+      comps
+      |> Enum.map(fn comp ->
+        Enum.reduce(comp, MapSet.new(), fn {_pol, atom}, acc ->
+          MapSet.union(acc, Arena.free_vars(arena, atom))
+        end)
+      end)
+      |> pairwise_disjoint?()
+  end
+
+  defp pairwise_disjoint?([]), do: true
+
+  defp pairwise_disjoint?([vars | rest]),
+    do: Enum.all?(rest, &MapSet.disjoint?(vars, &1)) and pairwise_disjoint?(rest)
 
   defp disjoint_free_vars?(%Arena{} = arena, comp_lits, remainder) do
     comp_fvs =

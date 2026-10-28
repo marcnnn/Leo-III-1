@@ -772,14 +772,28 @@ defmodule Astraea.Prover do
   end
 
   defp do_avatar_split(%__MODULE__{} = state, item, comps) do
-    # 1. Allocate a fresh SAT variable and Arena guard atom for each component
+    # 1. The guard of each component is its universal closure (built as the kernel
+    # does, `ProofChecker.avatar_guard/2`); equal components share one SAT variable.
     {comp_data, state} =
       Enum.map_reduce(comps, state, fn comp_lits, st ->
-        var_id = st.next_sat_var
-        st = %{st | next_sat_var: var_id + 1}
-        {arena, guard_atom} = Arena.mk_const(st.arena, "$avatar_g_" <> Integer.to_string(var_id), Arena.ty_o())
-        st = %{st | arena: arena, sat_atom_map: Map.put(st.sat_atom_map, var_id, guard_atom)}
-        {{var_id, guard_atom, comp_lits}, st}
+        {arena, guard_atom} = ProofChecker.avatar_guard(st.arena, comp_lits)
+        st = %{st | arena: arena}
+
+        case Enum.find(st.sat_atom_map, fn {_var, atom} -> atom == guard_atom end) do
+          {var_id, _atom} ->
+            {{var_id, guard_atom, comp_lits}, st}
+
+          nil ->
+            var_id = st.next_sat_var
+
+            st = %{
+              st
+              | next_sat_var: var_id + 1,
+                sat_atom_map: Map.put(st.sat_atom_map, var_id, guard_atom)
+            }
+
+            {{var_id, guard_atom, comp_lits}, st}
+        end
       end)
 
     guard_atoms = Enum.map(comp_data, fn {_v, a, _c} -> a end)
