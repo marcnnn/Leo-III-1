@@ -206,6 +206,19 @@ defmodule Astraea.ProverLeo3FeaturesTest do
     end
   end
 
+  describe "pre-instantiation (Leo-III instantiate)" do
+    @inst """
+    thf(a_t, type, a: $i). thf(q_t, type, q: $i > $o).
+    thf(ax, axiom, ! [P: $i > $o]: ((P @ a) => (q @ a))).
+    thf(c, conjecture, q @ a).
+    """
+
+    test "special instances of the input clauses keep proofs kernel-checked" do
+      assert_kernel_proof(prove(@inst, instantiate: true, prim_subst: 0))
+      assert_kernel_proof(prove(@inst, special_instances: -1, instantiate_max_depth: 0))
+    end
+  end
+
   test "the Leo-III schedule passes sos, domConstr and injectivity to the prover" do
     s3 = Enum.find(Schedule.leo3_strategies(), &(&1.name == :s3))
     s5a = Enum.find(Schedule.leo3_strategies(), &(&1.name == :s5a))

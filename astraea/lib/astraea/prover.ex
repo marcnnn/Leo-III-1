@@ -317,6 +317,11 @@ defmodule Astraea.Prover do
       (Leo-III `detectInjectivity`, always on there; default `false`)
     * `:ac_simp` - AC normalization by ordered rewriting with a derived
       left-commutativity lemma (Leo-III `acsimp` flag, default `false`)
+    * `:instantiate` - special instances for the input clauses only (Leo-III
+      `instantiate`, a pre-instantiation level that Leo-III parses but never reads;
+      default `false`)
+    * `:instantiate_max_depth` - largest derivation depth of a clause that special
+      instances apply to (Leo-III `instantiate-maxdepth`, default 2)
   """
   @spec prove_clauses(Arena.t(), [ProofChecker.clause()], keyword()) ::
           result() | {:proved_external, map()}
@@ -2371,10 +2376,11 @@ defmodule Astraea.Prover do
 
   # 10. Quantifier instantiation with canonical terms (`Calculus.SpecialInstances`)
   defp try_special_instances(%__MODULE__{} = state, given) do
-    spec_opt = calculus_opt(state, :special_instances, false)
-    enabled? = spec_opt == true or (is_integer(spec_opt) and spec_opt > 0)
+    spec? = level_on?(calculus_opt(state, :special_instances, false))
+    pre? = level_on?(calculus_opt(state, :instantiate, false))
+    max_depth = if spec?, do: calculus_opt(state, :instantiate_max_depth, 2), else: 0
 
-    if enabled? and given.depth <= 2 do
+    if (spec? or pre?) and given.depth <= max_depth do
       choice_heads = Map.keys(state.choice_axioms)
       {arena, candidates} = SpecialInstances.candidates(state.arena, given, choice_heads)
       state = %{state | arena: arena}
@@ -2389,6 +2395,11 @@ defmodule Astraea.Prover do
       {:cont, state, []}
     end
   end
+
+  # Leo-III instance levels are bit sets (`Enumeration.REPLACE_*`); `-1` is
+  # `REPLACE_ALL`, `0` is `NO_REPLACE`.
+  defp level_on?(level), do: level == true or (is_integer(level) and level != 0)
+
   # 11. Domain constraint instances (Leo-III `instanciateDomain`, `Calculus.DomainConstraint`)
   defp try_domain_instances(%__MODULE__{domains: domains} = state, _given)
        when map_size(domains) == 0,
