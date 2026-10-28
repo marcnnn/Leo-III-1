@@ -1,11 +1,11 @@
 defmodule Astraea.Leo3WiringTest do
   @moduledoc """
   Leo-III features reached through the prover options: the CPO term ordering in
-  demodulation.
+  demodulation and set instantiation.
   """
   use ExUnit.Case, async: true
 
-  alias Astraea.{Arena, ProofChecker, Prover}
+  alias Astraea.{Arena, Clausifier, ProofChecker, Prover, TptpLower}
   alias Astraea.Engine.Demodulator
 
   @thm_src """
@@ -19,8 +19,37 @@ defmodule Astraea.Leo3WiringTest do
   thf(conj_qg, conjecture, q @ g).
   """
 
+  # Needs the instance `S := s` of an axiom over sets of properties.
+  @sets_src """
+  thf(s_type, type, s: ($i > $o) > $o).
+  thf(p_type, type, p: $i > $o).
+  thf(t_type, type, t: (($i > $o) > $o) > $o).
+  thf(ax_all, axiom, ! [S: ($i > $o) > $o]: ((S @ p) => (t @ S))).
+  thf(ax_s, axiom, s @ p).
+  thf(conj, conjecture, t @ s).
+  """
+
   defp assert_verified({:proved, steps, stats}) do
     assert :ok = ProofChecker.verify_refutation(stats.arena, steps)
+  end
+
+  describe "set instantiation" do
+    test "adds the instances of an axiom over sets of properties next to it" do
+      {:ok, lowered} = TptpLower.from_string(@sets_src)
+      {_arena, plain} = Clausifier.clausify(lowered, sine_limit: nil)
+      {arena, inst} = Clausifier.clausify(lowered, sine_limit: nil, instantiate_sets: true)
+
+      assert length(inst) == length(plain) + 1
+
+      # The instance `~ (s @ p) | t @ s`, with no variables left.
+      assert Enum.any?(inst, fn clause ->
+               MapSet.size(clause) == 2 and
+                 Enum.all?(clause, fn {_pol, atom} -> Enum.empty?(Arena.free_vars(arena, atom)) end)
+             end)
+
+      assert {:proved, _, _} = result = Prover.prove_string(@sets_src, instantiate_sets: true)
+      assert_verified(result)
+    end
   end
 
   describe "CPO term ordering" do

@@ -6,13 +6,56 @@ defmodule Astraea.Clausifier do
   clauses over the `Astraea.Arena` DAG:
   1. Extracts & inlines constant/combinator definitions (`role == "definition"` and closed
      higher-order constant equations), followed by multi-pass beta-eta normalization.
-  2. Recognizes & rewrites Leibniz equality (`! [Q: ty > $o]: (Q @ u => Q @ v)` -> `u = v`)
-     and unfolded bi-implications (`(~A | B) & (~B | A)` -> `A = B`).
+  2. Recognizes & rewrites Leibniz equality (`! [Q: ty > $o]: (Q @ u => Q @ v)` -> `u = v`),
+     Andrews equality (`! [Q: ty > ty > $o]: ((! [X]: Q @ X @ X) => Q @ u @ v)` -> `u = v`,
+     option `:andrews_eq`) and unfolded bi-implications (`(~A | B) & (~B | A)` -> `A = B`).
   3. Applies SInE (Sumo Inference Engine) symbol-rarity premise selection when `length(axioms) > sine_limit`.
   4. Expands higher-order positive congruence, negative functional extensionality (`FuncExt`),
      and Boolean extensionality (`BoolExt`) with shared-conjunct factoring during NNF +
      content-addressed Skolemization.
-  5. Distributes to CNF clauses with tautology elimination and per-clause variable standardization.
+  5. Optionally renames subformulas whose distribution would blow up (definitional CNF,
+     Leo-III `RenameCNF`, option `:renaming`), then distributes to CNF clauses with
+     tautology elimination and per-clause variable standardization.
+  6. Adds clause-level Andrews instances (Leo-III `ReplaceAndrewsEq`).
+
+  The clauses enter `Astraea.ProofChecker` as trusted `{:axiom, ...}` steps, and model
+  answers are read off saturated clause sets, so each step below must preserve
+  satisfiability in both directions (Henkin semantics with primitive equality):
+  - Andrews rewrite: `! [Q]: ((! [X]: Q @ X @ X) => Q @ u @ v)` is equivalent to `u = v`.
+    From left to right instantiate `Q := ^ [Y, Z]: Y = Z`, a closed term that denotes in
+    every Henkin model; from right to left `Q @ u @ v` is `Q @ u @ u`. Equivalent
+    subformulas are replaced in any context.
+  - Clause-level Andrews: for a clause `C` with a literal `~(X @ t @ t)` the instance
+    `C[X := ^ [Y, Z]: Y = Z]` (minus the false literals `~(t = t)`) is a consequence of
+    `C` and is added next to it, so the clause set is equivalent to the old one.
+    Leo-III replaces `C`, which is only satisfiability-preserving one way.
+  - Renaming: a subformula `S` with free variables `X1, ..., Xn` at a positive position
+    of an NNF tree `T[S]` (every position of an NNF tree is positive) is replaced by
+    `d @ X1 @ ... @ Xn` and the definition `! [X1, ..., Xn]: (~d @ X1 @ ... @ Xn | S)`
+    is added (Leo-III's polarity-aware one-directional definition). A model of `T[S]`
+    extends to the new symbol by `d := ^ [X1, ..., Xn]: S`, which satisfies both
+    formulas. Conversely, in a model of `T[d @ X1 @ ... @ Xn]` and the definition,
+    `d @ X1 @ ... @ Xn` implies `S`, so `T[S]` holds by monotonicity of positive
+    positions; that direction keeps model answers valid. The name of `d` is a hash of
+    `^ [X1, ..., Xn]: S` (variables in order of first occurrence), so equal
+    subformulas share one symbol, all definitions of `d` agree with the single
+    interpretation `^ [X1, ..., Xn]: S`, and lemmas exchanged between portfolio
+    workers mean the same in every worker (a counter would not; see Entry 001 of
+    `Notes/thesis_work_log.md`). The definition is emitted once per symbol.
+    A 64-bit hash collision, or a user symbol named `def_<16 hex digits>`, would break
+    freshness; both are treated as impossible, as for `Arena.mk_skolem/3`.
+  - Set instantiation (`:instantiate_sets`) adds instances `P[X := c]` of axioms
+    `! [X]: P`, which are consequences of the kept axiom.
+  - Premise selection drops axioms and `@max_cnf_clauses_per_formula` drops clauses:
+    both keep refutations sound but lose models, so `clausify_with_info/2` reports them
+    (`:axioms_dropped`, `:cnf_truncated`) for the caller to mark the run incomplete.
+    Renaming keeps CNFs small and so mostly avoids the truncation.
+
+  Leo-III's `PolaritySwitch` (`[~s]^p -> [s]^~p`, `[~s = ~t]^p -> [s = t]^p`) and
+  `LiftEq` (a predicate literal `[s = t]^p` becomes an equational literal) have no
+  counterpart here: NNF already moves every negation into the literal polarity and
+  expands Boolean equations, and an equation atom `Arena.mk_eq/3` under a polarity
+  already is an equational literal.
   """
 
   alias Astraea.{Arena, ProofChecker, TptpLower}
@@ -20,6 +63,7 @@ defmodule Astraea.Clausifier do
   # Node tags (u8) matching `Astraea.Arena`
   @tag_const 1
   @tag_bvar 2
+  @tag_fvar 3
   @tag_app 4
   @tag_lam 5
   @tag_eq 6
@@ -31,15 +75,58 @@ defmodule Astraea.Clausifier do
   @max_bool_quant_splits 4
   @max_ext_depth 3
 
+  # Leo-III `Configuration.RENAMING_THRESHHOLD` default (`CNFControl.cnf2` passes 0)
+  @default_renaming_threshold 0
+
+  @typedoc """
+  What `clausify_with_info/2` did besides the plain translation:
+    * `:axioms_dropped` - axioms removed by SInE (either variant) or the relevance
+      filter
+    * `:cnf_truncated` - formulas whose CNF exceeded `@max_cnf_clauses_per_formula`
+      and lost clauses
+    * `:definitions` - renaming definitions introduced
+    * `:andrews_instances` - clauses added by the clause-level Andrews rewrite
+  `:axioms_dropped > 0` or `:cnf_truncated > 0` means that a model of the clauses
+  need not be a model of the problem.
+  """
+  @type info :: %{
+          axioms_dropped: non_neg_integer(),
+          cnf_truncated: non_neg_integer(),
+          definitions: non_neg_integer(),
+          andrews_instances: non_neg_integer()
+        }
+
   @doc """
   Clausifies a `%Astraea.TptpLower{}` state into `{arena, clauses}`, where each
-  clause is a `MapSet.t({:pos | :neg, term_id})`.
+  clause is a `MapSet.t({:pos | :neg, term_id})`. Options:
+    * `:sine_limit` - SInE premise selection above this many axioms (default 55,
+      `nil` disables it)
+    * `:inline_bridges` - also inline bridge definitions into conjectures (default `false`)
+    * `:renaming` - definitional CNF (Leo-III `--renaming`, `RunStrategy.renaming`;
+      default `false`)
+    * `:renaming_threshold` - rename a disjunct only if the CNF shrinks by more than
+      this many clauses (Leo-III `RenameCNF` `THRESHHOLD`, default 0)
+    * `:leibniz_eq` - rewrite Leibniz equality (Leo-III default; `--nleq` disables
+      it, default `true`)
+    * `:andrews_eq` - rewrite Andrews equality (Leo-III default; `--naeq` disables
+      it, default `true`)
+    * `:instantiate_sets` - add instances of axioms quantifying over sets of functions
+      or properties (Leo-III `--instantiate-sets`, default `false`)
   """
   @spec clausify(TptpLower.t(), keyword()) :: {Arena.t(), [ProofChecker.clause()]}
   def clausify(%TptpLower{} = lowered, opts \\ []) do
+    {arena, clauses, _info} = clausify_with_info(lowered, opts)
+    {arena, clauses}
+  end
+
+  @doc "`clausify/2` that also returns an `t:info/0` map."
+  @spec clausify_with_info(TptpLower.t(), keyword()) ::
+          {Arena.t(), [ProofChecker.clause()], info()}
+  def clausify_with_info(%TptpLower{} = lowered, opts \\ []) do
     arena = lowered.arena
     sine_limit = Keyword.get(opts, :sine_limit, 55)
     inline_bridges = Keyword.get(opts, :inline_bridges, false)
+    andrews_eq = Keyword.get(opts, :andrews_eq, true)
 
     # 1. Extract constant definitions `c = rhs` and inline across axioms & conjectures
     {arena, def_map, defined_names} = extract_definitions(arena, lowered.axioms)
@@ -82,45 +169,172 @@ defmodule Astraea.Clausifier do
       end
 
     # 3. Preprocess (multi-pass inline definitions -> beta-eta norm -> rewrite Leibniz equality)
+    eqs = {Keyword.get(opts, :leibniz_eq, true), andrews_eq}
+
     {arena, prep_axioms} =
       Enum.reduce(selected_axioms, {arena, []}, fn {_name, role, term_id}, {ar, acc} ->
-        {ar, norm_id} = preprocess_formula(ar, term_id, def_map)
+        {ar, norm_id} = preprocess_formula(ar, term_id, def_map, eqs)
         {ar, [{role, norm_id} | acc]}
       end)
 
     {arena, prep_conjs} =
       Enum.reduce(lowered.conjectures, {arena, []}, fn {_name, term_id}, {ar, acc} ->
-        {ar, norm_id} = preprocess_formula(ar, term_id, bridge_def_map)
+        {ar, norm_id} = preprocess_formula(ar, term_id, bridge_def_map, eqs)
         {ar, [norm_id | acc]}
       end)
 
+    {arena, prep_axioms} =
+      if Keyword.get(opts, :instantiate_sets, false),
+        do: instantiate_sets(arena, prep_axioms, prep_conjs),
+        else: {arena, prep_axioms}
+
     # 4. Convert axioms (:pos) and conjectures (:neg) to NNF -> CNF clauses
-    {arena, next_fvar, ax_clauses} =
-      Enum.reduce(Enum.reverse(prep_axioms), {arena, 1, []}, fn {_role, term_id},
-                                                                {ar, fvar, acc} ->
-        {ar, fvar, cls} = formula_to_clauses(ar, term_id, :pos, fvar)
-        {ar, fvar, acc ++ cls}
+    st = %{
+      renaming: Keyword.get(opts, :renaming, false),
+      threshold: Keyword.get(opts, :renaming_threshold, @default_renaming_threshold),
+      defined: MapSet.new(),
+      definitions: 0,
+      cnf_truncated: 0
+    }
+
+    {arena, next_fvar, ax_clauses, st} =
+      Enum.reduce(Enum.reverse(prep_axioms), {arena, 1, [], st}, fn {_role, term_id},
+                                                                    {ar, fvar, acc, st} ->
+        {ar, fvar, cls, st} = formula_to_clauses(ar, term_id, :pos, fvar, st)
+        {ar, fvar, acc ++ cls, st}
       end)
 
-    {arena, _next_fvar, all_clauses} =
-      Enum.reduce(Enum.reverse(prep_conjs), {arena, next_fvar, ax_clauses}, fn term_id,
-                                                                               {ar, fvar, acc} ->
-        {ar, fvar, cls} = formula_to_clauses(ar, term_id, :neg, fvar)
-        {ar, fvar, acc ++ cls}
+    {arena, next_fvar, all_clauses, st} =
+      Enum.reduce(Enum.reverse(prep_conjs), {arena, next_fvar, ax_clauses, st}, fn term_id,
+                                                                                   {ar, fvar, acc,
+                                                                                    st} ->
+        {ar, fvar, cls, st} = formula_to_clauses(ar, term_id, :neg, fvar, st)
+        {ar, fvar, acc ++ cls, st}
       end)
 
-    {arena, Enum.uniq(all_clauses)}
+    # 5. Clause-level Andrews equality (`ReplaceAndrewsEq`), as extra instances
+    {arena, extra, st} =
+      if andrews_eq,
+        do: andrews_instances(arena, all_clauses, next_fvar, st),
+        else: {arena, [], st}
+
+    info = %{
+      axioms_dropped: length(raw_axioms) - length(selected_axioms),
+      cnf_truncated: st.cnf_truncated,
+      definitions: st.definitions,
+      andrews_instances: length(extra)
+    }
+
+    {arena, Enum.uniq(all_clauses ++ extra), info}
   end
 
-  defp preprocess_formula(%Arena{} = arena, term_id, def_map) do
+  defp preprocess_formula(%Arena{} = arena, term_id, def_map, {leibniz_eq, andrews_eq}) do
     {arena, t1} =
       Enum.reduce(1..4, {arena, term_id}, fn _pass, {ar, cur} ->
         {ar, inlined} = inline_defs(ar, cur, def_map, 6)
         Arena.beta_eta_norm(ar, inlined)
       end)
 
-    {arena, t2} = rewrite_leibniz(arena, t1)
+    {arena, t2} = if leibniz_eq, do: rewrite_leibniz(arena, t1), else: {arena, t1}
+    {arena, t2} = if andrews_eq, do: rewrite_andrews(arena, t2), else: {arena, t2}
     Arena.beta_eta_norm(arena, t2)
+  end
+
+  # Leo-III `instantiateSetAxioms` (`--instantiate-sets`): an axiom
+  # `! [X: (A > B) > ... > C]: P` over sets of functions or properties gets the
+  # instances `P[X := c]` for every symbol `c` of that type occurring in the problem,
+  # plus the empty set `^ [...]: $false` when `C` is `$o`, recursively for nested
+  # quantifiers. Leo-III replaces the axiom by its instances; here they are added next
+  # to it, so the clause set stays equivalent and model answers remain valid.
+  defp instantiate_sets(%Arena{} = arena, prep_axioms, prep_conjs) do
+    terms = Enum.map(prep_axioms, &elem(&1, 1)) ++ prep_conjs
+    consts = Enum.reduce(terms, MapSet.new(), &collect_const_nodes(arena, &1, &2))
+
+    Enum.reduce(prep_axioms, {arena, prep_axioms}, fn
+      {"axiom", term_id}, {ar, acc} ->
+        {ar, insts} = set_instances(ar, term_id, consts)
+
+        Enum.reduce(insts, {ar, acc}, fn inst, {ar, acc} ->
+          {ar, inst} = Arena.beta_eta_norm(ar, inst)
+          {ar, [{"plain", inst} | acc]}
+        end)
+
+      _, st ->
+        st
+    end)
+  end
+
+  defp set_instances(%Arena{} = arena, term_id, consts) do
+    case Arena.get_node(arena, term_id) do
+      {@tag_forall, _, _, var_ty, body} ->
+        {arena, kept} = set_instances(arena, body, consts)
+
+        {arena, kept} =
+          Enum.reduce(kept, {arena, []}, fn b, {ar, acc} ->
+            {ar, f} = Arena.mk_forall(ar, var_ty, b)
+            {ar, [f | acc]}
+          end)
+
+        {arena, cands} = set_candidates(arena, var_ty, consts)
+
+        Enum.reduce(cands, {arena, Enum.reverse(kept)}, fn c, {ar, acc} ->
+          {ar, here} = Arena.subst_bvar(ar, body, 0, c)
+          {ar, here} = Arena.beta_eta_norm(ar, here)
+          {ar, deeper} = set_instances(ar, here, consts)
+          {ar, acc ++ [here | deeper]}
+        end)
+
+      _ ->
+        {arena, []}
+    end
+  end
+
+  defp set_candidates(%Arena{} = arena, ty, consts) do
+    with {:arrow, dom, _cod} <- Map.get(arena.type_table, ty),
+         {:arrow, _, _} <- Map.get(arena.type_table, dom),
+         [_ | _] = cs <- consts |> Enum.filter(&(Arena.type_of(arena, &1) == ty)) |> Enum.sort() do
+      {arena, empty} = empty_set(arena, ty)
+      {arena, if(empty, do: cs ++ [empty], else: cs)}
+    else
+      _ -> {arena, []}
+    end
+  end
+
+  # `^ [X1, ..., Xn]: $false` for a type `T1 > ... > Tn > $o`, `nil` for other types.
+  defp empty_set(%Arena{} = arena, ty) do
+    case Map.get(arena.type_table, ty) do
+      {:arrow, dom, cod} ->
+        case empty_set(arena, cod) do
+          {arena, nil} -> {arena, nil}
+          {arena, body} -> Arena.mk_lam(arena, dom, body)
+        end
+
+      _ ->
+        if ty == Arena.ty_o(), do: Arena.mk_const(arena, "$false", :o), else: {arena, nil}
+    end
+  end
+
+  defp collect_const_nodes(%Arena{} = arena, term_id, acc) do
+    {tag, _flags, _ty, left, right} = Arena.get_node(arena, term_id)
+
+    case tag do
+      @tag_const ->
+        if String.starts_with?(Map.get(arena.symbol_names, left, "$"), "$"),
+          do: acc,
+          else: MapSet.put(acc, term_id)
+
+      @tag_not ->
+        collect_const_nodes(arena, left, acc)
+
+      t when t in [@tag_lam, @tag_forall] ->
+        collect_const_nodes(arena, right, acc)
+
+      t when t in [@tag_app, @tag_eq, @tag_or] ->
+        collect_const_nodes(arena, right, collect_const_nodes(arena, left, acc))
+
+      _ ->
+        acc
+    end
   end
 
   defp contains_forall?(%Arena{} = arena, term_id) do
@@ -450,6 +664,179 @@ defmodule Astraea.Clausifier do
   end
 
   # ---------------------------------------------------------------------------
+  # 2b. Andrews Equality (Leo-III `ReplaceAndrewsEq`)
+  # ---------------------------------------------------------------------------
+
+  @doc """
+  Rewrites Andrews equality `! [Q: ty > ty > $o]: ((! [X: ty]: Q @ X @ X) => Q @ u @ v)`
+  (`Q` not free in `u`, `v`) to `u = v`, everywhere in `term_id`. Either disjunct
+  order of the implication is recognized.
+  """
+  @spec rewrite_andrews(Arena.t(), Arena.term_id()) :: {Arena.t(), Arena.term_id()}
+  def rewrite_andrews(%Arena{} = arena, term_id) do
+    {tag, _flags, _ty_id, left, right} = Arena.get_node(arena, term_id)
+
+    case tag do
+      @tag_forall ->
+        {arena, body} = rewrite_andrews(arena, right)
+
+        case match_andrews_body(arena, left, body) do
+          {:ok, arena, u, v} -> Arena.mk_eq(arena, u, v)
+          :error -> Arena.mk_forall(arena, left, body)
+        end
+
+      @tag_lam ->
+        {arena, b2} = rewrite_andrews(arena, right)
+        Arena.mk_lam(arena, left, b2)
+
+      @tag_app ->
+        {arena, l2} = rewrite_andrews(arena, left)
+        {arena, r2} = rewrite_andrews(arena, right)
+        Arena.mk_app(arena, l2, r2)
+
+      @tag_eq ->
+        {arena, l2} = rewrite_andrews(arena, left)
+        {arena, r2} = rewrite_andrews(arena, right)
+        Arena.mk_eq(arena, l2, r2)
+
+      @tag_or ->
+        {arena, l2} = rewrite_andrews(arena, left)
+        {arena, r2} = rewrite_andrews(arena, right)
+        Arena.mk_or(arena, l2, r2)
+
+      @tag_not ->
+        {arena, l2} = rewrite_andrews(arena, left)
+        Arena.mk_not(arena, l2)
+
+      _ ->
+        {arena, term_id}
+    end
+  end
+
+  # Body of `! [Q]`: `~(! [X]: Q @ X @ X) | Q @ u @ v` with `Q` = BVar 0
+  defp match_andrews_body(%Arena{} = arena, q_ty_id, body_id) do
+    with {:arrow, dom_ty, rel_ty} <- Map.get(arena.type_table, q_ty_id),
+         {:arrow, ^dom_ty, 0} <- Map.get(arena.type_table, rel_ty),
+         {@tag_or, _, _, l_or, r_or} <- Arena.get_node(arena, body_id) do
+      case andrews_disjuncts(arena, dom_ty, l_or, r_or) do
+        {:ok, _, _, _} = ok -> ok
+        :error -> andrews_disjuncts(arena, dom_ty, r_or, l_or)
+      end
+    else
+      _ -> :error
+    end
+  end
+
+  defp andrews_disjuncts(arena, dom_ty, neg_side, pos_side) do
+    with {@tag_not, _, _, refl, _} <- Arena.get_node(arena, neg_side),
+         {@tag_forall, _, _, ^dom_ty, refl_body} <- Arena.get_node(arena, refl),
+         {:ok, x1, x2} <- match_bvar_app2(arena, refl_body, 1),
+         {@tag_bvar, _, _, 0, _} <- Arena.get_node(arena, x1),
+         true <- x1 == x2,
+         {:ok, u_raw, v_raw} <- match_bvar_app2(arena, pos_side, 0),
+         false <- Arena.occurs_bvar?(arena, u_raw, 0),
+         false <- Arena.occurs_bvar?(arena, v_raw, 0) do
+      {arena, u} = Arena.shift(arena, u_raw, -1, 1)
+      {arena, v} = Arena.shift(arena, v_raw, -1, 1)
+      {:ok, arena, u, v}
+    else
+      _ -> :error
+    end
+  end
+
+  # `BVar(idx) @ a @ b` -> `{:ok, a, b}`
+  defp match_bvar_app2(%Arena{} = arena, term_id, idx) do
+    with {@tag_app, _, _, fa, b} <- Arena.get_node(arena, term_id),
+         {@tag_app, _, _, f, a} <- Arena.get_node(arena, fa),
+         {@tag_bvar, _, _, ^idx, _} <- Arena.get_node(arena, f) do
+      {:ok, a, b}
+    else
+      _ -> :error
+    end
+  end
+
+  # Clause-level `ReplaceAndrewsEq`: a clause with a negative literal `~(X @ t @ t)`,
+  # `X` a free variable, gets the instance `X := ^ [Y, Z]: Y = Z` (literals
+  # `~(t = t)` dropped) as an extra clause. Leo-III replaces the clause; the instance
+  # alone is not equisatisfiable with it (`! [X]: X @ c @ c => X @ d @ d` with
+  # `c != d` is unsatisfiable, the instance `d = d` is valid), so the original stays.
+  defp andrews_instances(%Arena{} = arena, clauses, next_fvar, st) do
+    {arena, _fvar, extra, st} =
+      Enum.reduce(clauses, {arena, next_fvar, [], st}, fn clause, {ar, fvar, acc, st} ->
+        case andrews_vars(ar, clause) do
+          vars when map_size(vars) == 0 ->
+            {ar, fvar, acc, st}
+
+          vars ->
+            {ar, subst} =
+              Enum.reduce(vars, {ar, %{}}, fn {x, ty}, {ar, sub} ->
+                {ar, y} = Arena.mk_bvar(ar, 1, ty)
+                {ar, z} = Arena.mk_bvar(ar, 0, ty)
+                {ar, eq} = Arena.mk_eq(ar, y, z)
+                {ar, inner} = Arena.mk_lam(ar, ty, eq)
+                {ar, rel} = Arena.mk_lam(ar, ty, inner)
+                {ar, Map.put(sub, x, rel)}
+              end)
+
+            {ar, disj} = instance_formula(ar, clause, subst)
+            univ = disj |> then(&Arena.free_vars(ar, &1)) |> Enum.sort()
+            {ar, fvar, cls, st} = formula_to_clauses(ar, disj, :pos, fvar, st, univ)
+            {ar, fvar, acc ++ Enum.reject(cls, &(&1 == clause)), st}
+        end
+      end)
+
+    {arena, extra, st}
+  end
+
+  defp andrews_vars(%Arena{} = arena, clause) do
+    Enum.reduce(clause, %{}, fn
+      {:neg, atom}, acc ->
+        with {:ok, x, ty, t1, t2} <- match_fvar_app2(arena, atom), true <- t1 == t2 do
+          Map.put(acc, x, ty)
+        else
+          _ -> acc
+        end
+
+      _, acc ->
+        acc
+    end)
+  end
+
+  defp match_fvar_app2(%Arena{} = arena, term_id) do
+    with {@tag_app, _, _, fa, b} <- Arena.get_node(arena, term_id),
+         {@tag_app, _, _, f, a} <- Arena.get_node(arena, fa),
+         {@tag_fvar, _, _, x, _} <- Arena.get_node(arena, f) do
+      {:ok, x, Arena.type_of(arena, a), a, b}
+    else
+      _ -> :error
+    end
+  end
+
+  # The instantiated clause as a disjunction, without the literals `~(t = t)`
+  defp instance_formula(%Arena{} = arena, clause, subst) do
+    {arena, lits} =
+      clause
+      |> Enum.sort()
+      |> Enum.reduce({arena, []}, fn {pol, atom}, {ar, acc} ->
+        {ar, inst} = Arena.subst_fvar(ar, atom, subst)
+
+        case {pol, Arena.get_node(ar, inst)} do
+          {:neg, {@tag_eq, _, _, s, s}} ->
+            {ar, acc}
+
+          {:neg, _} ->
+            {ar, lit} = Arena.mk_not(ar, inst)
+            {ar, [lit | acc]}
+
+          {:pos, _} ->
+            {ar, [inst | acc]}
+        end
+      end)
+
+    build_disjunction(arena, Enum.reverse(lits))
+  end
+
+  # ---------------------------------------------------------------------------
   # 3. SInE Premise Selection for Large Axiom Theories
   # ---------------------------------------------------------------------------
 
@@ -553,10 +940,27 @@ defmodule Astraea.Clausifier do
   # 4. NNF + Skolemization + Extensionality + CNF
   # ---------------------------------------------------------------------------
 
-  defp formula_to_clauses(%Arena{} = arena, term_id, polarity, next_fvar) do
-    ctx = %{univ_vars: [], next_fvar: next_fvar, bool_splits: 0, ext_depth: 0}
+  # `univ` lists the free variables `{fvar_id, ty_id}` of `term_id` that Skolem
+  # functions must depend on (empty for closed input formulas).
+  defp formula_to_clauses(%Arena{} = arena, term_id, polarity, next_fvar, st, univ \\ []) do
+    {arena, univ_vars} =
+      Enum.reduce(univ, {arena, []}, fn {id, ty}, {ar, acc} ->
+        {ar, node} = Arena.mk_fvar(ar, id, ty)
+        {ar, acc ++ [{id, ty, node}]}
+      end)
+
+    next_fvar = Enum.reduce(univ, next_fvar, fn {id, _ty}, nf -> max(nf, id + 1) end)
+    ctx = %{univ_vars: univ_vars, next_fvar: next_fvar, bool_splits: 0, ext_depth: 0}
     {arena, nnf_tree, ctx} = to_nnf(arena, term_id, polarity, ctx)
-    raw_clauses = nnf_to_cnf(nnf_tree)
+
+    {arena, trees, st} =
+      if st.renaming, do: rename_formula(arena, nnf_tree, st), else: {arena, [nnf_tree], st}
+
+    {raw_clauses, st} =
+      Enum.reduce(trees, {[], st}, fn tree, {acc, st} ->
+        {cls, truncated} = nnf_to_cnf(tree)
+        {acc ++ cls, if(truncated, do: %{st | cnf_truncated: st.cnf_truncated + 1}, else: st)}
+      end)
 
     {arena, final_fvar, clean_clauses} =
       Enum.reduce(raw_clauses, {arena, ctx.next_fvar, []}, fn lits, {ar, fvar, acc} ->
@@ -569,7 +973,7 @@ defmodule Astraea.Clausifier do
         end
       end)
 
-    {arena, final_fvar, Enum.reverse(clean_clauses)}
+    {arena, final_fvar, Enum.reverse(clean_clauses), st}
   end
 
   defp to_nnf(%Arena{} = arena, raw_term_id, polarity, ctx) do
@@ -853,28 +1257,169 @@ defmodule Astraea.Clausifier do
   defp mk_nnf_or(l, :bot), do: l
   defp mk_nnf_or(l, r), do: {:or, l, r}
 
-  defp nnf_to_cnf(:top), do: []
-  defp nnf_to_cnf(:bot), do: [[]]
-  defp nnf_to_cnf({:lit, pol, id}), do: [[{pol, id}]]
+  # Returns `{clauses, truncated?}`: beyond `@max_cnf_clauses_per_formula` clauses
+  # are dropped, which keeps refutations sound but loses models.
+  defp nnf_to_cnf(:top), do: {[], false}
+  defp nnf_to_cnf(:bot), do: {[[]], false}
+  defp nnf_to_cnf({:lit, pol, id}), do: {[[{pol, id}]], false}
 
   defp nnf_to_cnf({:and, l, r}) do
-    (nnf_to_cnf(l) ++ nnf_to_cnf(r))
-    |> Enum.take(@max_cnf_clauses_per_formula)
+    {cls_l, t_l} = nnf_to_cnf(l)
+    {cls_r, t_r} = nnf_to_cnf(r)
+    all = cls_l ++ cls_r
+    kept = Enum.take(all, @max_cnf_clauses_per_formula)
+    {kept, t_l or t_r or length(kept) < length(all)}
   end
 
   defp nnf_to_cnf({:or, l, r}) do
-    cls_l = nnf_to_cnf(l)
-    cls_r = nnf_to_cnf(r)
+    {cls_l, t_l} = nnf_to_cnf(l)
+    {cls_r, t_r} = nnf_to_cnf(r)
 
     cond do
       cls_l == [] or cls_r == [] ->
-        []
+        {[], false}
 
       length(cls_l) * length(cls_r) <= @max_cnf_clauses_per_formula ->
-        for c1 <- cls_l, c2 <- cls_r, do: c1 ++ c2
+        {for(c1 <- cls_l, c2 <- cls_r, do: c1 ++ c2), t_l or t_r}
 
       true ->
-        for(c1 <- Enum.take(cls_l, 8), c2 <- Enum.take(cls_r, 8), do: c1 ++ c2)
+        {for(c1 <- Enum.take(cls_l, 8), c2 <- Enum.take(cls_r, 8), do: c1 ++ c2), true}
+    end
+  end
+
+  # ---------------------------------------------------------------------------
+  # 4b. Formula Renaming (Leo-III `FormulaRenaming`, `RenameCNF`)
+  # ---------------------------------------------------------------------------
+
+  # Renames the NNF tree; returns the main tree followed by the definition trees
+  # `~d(X1, ..., Xn) | S` that were introduced (already renamed themselves).
+  defp rename_formula(%Arena{} = arena, tree, st) do
+    {arena, tree, st, defs} = rename(arena, tree, st, [])
+    {arena, [tree | Enum.reverse(defs)], st}
+  end
+
+  # `FormulaRenaming.canApply` on a positive disjunction `a | b`: rename `b` iff
+  # `size(a) * size(b) > size(a) + size(b) + threshold`. Following
+  # `FormulaRenaming.apply`, an already defined `a` is reused instead. Renaming a
+  # literal gains nothing, which also keeps negative thresholds terminating.
+  defp rename(arena, {:or, a, b}, st, defs) do
+    sa = cnf_size(a)
+    sb = cnf_size(b)
+
+    if sa * sb > sa + sb + st.threshold and (renamable?(a) or renamable?(b)) do
+      {arena, a_def} = if renamable?(a), do: def_atom(arena, a), else: {arena, nil}
+
+      {arena, tree, st, defs} =
+        cond do
+          a_def != nil and MapSet.member?(st.defined, elem(a_def, 0)) ->
+            {arena, {:or, {:lit, :pos, elem(a_def, 1)}, b}, st, defs}
+
+          renamable?(b) ->
+            {arena, lit, st, defs} = define(arena, b, st, defs)
+            {arena, {:or, a, lit}, st, defs}
+
+          true ->
+            {arena, lit, st, defs} = define(arena, a, st, defs)
+            {arena, {:or, lit, b}, st, defs}
+        end
+
+      rename(arena, tree, st, defs)
+    else
+      {arena, a2, st, defs} = rename(arena, a, st, defs)
+      {arena, b2, st, defs} = rename(arena, b, st, defs)
+      {arena, {:or, a2, b2}, st, defs}
+    end
+  end
+
+  defp rename(arena, {:and, a, b}, st, defs) do
+    {arena, a2, st, defs} = rename(arena, a, st, defs)
+    {arena, b2, st, defs} = rename(arena, b, st, defs)
+    {arena, {:and, a2, b2}, st, defs}
+  end
+
+  defp rename(arena, tree, st, defs), do: {arena, tree, st, defs}
+
+  defp renamable?({:and, _, _}), do: true
+  defp renamable?({:or, _, _}), do: true
+  defp renamable?(_), do: false
+
+  # Number of CNF clauses of an NNF tree (`FormulaRenaming.size`)
+  defp cnf_size({:and, l, r}), do: cnf_size(l) + cnf_size(r)
+  defp cnf_size({:or, l, r}), do: cnf_size(l) * cnf_size(r)
+  defp cnf_size(:top), do: 0
+  defp cnf_size(_), do: 1
+
+  # Replaces `sub` by its definition atom; the definition `~d(X1, ..., Xn) | sub`
+  # is emitted once per symbol (`renamingCash`), renamed in turn.
+  defp define(arena, sub, st, defs) do
+    {arena, {name, atom}} = def_atom(arena, sub)
+
+    if MapSet.member?(st.defined, name) do
+      {arena, {:lit, :pos, atom}, st, defs}
+    else
+      st = %{st | defined: MapSet.put(st.defined, name), definitions: st.definitions + 1}
+      {arena, def_tree, st, defs} = rename(arena, {:or, {:lit, :neg, atom}, sub}, st, defs)
+      {arena, {:lit, :pos, atom}, st, [def_tree | defs]}
+    end
+  end
+
+  # Content-addressed definition symbol: `d = def_<hash>` with
+  # `hash = sha256(^ [X1, ..., Xn]: S)` over `Arena.canonical_bytes/2`, where `S` is
+  # the subformula as a term and `X1, ..., Xn` its free variables in order of first
+  # occurrence. Returns `{name, d @ X1 @ ... @ Xn}`.
+  defp def_atom(arena, sub) do
+    {arena, body} = tree_to_term(arena, sub)
+    fvars = ordered_fvars(arena, body, [])
+
+    {arena, closed} =
+      Enum.reduce(Enum.reverse(fvars), {arena, body}, fn fv, {ar, acc} ->
+        {ar, abs} = Arena.abstract_subterm(ar, acc, fv)
+        Arena.mk_lam(ar, Arena.type_of(ar, fv), abs)
+      end)
+
+    <<hash::64, _::binary>> = :crypto.hash(:sha256, ["def", Arena.canonical_bytes(arena, closed)])
+    name = "def_" <> String.downcase(String.pad_leading(Integer.to_string(hash, 16), 16, "0"))
+    {arena, d} = Arena.mk_const(arena, name, Arena.type_of(arena, closed))
+
+    {arena, atom} =
+      Enum.reduce(fvars, {arena, d}, fn fv, {ar, acc} -> Arena.mk_app(ar, acc, fv) end)
+
+    {arena, {name, atom}}
+  end
+
+  defp tree_to_term(arena, {:lit, :pos, id}), do: {arena, id}
+  defp tree_to_term(arena, {:lit, :neg, id}), do: Arena.mk_not(arena, id)
+  defp tree_to_term(arena, :top), do: Arena.mk_const(arena, "$true", :o)
+  defp tree_to_term(arena, :bot), do: Arena.mk_const(arena, "$false", :o)
+
+  defp tree_to_term(arena, {op, l, r}) do
+    {arena, lt} = tree_to_term(arena, l)
+    {arena, rt} = tree_to_term(arena, r)
+    if op == :and, do: Arena.mk_and(arena, lt, rt), else: Arena.mk_or(arena, lt, rt)
+  end
+
+  # Free variable nodes of `term_id` in order of first occurrence (left to right)
+  defp ordered_fvars(arena, term_id, acc) do
+    {tag, flags, _ty, left, right} = Arena.get_node(arena, term_id)
+
+    cond do
+      Bitwise.band(flags, 2) == 0 ->
+        acc
+
+      tag == @tag_fvar ->
+        if term_id in acc, do: acc, else: acc ++ [term_id]
+
+      tag == @tag_not ->
+        ordered_fvars(arena, left, acc)
+
+      tag in [@tag_lam, @tag_forall] ->
+        ordered_fvars(arena, right, acc)
+
+      tag in [@tag_app, @tag_eq, @tag_or] ->
+        ordered_fvars(arena, right, ordered_fvars(arena, left, acc))
+
+      true ->
+        acc
     end
   end
 

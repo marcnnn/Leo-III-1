@@ -184,19 +184,14 @@ defmodule Astraea.Prover do
 
   @spec prove_lowered(TptpLower.t(), keyword()) :: result()
   def prove_lowered(%TptpLower{} = lowered, opts \\ []) do
-    sine_limit = Keyword.get(opts, :sine_limit, 55)
-    inline_bridges = Keyword.get(opts, :inline_bridges, false)
+    clausify_opts = clausify_opts(opts)
 
-    {arena, clauses} =
-      Clausifier.clausify(lowered,
-        sine_limit: sine_limit,
-        inline_bridges: inline_bridges
-      )
+    {arena, clauses, info} = Clausifier.clausify_with_info(lowered, clausify_opts)
 
     opts =
       opts
-      |> Keyword.put(:sine_filtered, sine_filtered?(lowered, sine_limit))
-      |> Keyword.put(:input_incomplete, input_incomplete(lowered))
+      |> Keyword.put(:sine_filtered, info.axioms_dropped > 0)
+      |> Keyword.put(:input_incomplete, input_incomplete(lowered, info))
 
     prove_clauses(arena, clauses, opts)
   end
@@ -210,16 +205,26 @@ defmodule Astraea.Prover do
   # description and tuples are uninterpreted.
   @model_faithful_fragments [:thf, :tff, :fof, :cnf, :ite, :let, :distinct]
 
-  defp input_incomplete(%TptpLower{} = lowered) do
-    lowered.incomplete ++ Enum.reject(lowered.fragments, &(&1 in @model_faithful_fragments))
+  # A truncated CNF lost clauses, so a saturation of it proves nothing.
+  defp input_incomplete(%TptpLower{} = lowered, info) do
+    truncated = if info.cnf_truncated > 0, do: [:cnf_truncated], else: []
+
+    lowered.incomplete ++
+      Enum.reject(lowered.fragments, &(&1 in @model_faithful_fragments)) ++ truncated
   end
 
-  # Mirrors the SInE trigger in `Clausifier.clausify/2`. It counts definitions the
-  # clausifier inlines before filtering, so it may report a filter that kept every
-  # axiom: `:complete` errs on the safe side.
-  defp sine_filtered?(%TptpLower{} = lowered, sine_limit) do
-    is_integer(sine_limit) and length(lowered.axioms) > sine_limit and lowered.conjectures != []
-  end
+  # `Clausifier.clausify_with_info/2` options read from the prover options.
+  @clausify_keys [
+    :inline_bridges,
+    :renaming,
+    :renaming_threshold,
+    :leibniz_eq,
+    :andrews_eq,
+    :instantiate_sets
+  ]
+
+  defp clausify_opts(opts),
+    do: [sine_limit: Keyword.get(opts, :sine_limit, 55)] ++ Keyword.take(opts, @clausify_keys)
 
   @doc """
   Saturates `input_clauses`. Strategy options:
