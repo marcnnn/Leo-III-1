@@ -55,6 +55,7 @@ defmodule Astraea.Prover do
     Avatar,
     Choice,
     Cnf,
+    DomainConstraint,
     EqFact,
     FingerprintIndex,
     Fluid,
@@ -150,7 +151,9 @@ defmodule Astraea.Prover do
             next_sat_var: 1,
             avatar_splits: 0,
             sos: false,
-            sos_ids: MapSet.new()
+            sos_ids: MapSet.new(),
+            domains: %{},
+            domain_instances: 0
 
   @type result ::
           {:proved, [ProofChecker.step()], map()}
@@ -303,6 +306,10 @@ defmodule Astraea.Prover do
       clauses are the indices `:sos_clauses` of `input_clauses` (computed by
       `prove_lowered/2`); without conjecture clauses the option has no effect. The
       run counts as incomplete (default `false`)
+    * `:dom_constr` - domain constraints (Leo-III `domConstr`): clauses
+      `X = t1 | ... | X = tn` bound the domain of `X`'s type, and clauses with
+      variables of that type are also instantiated with the `ti`; at most this
+      many instances per clause, `-1` for no bound, `0` off (default `0`)
   """
   @spec prove_clauses(Arena.t(), [ProofChecker.clause()], keyword()) ::
           result() | {:proved_external, map()}
@@ -469,6 +476,8 @@ defmodule Astraea.Prover do
           if st.sos and MapSet.member?(sos_input, index),
             do: %{st | sos_ids: MapSet.put(st.sos_ids, c_item.id)},
             else: st
+
+        st = detect_domain_constraint(st, c_item)
 
         st =
           if calculus_opt(st, :choice, true) do
@@ -1417,7 +1426,8 @@ defmodule Astraea.Prover do
            {:cont, state, items8} <- try_func_spec(state, given),
            {:cont, state, items9} <- try_special_instances(state, given),
            {:cont, state, items10} <- try_choice(state, given),
-           {:cont, state, items11} <- try_induction(state, given) do
+           {:cont, state, items11} <- try_induction(state, given),
+           {:cont, state, items12} <- try_domain_instances(state, given) do
         clausify_items(
           state,
           items0 ++
@@ -1433,7 +1443,8 @@ defmodule Astraea.Prover do
             items8 ++
             items9 ++
             items10 ++
-            items11
+            items11 ++
+            items12
         )
       end
     else
@@ -2365,6 +2376,34 @@ defmodule Astraea.Prover do
       {:cont, state, []}
     end
   end
+  # 11. Domain constraint instances (Leo-III `instanciateDomain`, `Calculus.DomainConstraint`)
+  defp try_domain_instances(%__MODULE__{domains: domains} = state, _given)
+       when map_size(domains) == 0,
+       do: {:cont, state, []}
+
+  defp try_domain_instances(%__MODULE__{} = state, given) do
+    substs =
+      DomainConstraint.substitutions(
+        given.fvars,
+        state.domains,
+        calculus_opt(state, :dom_constr, 0)
+      )
+
+    each_inference(state, substs, fn st, subst ->
+      {st, item} = emit_subst_step(st, given, subst, given.depth + 1)
+      {:cont, %{st | domain_instances: st.domain_instances + 1}, [item]}
+    end)
+  end
+
+  defp detect_domain_constraint(%__MODULE__{} = state, item) do
+    with true <- calculus_opt(state, :dom_constr, 0) != 0,
+         {:ok, ty, terms} <- DomainConstraint.detect(state.arena, item.lits) do
+      %{state | domains: DomainConstraint.add(state.domains, ty, terms)}
+    else
+      _ -> state
+    end
+  end
+
   # Goal instances of stated induction principles (`Calculus.Induction`).
   defp try_induction(%__MODULE__{induction_goals: []} = state, _given), do: {:cont, state, []}
 
@@ -2902,7 +2941,8 @@ defmodule Astraea.Prover do
       unification_cutoffs: state.unification_cutoffs,
       complete: reasons == [],
       incomplete_reasons: reasons,
-      avatar_splits: state.avatar_splits
+      avatar_splits: state.avatar_splits,
+      domain_instances: state.domain_instances
     }
 
     if state.cooperate == [],

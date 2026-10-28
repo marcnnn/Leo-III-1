@@ -2,6 +2,7 @@ defmodule Astraea.ProverLeo3FeaturesTest do
   use ExUnit.Case, async: true
 
   alias Astraea.{Arena, ProofChecker, Prover, TptpLower}
+  alias Astraea.Calculus.DomainConstraint
 
   defp prove(src, opts) do
     Prover.prove_string(src, Keyword.merge([timeout_ms: 1_500], opts))
@@ -48,6 +49,56 @@ defmodule Astraea.ProverLeo3FeaturesTest do
       no_conj = %{lowered | conjectures: []}
       assert {:saturated, stats} = Prover.prove_lowered(no_conj, sos: true)
       refute :sos in stats.incomplete_reasons
+    end
+  end
+
+  describe "domain constraints (Leo-III domConstr)" do
+    @dom_thm """
+    thf(a_t, type, a: $i). thf(b_t, type, b: $i). thf(p_t, type, p: $i > $o).
+    thf(d, axiom, ! [X: $i]: ((X = a) | (X = b))).
+    thf(pa, axiom, p @ a). thf(pb, axiom, p @ b).
+    thf(c, conjecture, ! [X: $i]: (p @ X)).
+    """
+
+    @dom_csa """
+    thf(a_t, type, a: $i). thf(b_t, type, b: $i). thf(p_t, type, p: $i > $o).
+    thf(d, axiom, ! [X: $i]: ((X = a) | (X = b))).
+    thf(pa, axiom, p @ a).
+    thf(c, conjecture, ! [X: $i]: (p @ X)).
+    """
+
+    test "instantiates constrained variables by kernel-checked substitutions" do
+      result = prove(@dom_thm, dom_constr: -1)
+      assert_kernel_proof(result)
+      assert elem(result, 2).domain_instances > 0
+    end
+
+    test "does not refute a satisfiable problem" do
+      refute match?({:proved, _, _}, prove(@dom_csa, dom_constr: -1, max_iterations: 300))
+    end
+
+    test "detection needs positive literals with one variable and closed terms" do
+      arena = Arena.new()
+      {arena, a} = Arena.mk_const(arena, "a", :i)
+      {arena, b} = Arena.mk_const(arena, "b", :i)
+      {arena, x} = Arena.mk_fvar(arena, 1, :i)
+      {arena, xa} = Arena.mk_eq(arena, x, a)
+      {arena, bx} = Arena.mk_eq(arena, b, x)
+      ty = Arena.type_of(arena, x)
+
+      assert {:ok, ^ty, terms} =
+               DomainConstraint.detect(arena, MapSet.new([{:pos, xa}, {:pos, bx}]))
+
+      assert Enum.sort(terms) == Enum.sort([a, b])
+      assert :none == DomainConstraint.detect(arena, MapSet.new([{:neg, xa}, {:neg, bx}]))
+    end
+
+    test "a positive bound stops before exceeding the number of instances" do
+      fvars = MapSet.new([{1, 7}, {2, 7}])
+      domains = %{7 => [10, 11]}
+      assert length(DomainConstraint.substitutions(fvars, domains, -1)) == 4
+      assert length(DomainConstraint.substitutions(fvars, domains, 3)) == 2
+      assert DomainConstraint.substitutions(fvars, domains, 0) == []
     end
   end
 
