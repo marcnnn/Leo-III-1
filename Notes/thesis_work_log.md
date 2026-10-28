@@ -593,3 +593,27 @@ Pillars 2-5 of `Notes/beating_zipperposition_plan.md`, implemented in Elixir wit
   * The lemma bus loses problems even when throttled (AGT031^1, PHI004^4, SEU668^2, SEU938^5, SYO048^1; SEU668^2 drops from 257 ms to a timeout) and gains none. It stays off by default.
 
 * **Tests:** 177 passing (12 properties), including the discrimination-tree property, FluidSup binding and firing, stated-induction proof and its negative counterpart, wide-portfolio shape, lemma round trip, and a bus-enabled race with a verified proof.
+
+---
+
+## Entry 019: Missing Inference Rules Found by Comparing E Proofs: Flex Choice, Boolean Hoisting, Constraint Resolution (2026-10-28)
+
+Of the Dev theorems that only external provers solved, 26 ended `saturated` internally, often within 20-60 ms, so a rule was missing rather than search time. E-HO 3.5.1 (`--auto`, then `--auto-schedule`) proved 24 of them on `armix`; the inference names in its proof objects point at the gaps. On the current tree 14 of the 24 were already proved. Three rules were added, each built from existing kernel steps (no kernel change).
+
+* **Flex choice (`choice_flex: true`, `Calculus.Choice.flex_vars/2`)**: an applied free variable of type `(T > $o) > T` is instantiated with `$choice` and with each detected user choice function of that type, and the instance is resolved at once with the choice instance of each negative `P @ (eps @ P)` literal (E `choice_inst`). Steps: `:subst`, `:choice`, `:resolve`. The bare instance alone is useless: matching subsumption deletes it as an instance of its parent.
+* **Boolean hoisting (`bool_hoist: true`, `Calculus.BoolHoist`)**: `C | L[phi]` yields `C | L[$true] | ~phi` and `C | L[$false] | phi` for the outermost formula `phi` in an argument position, not under a binder, not a variable, truth constant or equation (E `fool_unroll`). Steps: `{:refl}` on `phi`, `{:cnf, {:bool_eq, :left}}` for `~phi | phi`, `:lift_bool`, `:paramod`.
+* **Constraint resolution (`constraint_resolution: false`, `Calculus.Disagreement`)**: `C | p(s)` and `D | ~p(t)` with disagreements only at function or Boolean type (at most two, no bare variables) yield `C | D | s != t` (E `ext_sup`, Leo-III's unification constraints). Steps: `{:refl}` on `s = t`, `{:bool_eq, :left}`, `:paramod`, `:resolve`. Partners are scanned over the whole active set, since the fingerprint index only returns unifiable ones.
+
+* **Evaluation on `armix` (`TPTP-Dev`, 16 strategies, 2.5 s, one problem at a time)**:
+
+  | Configuration | Theorems (LCF) | Theorems saturated | False proofs |
+  |---|---|---|---|
+  | both rules off | 108 | 51 | 0 |
+  | flex choice + Boolean hoisting | **114** | 47 | 0 |
+  | + constraint resolution | 112 | 39 | 0 |
+
+  * Two repeats of the 14 problems whose result changed show most changes are timing noise (about +-5 on Dev at 2.5 s). The gains that follow the rules are LCL735^5, LCL736^5 (flex choice) and SYN983^1 (hoisting), which saturate within milliseconds without them; SYO026^1 needs constraint resolution. CSR133^1 is proved with hoisting in a direct run; CSR131^2 needs 10 s (`induction`, `funcspec` strategies).
+  * Constraint resolution stays off by default: it is the only way to SYO026^1, but its active-set scan costs more than it gains at 2.5 s. SYO515^1 is still saturated.
+  * Remaining E-only problems from the saturated group are search problems: SYO069^4.00x (every strategy times out), LCL717^1, CSR151^3 (strategies with axiom selection saturate, `complete_saturation` times out).
+
+* **Tests:** 360 passing (21 properties), including SYN983^1 and SYO026^1 from source, and a flex-choice problem that no constant function solves; each test also checks that the problem is not proved with its rule off.
