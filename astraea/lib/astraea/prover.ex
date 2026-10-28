@@ -57,6 +57,7 @@ defmodule Astraea.Prover do
     FingerprintIndex,
     Fluid,
     FuncSpec,
+    Induction,
     Ordering,
     PrimSubst,
     SpecialInstances,
@@ -118,6 +119,8 @@ defmodule Astraea.Prover do
             rewrites: 0,
             backward_rewritten: 0,
             fluid_inferences: 0,
+            induction_goals: [],
+            induction_inferences: 0,
             wide_equations: false,
             arith: false,
             higher_order: false,
@@ -298,6 +301,14 @@ defmodule Astraea.Prover do
                next_step_id: seed.next_step_id,
                next_fvar_id: max(state.next_fvar_id, seed.next_fvar_id)
            }, seed.ids}
+      end
+
+    state =
+      if Keyword.get(opts, :induction, false) do
+        {arena, goals} = Induction.goals(state.arena, input_clauses)
+        %{state | arena: arena, induction_goals: goals}
+      else
+        state
       end
 
     case init_clauses(state, input_clauses, seed_ids) do
@@ -1291,6 +1302,7 @@ defmodule Astraea.Prover do
   #   :fingerprints (true), :fingerprint_backend (:auto) - partner retrieval
   #   :paramod_flex (false) - also paramodulate into flex-headed subterms
   #   :fluid_sup (false), :fluid_max (8) - FluidSup into applied variables (`Calculus.Fluid`)
+  #   :induction (false) - goal instances of stated induction principles (`Calculus.Induction`)
   #   :flex_resolution (:ground | :all) - a flex-headed literal atom with arguments
   #     (never a pattern at the top level) is resolved and factored only against
   #     ground atoms or atoms containing one of its arguments under `:ground`, since
@@ -1313,7 +1325,8 @@ defmodule Astraea.Prover do
            {:cont, state, items7} <- try_extensionality(state, given),
            {:cont, state, items8} <- try_func_spec(state, given),
            {:cont, state, items9} <- try_special_instances(state, given),
-           {:cont, state, items10} <- try_choice(state, given) do
+           {:cont, state, items10} <- try_choice(state, given),
+           {:cont, state, items11} <- try_induction(state, given) do
         clausify_items(
           state,
           items0 ++
@@ -1328,7 +1341,8 @@ defmodule Astraea.Prover do
             items7 ++
             items8 ++
             items9 ++
-            items10
+            items10 ++
+            items11
         )
       end
     else
@@ -2227,6 +2241,22 @@ defmodule Astraea.Prover do
       {:cont, state, []}
     end
   end
+  # Goal instances of stated induction principles (`Calculus.Induction`).
+  defp try_induction(%__MODULE__{induction_goals: []} = state, _given), do: {:cont, state, []}
+
+  defp try_induction(%__MODULE__{} = state, given) do
+    if given.depth <= 2 do
+      each_inference(state, Induction.instances(state.arena, given, state.induction_goals), fn st,
+                                                                                               {var_id,
+                                                                                                goal} ->
+        {st, item} = emit_subst_step(st, given, %{var_id => goal}, given.depth + 1)
+        {:cont, %{st | induction_inferences: st.induction_inferences + 1}, [item]}
+      end)
+    else
+      {:cont, state, []}
+    end
+  end
+
   # ---------------------------------------------------------------------------
   # Fingerprint-Indexed Partner Retrieval (`Calculus.FingerprintIndex`)
   # ---------------------------------------------------------------------------
@@ -2727,6 +2757,7 @@ defmodule Astraea.Prover do
       rewrites: state.rewrites,
       backward_rewritten: state.backward_rewritten,
       fluid_inferences: state.fluid_inferences,
+      induction_inferences: state.induction_inferences,
       index_backend: state.active_index.backend,
       unification_cutoffs: state.unification_cutoffs,
       complete: reasons == [],

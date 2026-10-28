@@ -112,6 +112,8 @@ Bentkamp, Blanchette, Cruanes, and Waldmann proved that to be refutationally com
 
 ### Pillar 4: Structural Datatype Induction (`Astraea.Calculus.Induction`)
 
+> **Soundness correction (Entry 018).** The specification below, which recognises constructor patterns in the signature and asserts an induction schema, is unsound for THF: there are no datatypes, so `0` and `s` do not make a type inductive, and non-standard models make the schema false. Asserting it would turn CounterSatisfiable problems into "theorems". The implemented rule only instantiates induction principles the problem states, with the goal abstracted over the conjecture's Skolem constant, as a kernel `:subst` step.
+
 #### Motivation & Gap Analysis
 Dozens of theorems in `SEU`, `NUM`, and `ITP` require proving universal statements over inductively defined types (e.g. Peano natural numbers, lists, finite sets). Without induction, superposition searches forever.
 

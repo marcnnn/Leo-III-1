@@ -557,6 +557,36 @@ defmodule Astraea.CalculusTest do
              Prover.prove_string(src, timeout_ms: 1_000, max_iterations: 30)
   end
 
+  @induction_src """
+  thf(nat_t, type, nat: $tType).
+  thf(z_t, type, z: nat). thf(s_t, type, s: nat > nat).
+  thf(p_t, type, p: nat > $o). thf(q_t, type, q: nat > $o).
+  thf(bp, axiom, p @ z). thf(bq, axiom, q @ z).
+  thf(sp, axiom, ! [N: nat]: (((p @ N) & (q @ N)) => (p @ (s @ N)))).
+  thf(sq, axiom, ! [N: nat]: (((p @ N) & (q @ N)) => (q @ (s @ N)))).
+  thf(c, conjecture, ! [N: nat]: ((p @ N) & (q @ N))).
+  """
+
+  test "induction instantiates a stated induction principle with the goal" do
+    ind = """
+    thf(ind, axiom, ! [P: nat > $o]: (((P @ z) & (! [N: nat]: ((P @ N) => (P @ (s @ N)))))
+                                     => (! [N: nat]: (P @ N)))).
+    """
+
+    assert {:proved, steps, stats} =
+             Prover.prove_string(@induction_src <> ind, induction: true, timeout_ms: 5_000)
+
+    assert stats.induction_inferences > 0
+    assert :ok == ProofChecker.verify_refutation(stats.arena, steps)
+
+    # Without the stated principle the goal is not a theorem (non-standard models),
+    # and the rule has nothing to instantiate.
+    refute match?(
+             {:proved, _, _},
+             Prover.prove_string(@induction_src, induction: true, timeout_ms: 1_000)
+           )
+  end
+
   test "special instances instantiates higher-order variables with canonical terms" do
     arena = Arena.new()
     {arena, io} = Arena.intern_type(arena, {:arrow, :i, Arena.ty_o()})
