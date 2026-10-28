@@ -1,11 +1,15 @@
 defmodule Astraea.Leo3RemainingTest do
   @moduledoc """
   The kernel's type check on substitutions, Leo-III's subsumption methods and
-  the axiom counts for Leo-III's SInE table.
+  `--print-clauses`, the axiom counts for Leo-III's SInE table, and the command
+  line flags `--sine`, `--standard-sine`, `--subsumption`, `--embedding-param`,
+  `--print-clauses` and `--guided`.
   """
   use ExUnit.Case, async: true
 
-  alias Astraea.{Arena, ProofChecker, Prover, TptpLower}
+  import ExUnit.CaptureIO
+
+  alias Astraea.{Arena, CLI, ProofChecker, Prover, TptpLower}
   alias Astraea.Engine.Subsumption
 
   @thm_src """
@@ -100,6 +104,13 @@ defmodule Astraea.Leo3RemainingTest do
     end
   end
 
+  test "keep_clauses reports the active clauses at termination" do
+    src = "thf(p_type, type, p: $o).\nthf(ax, axiom, p).\nthf(c, conjecture, ~ p)."
+    assert {:saturated, stats} = Prover.prove_string(src, keep_clauses: true)
+    assert %Arena{} = stats.arena
+    assert [_ | _] = stats.final_clauses
+  end
+
   test "lowering records the axioms of the problem file and of its includes", %{dir: dir} do
     ax = Path.join(dir, "ax.ax")
     File.write!(ax, "thf(p_type, type, p: $o).\nthf(ax1, axiom, p).\nthf(ax2, axiom, ~ ~ p).\n")
@@ -107,6 +118,50 @@ defmodule Astraea.Leo3RemainingTest do
 
     assert {:ok, lowered} = TptpLower.from_file(path, tptp_root: dir)
     assert lowered.axiom_counts == {1, 2}
+  end
+
+  describe "command line" do
+    test "SInE, subsumption, embedding parameters and --print-clauses", %{dir: dir} do
+      path = write_problem(dir, @thm_src)
+
+      out =
+        capture_io(fn ->
+          CLI.run([
+            path,
+            "-t",
+            "5",
+            "--sine",
+            "1.5;100;3",
+            "--standard-sine",
+            "--subsumption",
+            "trivial",
+            "--embedding-param",
+            "MODALITIES_SYNTACTICAL",
+            "--print-clauses"
+          ])
+        end)
+
+      refute out =~ "Warning"
+      assert out =~ "% SZS status Theorem"
+      assert out =~ "% Processed clauses at termination:"
+    end
+
+    test "unknown embedding parameters are usage errors", %{dir: dir} do
+      path = write_problem(dir, @thm_src)
+      out = capture_io(fn -> CLI.run([path, "--embedding-param", "FOO"]) end)
+      assert out =~ "% SZS status UsageError"
+      assert out =~ "FOO"
+    end
+
+    test "--guided reads commands from stdin and kill reports User", %{dir: dir} do
+      path = write_problem(dir, @thm_src)
+
+      out = capture_io("processed\nkill\n", fn -> CLI.run([path, "--guided"]) end)
+      assert out =~ "% SZS status User"
+
+      out = capture_io("exit\n", fn -> CLI.run([path, "--guided"]) end)
+      assert out =~ "% SZS status Theorem"
+    end
   end
 
   describe "ordering checks after unification" do
@@ -121,6 +176,49 @@ defmodule Astraea.Leo3RemainingTest do
 
         assert :ok = ProofChecker.verify_refutation(stats.arena, steps)
       end
+    end
+  end
+
+  describe "more command line flags" do
+    test "--no-default-types rejects undeclared symbols in THF", %{dir: dir} do
+      path = write_problem(dir, "thf(ax, axiom, p).\nthf(c, conjecture, p).\n")
+      assert capture_io(fn -> CLI.run([path, "-t", "2"]) end) =~ "% SZS status Theorem"
+
+      out = capture_io(fn -> CLI.run([path, "-t", "2", "--no-default-types"]) end)
+      assert out =~ "% SZS status InputError"
+      assert out =~ "unknown type"
+    end
+
+    test "--DEBUG prints the proof as internal clauses", %{dir: dir} do
+      path = write_problem(dir, @thm_src)
+
+      out =
+        capture_io(fn ->
+          CLI.run([path, "-t", "5", "-p", "--DEBUG", "--noOrdCheck1", "--noOrdCheck3"])
+        end)
+
+      refute out =~ "Warning"
+      refute out =~ "SZS output start CNFRefutation"
+      assert out =~ ~r/% \d+: .* <- axiom\(\)/
+      assert out =~ ~r/% \d+: \$false <- resolve\(\d+, \d+\)/
+    end
+
+    test "atpdebug prints the external prover call", %{dir: dir} do
+      prover = Path.join(dir, "fake_prover")
+      File.write!(prover, "#!/bin/sh\necho \"% SZS status GaveUp for $1\"\n")
+      File.chmod!(prover, 0o755)
+      spec = %{name: :fake, executables: [prover], formats: [:thf], args: fn _l, f -> [f] end}
+      problem = write_problem(dir, @thm_src)
+
+      out =
+        capture_io(fn ->
+          assert {:ok, %{status: :gave_up}} =
+                   Astraea.External.run(spec, problem, debug: true, process_group: false)
+        end)
+
+      assert out =~ "% [atpdebug] #{prover} #{problem}"
+      assert out =~ "% [atpdebug] | % SZS status GaveUp"
+      assert out =~ "% [atpdebug] fake: exit 0"
     end
   end
 end

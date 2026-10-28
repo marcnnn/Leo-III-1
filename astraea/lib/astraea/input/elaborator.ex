@@ -33,7 +33,8 @@ defmodule Astraea.Input.Elaborator do
             implicit: nil,
             implicit_names: %{},
             features: MapSet.new(),
-            skolem_sorts: 0
+            skolem_sorts: 0,
+            default_types: true
 
   @type t :: %__MODULE__{}
 
@@ -67,10 +68,14 @@ defmodule Astraea.Input.Elaborator do
   @doc """
   Elaborates annotated statements in order. Returns the statements and the final
   context (signature, fresh-id counter and the set of used language features).
+  With `default_types: false` (Leo-III `--no-default-types`) an undeclared symbol
+  in THF or TFF is rejected instead of getting a default type.
   """
-  @spec elaborate([Annotated.t()]) :: {[stmt()], t()}
-  def elaborate(statements) do
-    Enum.flat_map_reduce(statements, %__MODULE__{}, fn
+  @spec elaborate([Annotated.t()], keyword()) :: {[stmt()], t()}
+  def elaborate(statements, opts \\ []) do
+    ctx = %__MODULE__{default_types: Keyword.get(opts, :default_types, true)}
+
+    Enum.flat_map_reduce(statements, ctx, fn
       %Annotated{} = st, ctx -> statement(%{ctx | lang: st.language}, st)
       _other, ctx -> {[], ctx}
     end)
@@ -597,6 +602,9 @@ defmodule Astraea.Input.Elaborator do
         apply_args(ctx, {:const, name, tys, IR.subst_ty(ty, s)}, rest)
 
       {:error, nil} ->
+        if not ctx.default_types and ctx.lang in [:thf, :tff],
+          do: reject!("symbol #{name} has unknown type, declare its type first")
+
         {ctx, terms} = elab_all(ctx, args, @i)
         ty = IR.arrows(Enum.map(terms, &IR.type_of/1), expected || @i)
         {put_sig(ctx, name, {:mono, ty}), IR.app({:const, name, [], ty}, terms)}

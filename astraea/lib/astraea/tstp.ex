@@ -47,6 +47,7 @@ defmodule Astraea.Tstp do
   @masked [skolems: :masked]
 
   @szs_names %{
+    success: "Success",
     theorem: "Theorem",
     unsatisfiable: "Unsatisfiable",
     contradictory_axioms: "ContradictoryAxioms",

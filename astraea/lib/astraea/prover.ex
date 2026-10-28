@@ -281,6 +281,8 @@ defmodule Astraea.Prover do
   @doc """
   Saturates `input_clauses`. Strategy options:
     * `:timeout_ms` - wall-clock budget (default 2500)
+    * `:keep_clauses` - report the active clauses at termination in `stats` as
+      `:final_clauses` (with `:arena`; Leo-III `--print-clauses`, default `false`)
     * `:scoring_mode` - clause score for the passive queue (default `:goal_directed`)
     * `:pick_ratio` - passive selection schedule, `{priority, weight}` pairs over
       `:score`, `:age`, `:weight`, `:depth` (default `[score: 3, age: 1]`)
@@ -3228,9 +3230,16 @@ defmodule Astraea.Prover do
       domain_instances: state.domain_instances
     }
 
-    if state.cooperate == [],
-      do: base,
-      else: Map.put(base, :external_calls, Enum.reverse(state.coop_log))
+    base =
+      if state.cooperate == [],
+        do: base,
+        else: Map.put(base, :external_calls, Enum.reverse(state.coop_log))
+
+    # Leo-III `--print-clauses`: the processed (active) clauses at termination.
+    if Keyword.get(state.opts, :keep_clauses, false),
+      do:
+        Map.merge(base, %{arena: state.arena, final_clauses: Enum.map(state.active, & &1.lits)}),
+      else: base
   end
 
   # Why a saturated run does not show satisfiability (empty: it does, relative to

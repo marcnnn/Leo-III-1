@@ -1,12 +1,15 @@
 defmodule Astraea.Leo3WiringTest do
   @moduledoc """
-  Leo-III features reached through the prover options: clausifier options
-  forwarded by `Astraea.Prover.prove_lowered/2`, the CPO term ordering in
-  demodulation and set instantiation.
+  Leo-III features reached through the prover options and the command line:
+  clausifier options forwarded by `Astraea.Prover.prove_lowered/2`, the CPO term
+  ordering in demodulation, set instantiation, and the Leo-III modes and flags of
+  `Astraea.CLI`.
   """
   use ExUnit.Case, async: true
 
-  alias Astraea.{Arena, Clausifier, ProofChecker, Prover, TptpLower}
+  import ExUnit.CaptureIO
+
+  alias Astraea.{Arena, CLI, Clausifier, ProofChecker, Prover, TptpLower}
   alias Astraea.Engine.Demodulator
 
   @thm_src """
@@ -29,6 +32,24 @@ defmodule Astraea.Leo3WiringTest do
   thf(ax_s, axiom, s @ p).
   thf(conj, conjecture, t @ s).
   """
+
+  setup do
+    dir =
+      Path.join(
+        System.tmp_dir!(),
+        "astraea_leo3_wiring_test_#{System.unique_integer([:positive])}"
+      )
+
+    File.mkdir_p!(dir)
+    on_exit(fn -> File.rm_rf!(dir) end)
+    %{dir: dir}
+  end
+
+  defp write_problem(dir, name, source) do
+    path = Path.join(dir, name)
+    File.write!(path, source)
+    path
+  end
 
   defp assert_verified({:proved, steps, stats}) do
     assert :ok = ProofChecker.verify_refutation(stats.arena, steps)
@@ -96,6 +117,81 @@ defmodule Astraea.Leo3WiringTest do
                result = Prover.prove_string(@thm_src, ordered: true, term_ordering: :cpo)
 
       assert_verified(result)
+    end
+  end
+
+  describe "command line" do
+    test "Leo-III calculus flags are accepted and the proof is printed", %{dir: dir} do
+      path = write_problem(dir, "thm.p", @thm_src)
+
+      out =
+        capture_io(fn ->
+          CLI.run([
+            path,
+            "-t",
+            "5",
+            "-p",
+            "--seq",
+            "--renaming",
+            "0",
+            "--ordering",
+            "CPO",
+            "--naeq",
+            "--nleq",
+            "--acsimp",
+            "--instantiate",
+            "59",
+            "--instantiate-maxdepth",
+            "3",
+            "--instantiate-sets",
+            "--relevancefiltering",
+            "--passmark",
+            "0.5",
+            "--lambda-elim",
+            "ski",
+            "--atp-max-jobs",
+            "2",
+            "--print-signature"
+          ])
+        end)
+
+      refute out =~ "Warning"
+      assert out =~ "% SZS status Theorem"
+      assert out =~ "% SZS output start CNFRefutation"
+      assert out =~ "% Signature:"
+      assert out =~ "%   g: ($i > $i)"
+    end
+
+    test "bad flag values are usage errors", %{dir: dir} do
+      path = write_problem(dir, "thm.p", @thm_src)
+
+      for flag <- [["--ordering", "LPO"], ["--passmark", "x"], ["--lambda-elim", "foo"]] do
+        out = capture_io(fn -> CLI.run([path | flag]) end)
+        assert out =~ "% SZS status UsageError"
+      end
+    end
+
+    test "--processOnly prints the normalized problem", %{dir: dir} do
+      path = write_problem(dir, "thm.p", @thm_src)
+      out = capture_io(fn -> CLI.run([path, "--processOnly", "--cnf", "--xType", "0"]) end)
+
+      refute out =~ "SZS status"
+      assert {:proved, _, _} = Prover.prove_string(out)
+    end
+
+    test "--toTHF, --syntaxcheck and --typecheck report Success", %{dir: dir} do
+      path = write_problem(dir, "thm.p", @thm_src)
+
+      out = capture_io(fn -> CLI.run([path, "--toTHF"]) end)
+      assert out =~ "% SZS status Success"
+      assert out =~ "% SZS output start ListOfTHF"
+
+      for mode <- ["--syntaxcheck", "--typecheck"] do
+        assert capture_io(fn -> CLI.run([path, mode]) end) =~ "% SZS status Success"
+      end
+
+      bad = write_problem(dir, "bad.p", "thf(x, axiom, (.")
+      refute capture_io(fn -> CLI.run([bad, "--syntaxcheck"]) end) =~ "Success"
     end
   end
 end

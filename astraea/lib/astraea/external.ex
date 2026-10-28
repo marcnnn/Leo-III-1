@@ -76,6 +76,9 @@ defmodule Astraea.External do
     * `:process_group` - run the prover via `priv/process_group.sh` so that its
       whole process tree is killed (default `true`)
     * `:keep_output` - keep the full stdout/stderr in the result (default `false`)
+    * `:debug` - print the command line, exit status and output as `%` comments
+      (Leo-III `--atpdebug`, default `false`)
+
   The same option list is shared with the clause-set entry points
   (`prove_clauses/4`, `prove_lowered/3`, `write_clause_problem/4`), which
   additionally read:
@@ -89,6 +92,22 @@ defmodule Astraea.External do
   """
   @spec run(prover(), Path.t(), keyword()) :: {:ok, Result.t()} | {:error, term()}
   def run(prover, problem_file, opts \\ []) do
+    result = do_run(prover, problem_file, opts)
+    if Keyword.get(opts, :debug, false), do: debug_result(prover, result)
+    result
+  end
+
+  defp debug_result(prover, {:error, reason}),
+    do: IO.puts("% [atpdebug] #{inspect(prover)}: #{inspect(reason)}")
+
+  defp debug_result(_prover, {:ok, %Result{} = res}) do
+    IO.puts(
+      "% [atpdebug] #{res.prover}: exit #{inspect(res.exit_status)}, #{res.elapsed_ms} ms, " <>
+        "SZS #{res.status_raw || "none"}"
+    )
+  end
+
+  defp do_run(prover, problem_file, opts) do
     with {:ok, spec} <- resolve_spec(prover),
          {:ok, exe} <- Provers.find_executable(spec, opts) do
       timeout_ms = Keyword.get(opts, :timeout_ms, @default_timeout_ms)
@@ -109,7 +128,16 @@ defmodule Astraea.External do
           do: {"/bin/sh", [process_group_wrapper(), exe | args]},
           else: {exe, args}
 
+      if Keyword.get(opts, :debug, false),
+        do: IO.puts("% [atpdebug] #{Enum.join([cmd | args], " ")}")
+
       {output, exit_status} = MuonTrap.cmd(cmd, args, cmd_opts)
+
+      if Keyword.get(opts, :debug, false) do
+        for line <- String.split(output, "\n", trim: true),
+            do: IO.puts("% [atpdebug] | " <> line)
+      end
+
       elapsed_ms = System.monotonic_time(:millisecond) - t0
       parsed = SZS.parse(output)
 

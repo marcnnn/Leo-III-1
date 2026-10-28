@@ -448,10 +448,10 @@ defmodule Astraea.InterfaceTest do
 
       out =
         capture_io(fn ->
-          CLI.run([path, "-t", "2", "--relevancefiltering", "--frobnicate", "--atp", "nope=/x"])
+          CLI.run([path, "-t", "2", "--parSched", "4", "--frobnicate", "--atp", "nope=/x"])
         end)
 
-      assert out =~ "% Warning: Option 'relevancefiltering' is not supported"
+      assert out =~ "% Warning: Option 'parSched' has no effect in Astraea"
       assert out =~ "% Warning: Unknown option 'frobnicate' ignored"
       assert out =~ "% Warning: Unknown external prover 'nope' ignored"
       assert out =~ "% SZS status Theorem"

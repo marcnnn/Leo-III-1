@@ -55,16 +55,49 @@ defmodule Astraea.CLI do
     "sos" => {:sos, :switch},
     "funcspec" => {:funcspec, :switch},
     "nochoice" => {:choice, :negated_switch},
-    "restrict-uni-attempts" => {:flex_resolution, :restricted}
+    "restrict-uni-attempts" => {:flex_resolution, :restricted},
+    "nleq" => {:leibniz_eq, :negated_switch},
+    "naeq" => {:andrews_eq, :negated_switch},
+    "acsimp" => {:ac_simp, :switch},
+    "instantiate-sets" => {:instantiate_sets, :switch},
+    "instantiate" => {:instantiate, :level},
+    "instantiate-maxdepth" => {:instantiate_max_depth, :integer},
+    "renaming" => {:renaming, :renaming},
+    "ordering" => {:term_ordering, :ordering},
+    "sine" => {:sine, :sine},
+    "standard-sine" => {:standard_sine, :switch},
+    "subsumption" => {:subsumption, :subsumption},
+    "noOrdCheck1" => {:no_ord_check, {:ord_check, 1}},
+    "noOrdCheck2" => {:no_ord_check, {:ord_check, 2}},
+    "noOrdCheck3" => {:no_ord_check, {:ord_check, 3}}
   }
 
   @switches ~w(p s h sos funcspec nochoice noaxiomselection consistency-only atp-race
-               trust-external version usage help)
+               trust-external version usage help nleq naeq acsimp instantiate-sets
+               relevancefiltering processOnly cnf xLocal toTHF syntaxcheck typecheck seq
+               scheduled compressProof print-signature print-clauses overlord guided encode-threaded
+               standard-sine noOrdCheck1 noOrdCheck2 noOrdCheck3 no-default-types DEBUG
+               atpdebug)
 
-  # Accepted for compatibility; Astraea has no counterpart, so they are ignored.
-  @ignored_flags ~w(v relevancefiltering passmark aging instantiate instantiate-maxdepth
-                    renaming xType parSched encode-threaded guided embedding-param seq par
-                    scheduled-run compressProof print-signature print-clauses atp-max-jobs ll)
+  # Leo-III modes that print something other than a proof attempt (`leo.modules.Modes`).
+  @modes ~w(processOnly toTHF syntaxcheck typecheck)
+
+  # Accepted for compatibility without effect: `parSched` and `encode-threaded` are
+  # read by no Leo-III code, `compressProof` is Astraea's default (`Astraea.Compressor`),
+  # `overlord` keeps temporary files that Astraea never deletes early, and `par` and
+  # `scheduled-run` select modes that are Astraea's default (the parallel schedule).
+  @ignored_flags ~w(parSched encode-threaded compressProof overlord ll par scheduled-run)
+
+  # Leo-III verbosity levels 0-6 (`Configuration.VERBOSITY`) as `Logger` levels.
+  @verbosity %{
+    0 => :none,
+    1 => :error,
+    2 => :warning,
+    3 => :notice,
+    4 => :info,
+    5 => :debug,
+    6 => :debug
+  }
 
   @usage """
   Astraea -- a higher-order theorem prover with LCF-verified proofs (Leo-III compatible CLI).
@@ -94,10 +127,44 @@ defmodule Astraea.CLI do
   \tReport external answers even if they cannot be reconstructed as LCF proofs
   --primsubst <N>, --unidepth <N>, --unifiers <N>, --funcspec, --nochoice
   \tCalculus parameters, passed to every strategy
-  --strategies s1,s2,...
+  --strategies s1,s2,..., --strategy s1
   \tRun only the named strategies (Leo-III or Astraea names)
   --noaxiomselection
   \tDisable SInE axiom selection
+  --relevancefiltering [--passmark <x>] [--aging <x>]
+  \tLeo-III's relevance filter instead of SInE (defaults 0.56, 2.35)
+  --renaming <true|false|N>
+  \tFormula renaming in the CNF, N is the threshold (default: per strategy)
+  --ordering <CPO|KBO|none>
+  \tTerm ordering of every strategy (default: per strategy)
+  --nleq, --naeq
+  \tDo not replace Leibniz / Andrews equalities
+  --acsimp
+  \tSimplify modulo associativity and commutativity
+  --instantiate <N>, --instantiate-maxdepth <N>, --instantiate-sets
+  \tInstantiate input clauses (special instances, sets of properties)
+  --lambda-elim <ski|lambda-lifting>
+  \tLambda elimination for first-order external provers (default: lambda-lifting)
+  --atp-max-jobs <N>
+  \tExternal prover calls running at once per strategy (default: 2)
+  --seq
+  \tRun Leo-III's default strategy only, instead of the schedule
+  --processOnly [--cnf] [--renaming N] [--xType N] [--xLocal]
+  \tPrint the normalized problem instead of proving it
+  --toTHF, --syntaxcheck, --typecheck
+  \tPrint the problem as THF, or only check its syntax / types
+  --print-signature, --print-clauses
+  \tPrint the signature of the problem / the processed clauses after the result
+  --sine [<threshold;size;depth>], --standard-sine
+  \tLeo-III's SInE selection (configuration guessed from the axiom counts, or given)
+  --subsumption <ho-pattern|trivial>
+  \tSubsumption by matching (default) or by literal inclusion only
+  --embedding-param <P>
+  \tModal embedding parameter (e.g. MODALITIES_SYNTACTICAL), repeatable
+  --guided
+  \tInteractive given-clause loop on stdin (Leo-III commands, "exit" continues)
+  -v <0-6>
+  \tVerbosity of log messages (default: 3)
   --consistency-only
   \tIgnore the conjecture and check the consistency of the axioms
   --version
@@ -137,6 +204,9 @@ defmodule Astraea.CLI do
         IO.puts(Tstp.status_line(:usage_error, "<unknown>", "No problem file given"))
         IO.puts("")
         IO.write(@usage)
+
+      mode = Enum.find(@modes, &Map.has_key?(params, &1)) ->
+        run_mode(mode, params)
 
       true ->
         prove(params, t0)
@@ -192,10 +262,123 @@ defmodule Astraea.CLI do
 
       result = Schedule.prove_lowered(lowered, Keyword.put(config.opts, :timeout_ms, budget))
       report(result, lowered, problem, config, t0)
+      if config.print_signature, do: print_signature(lowered)
+      if config.print_clauses, do: print_clauses(result)
     else
       {:error, status, message} ->
         IO.puts(Tstp.status_line(status, problem, message))
     end
+  end
+
+  # ---------------------------------------------------------------------------
+  # Modes
+  # ---------------------------------------------------------------------------
+
+  defp run_mode(mode, params) do
+    problem = params.problem
+
+    with {:ok, embedding_params} <- embedding_params(params),
+         {:ok, lowered} <-
+           lower(problem, %{
+             tptp_root: tptp_root(),
+             embedding_params: embedding_params,
+             default_types: not Map.has_key?(params, "no-default-types")
+           }) do
+      case mode do
+        "processOnly" ->
+          case Astraea.Normalization.normalize_lowered(lowered, normalization_opts(params)) do
+            {:ok, text} -> IO.write(text)
+            {:error, reason} -> IO.puts(Tstp.status_line(:error, problem, inspect(reason)))
+          end
+
+        "toTHF" ->
+          IO.puts(Tstp.status_line(:success, problem))
+          IO.write(Tstp.output_block("ListOfTHF", problem, Astraea.Normalization.to_thf(lowered)))
+
+        _check ->
+          IO.puts(Tstp.status_line(:success, problem))
+      end
+    else
+      {:error, status, message} -> IO.puts(Tstp.status_line(status, problem, message))
+    end
+  end
+
+  # `--cnf`, `--renaming N`, `--xType N`, `--xLocal` (Leo-III `modes.Normalization`).
+  defp normalization_opts(params) do
+    renaming =
+      case Map.get(params, "renaming") do
+        ["false" | _] -> false
+        [n | _] -> parse_int(n, 0)
+        _ -> 0
+      end
+
+    [
+      cnf: Map.has_key?(params, "cnf"),
+      renaming: renaming,
+      extraction: parse_int(List.first(Map.get(params, "xType", [])), 1),
+      extract_local: Map.has_key?(params, "xLocal")
+    ]
+  end
+
+  defp parse_int(nil, default), do: default
+
+  defp parse_int(value, default) do
+    case Integer.parse(value) do
+      {n, ""} -> n
+      _ -> default
+    end
+  end
+
+  # Leo-III `--DEBUG`: the proof as internal clauses (`id: clause <- rule(parents)`)
+  # instead of a TSTP derivation.
+  defp print_debug_proof(steps, stats) do
+    {:ok, _arena, derived} = Astraea.ProofChecker.derive_steps(stats.arena, steps)
+
+    for step <- steps do
+      id = elem(step, 1)
+      clause = Astraea.External.ThfPrinter.clause_to_string(stats.arena, Map.fetch!(derived, id))
+      parents = Astraea.ProofChecker.step_parents(step)
+      IO.puts("% #{id}: #{clause} <- #{elem(step, 0)}(#{Enum.join(parents, ", ")})")
+    end
+  end
+
+  # Leo-III `--print-clauses`: the processed clauses of the strategy that answered.
+  defp print_clauses(result) do
+    stats =
+      case result do
+        {:proved, _steps, stats} -> stats
+        {_tag, stats} when is_map(stats) -> stats
+        _ -> %{}
+      end
+
+    case stats do
+      %{arena: arena, final_clauses: clauses} ->
+        IO.puts("% Processed clauses at termination:")
+
+        for c <- Enum.sort_by(clauses, &MapSet.size/1),
+            do: IO.puts("%   " <> Astraea.External.ThfPrinter.clause_to_string(arena, c))
+
+      _ ->
+        IO.puts("% Processed clauses at termination: not available")
+    end
+  end
+
+  # Leo-III `--print-signature`: the user symbols of the problem with their types.
+  defp print_signature(lowered) do
+    arena = lowered.arena
+
+    symbols =
+      for {_id, node} <- arena.nodes,
+          {1, _, ty, sym, _} <- [Astraea.Arena.decode_node(node)],
+          name = Map.get(arena.symbol_names, sym, ""),
+          not String.starts_with?(name, "$"),
+          uniq: true,
+          do: {name, ty}
+
+    IO.puts("% Signature:")
+
+    for {name, ty} <- Enum.sort(symbols),
+        do: IO.puts("%   #{name}: #{Astraea.External.ThfPrinter.type(arena, ty)}")
   end
 
   # Time kept back for proof compression, the ContradictoryAxioms check and output.
@@ -207,7 +390,11 @@ defmodule Astraea.CLI do
         {:error, :input_error, "Problem file not found: #{problem}"}
 
       true ->
-        case TptpLower.from_file(problem, tptp_root: config.tptp_root) do
+        case TptpLower.from_file(problem,
+               tptp_root: config.tptp_root,
+               embedding_params: Map.get(config, :embedding_params, []),
+               default_types: Map.get(config, :default_types, true)
+             ) do
           {:ok, lowered} -> {:ok, lowered}
           {:error, reason} -> {:error, :input_error, inspect(reason, limit: 5)}
         end
@@ -232,6 +419,10 @@ defmodule Astraea.CLI do
     IO.puts(Tstp.status_line(status, problem, "#{time} ms"))
 
     case result do
+      {:proved, steps, stats} when config.proof and config.debug ->
+        IO.puts("% No. of inferences in proof: #{length(steps)}")
+        print_debug_proof(steps, stats)
+
       {:proved, steps, stats} when config.proof ->
         IO.puts("% No. of inferences in proof: #{length(steps)}")
 
@@ -254,6 +445,7 @@ defmodule Astraea.CLI do
     do: Portfolio.szs_status(result)
 
   defp status({:proved_external, _stats}, _config), do: :gave_up
+  defp status({:resource_out, %{guided: :killed}}, _config), do: :user
   defp status(result, _config), do: Portfolio.szs_status(result)
 
   defp winning_strategy({:proved, _steps, stats}), do: stats[:winning_strategy]
@@ -271,28 +463,44 @@ defmodule Astraea.CLI do
     with {:ok, timeout_s} <- int(params, "t", @default_timeout_s),
          {:ok, cores} <- int(params, "n", System.schedulers_online()),
          {:ok, interval} <- int(params, "atp-call-interval", nil),
+         {:ok, max_jobs} <- int(params, "atp-max-jobs", nil),
+         {:ok, verbosity} <- int(params, "v", nil),
          {:ok, overrides} <- strategy_overrides(params),
+         {:ok, overrides} <- relevance_filter(params, overrides),
+         {:ok, encoding} <- encoding(params),
+         {:ok, embedding_params} <- embedding_params(params),
          {:ok, strategies} <- strategies(params) do
       warn_ignored(params)
-      atps = atps(params)
-      timeout_ms = if timeout_s == 0, do: 86_400_000, else: timeout_s * 1_000
+      if verbosity, do: Logger.configure(level: Map.get(@verbosity, min(verbosity, 6)))
+      atps = atps(params, encoding)
+      guided = Map.has_key?(params, "guided")
 
+      # Like Leo-III, guided runs ignore the time limit.
+      timeout_ms = if timeout_s == 0 or guided, do: 86_400_000, else: timeout_s * 1_000
+
+      # `NoAxiomFilter` wins over every selection (Leo-III `getBestFilterConfig`).
       overrides =
         if Map.has_key?(params, "noaxiomselection"),
-          do: Keyword.put(overrides, :sine_limit, nil),
+          do: Keyword.merge(overrides, sine_limit: nil, sine: nil, relevance_filter: nil),
           else: overrides
+
+      overrides =
+        overrides
+        |> put_if(:guided, if(guided, do: true))
+        |> put_if(:keep_clauses, if(Map.has_key?(params, "print-clauses"), do: true))
 
       opts =
         [
-          cores: max(cores, 1),
+          cores: if(guided, do: 1, else: max(cores, 1)),
           strategy_overrides: overrides,
           tptp_root: tptp_root(),
           problem_path: params.problem,
           trust_external: Map.has_key?(params, "trust-external")
         ]
-        |> put_if(:schedule_strategies, strategies)
+        |> put_if(:schedule_strategies, strategies || seq_strategy(params, guided))
         |> put_if(:cooperate, if(atps != [], do: atps))
         |> put_if(:cooperate_interval, interval)
+        |> put_if(:cooperate_max_jobs, max_jobs)
         |> put_if(:external, if(atps != [] and Map.has_key?(params, "atp-race"), do: atps))
 
       {:ok,
@@ -302,6 +510,11 @@ defmodule Astraea.CLI do
          proof: Map.has_key?(params, "p"),
          trust_external: Keyword.fetch!(opts, :trust_external),
          consistency_only: Map.has_key?(params, "consistency-only"),
+         print_signature: Map.has_key?(params, "print-signature"),
+         print_clauses: Map.has_key?(params, "print-clauses"),
+         debug: Map.has_key?(params, "DEBUG"),
+         embedding_params: embedding_params,
+         default_types: not Map.has_key?(params, "no-default-types"),
          tptp_root: Keyword.fetch!(opts, :tptp_root)
        }}
     end
@@ -351,14 +564,138 @@ defmodule Astraea.CLI do
             {:ok, n} -> {:cont, {:ok, Keyword.put(acc, opt, n)}}
             err -> {:halt, err}
           end
+
+        # Leo-III's level is a bit set of primitive substitutions; 0 turns it off.
+        {:level, values} ->
+          {:cont, {:ok, Keyword.put(acc, opt, values == [] or hd(values) != "0")}}
+
+        # `true`/`false`, or a number: renaming on with that threshold.
+        {:renaming, values} ->
+          case values do
+            ["false" | _] ->
+              {:cont, {:ok, Keyword.put(acc, :renaming, false)}}
+
+            [n | _] when n != "true" ->
+              case int(params, flag, nil) do
+                {:ok, n} ->
+                  {:cont,
+                   {:ok,
+                    acc |> Keyword.put(:renaming, true) |> Keyword.put(:renaming_threshold, n)}}
+
+                err ->
+                  {:halt, err}
+              end
+
+            _ ->
+              {:cont, {:ok, Keyword.put(acc, :renaming, true)}}
+          end
+
+        {:ordering, [value | _]} ->
+          case String.downcase(value) do
+            "cpo" ->
+              {:cont, {:ok, acc ++ [ordered: true, term_ordering: :cpo]}}
+
+            kbo when kbo in ["kbo", "hkbo"] ->
+              {:cont, {:ok, acc ++ [ordered: true, term_ordering: :kbo]}}
+
+            "none" ->
+              {:cont, {:ok, Keyword.put(acc, :ordered, false)}}
+
+            _ ->
+              {:halt, {:error, :usage_error, "Unknown term ordering #{value} (CPO, KBO, none)"}}
+          end
+
+        {:ordering, []} ->
+          {:halt, {:error, :usage_error, "Option -#{flag} expects a value"}}
+
+        # `--sine "threshold;size;depth"`; without a value (or an unparsable one) the
+        # configuration is guessed as in Leo-III (`Astraea.Sine`).
+        {:sine, values} ->
+          {:cont, {:ok, Keyword.put(acc, opt, List.first(values) || :auto)}}
+
+        {{:ord_check, n}, _} ->
+          {:cont, {:ok, Keyword.update(acc, opt, [n], &Enum.uniq([n | &1]))}}
+
+        # Leo-III falls back to its default for unknown methods.
+        {:subsumption, values} ->
+          method = if List.first(values) == "trivial", do: :trivial, else: :matching
+          {:cont, {:ok, Keyword.put(acc, opt, method)}}
       end
     end)
   end
 
-  # `--strategies s1,s3b,goal_standard` selects strategies of the default list by name.
+  # `--relevancefiltering` with `--passmark`/`--aging` (also `--relevance-passmark`,
+  # `--relevance-aging`), see `Astraea.RelevanceFilter`.
+  defp relevance_filter(params, overrides) do
+    keys = [
+      {:passmark, ["passmark", "relevance-passmark"]},
+      {:aging, ["aging", "relevance-aging"]}
+    ]
+
+    given? =
+      Map.has_key?(params, "relevancefiltering") or
+        Enum.any?(keys, fn {_, names} -> values(params, names) != [] end)
+
+    Enum.reduce_while(keys, {:ok, %{}}, fn {key, names}, {:ok, acc} ->
+      case values(params, names) do
+        [] ->
+          {:cont, {:ok, acc}}
+
+        [value | _] ->
+          case Float.parse(value) do
+            {x, ""} when x >= 0 ->
+              {:cont, {:ok, Map.put(acc, key, x)}}
+
+            _ ->
+              {:halt,
+               {:error, :usage_error, "Option -#{hd(names)} expects a number, got #{value}"}}
+          end
+      end
+    end)
+    |> case do
+      {:ok, filter} when given? -> {:ok, Keyword.put(overrides, :relevance_filter, filter)}
+      {:ok, _} -> {:ok, overrides}
+      err -> err
+    end
+  end
+
+  # `--embedding-param P` (repeatable, Leo-III `EMBEDDING_PARAMS`), see `Astraea.Input.Modal`.
+  defp embedding_params(params) do
+    values = params |> Map.get("embedding-param", []) |> Enum.flat_map(&String.split(&1, ","))
+
+    case Astraea.Input.Modal.parse_params(values) do
+      {:ok, _} ->
+        {:ok, values}
+
+      {:error, {:unknown_embedding_param, name}} ->
+        {:error, :usage_error,
+         "Unknown embedding parameter #{name} (known: #{Enum.join(Astraea.Input.Modal.param_names(), ", ")})"}
+    end
+  end
+
+  # `--lambda-elim` (Leo-III `LAMBDA_ELIM_STRATEGY`) for the external provers.
+  defp encoding(params) do
+    case Map.get(params, "lambda-elim") do
+      nil -> {:ok, nil}
+      ["ski" | _] -> {:ok, [lambda: :ski]}
+      ["lambda-lifting" | _] -> {:ok, [lambda: :lambda_lifting]}
+      _ -> {:error, :usage_error, "Option -lambda-elim expects ski or lambda-lifting"}
+    end
+  end
+
+  # `--seq` (and `--guided`, which asks on stdin): Leo-III's sequential loop with
+  # its default strategy.
+  defp seq_strategy(params, guided) do
+    if guided or Map.has_key?(params, "seq"),
+      do: Enum.filter(Schedule.strategies(), &(&1.name == :default))
+  end
+
+  # `--strategies s1,s3b,goal_standard` selects strategies of the default list by name;
+  # Leo-III's `--strategy s1` (one `RunStrategy` for its sequential loop) is the same
+  # with a single name.
   defp strategies(params) do
-    case Map.get(params, "strategies") do
-      nil ->
+    case values(params, ["strategies", "strategy"]) do
+      [] ->
         {:ok, nil}
 
       values ->
@@ -374,7 +711,7 @@ defmodule Astraea.CLI do
 
   # `--atp name=call` (or `-a`), with `--atp-timeout name=N` (`-e`) and
   # `--atp-args name="args"` (`-x`), as in Leo-III's `Configuration.ATPS`.
-  defp atps(params) do
+  defp atps(params, encoding) do
     timeouts = pairs(params, ["e", "atp-timeout", "atp-timout"])
     args = pairs(params, ["x", "atp-args"])
 
@@ -399,7 +736,9 @@ defmodule Astraea.CLI do
             {prover,
              [timeout_ms: timeout_s * 1_000]
              |> put_if(:path, if(call != "", do: call))
-             |> put_if(:extra_args, if(args[name], do: OptionParser.split(args[name])))}
+             |> put_if(:extra_args, if(args[name], do: OptionParser.split(args[name])))
+             |> put_if(:encoding, encoding)
+             |> put_if(:debug, if(Map.has_key?(params, "atpdebug"), do: true))}
           ]
 
         :error ->
@@ -427,13 +766,17 @@ defmodule Astraea.CLI do
 
   defp warn_ignored(params) do
     known =
-      ~w(t p n s h a e x atp atp-timeout atp-timout atp-args atp-call-interval atp-race
-         trust-external strategies noaxiomselection consistency-only version usage help) ++
-        Map.keys(@strategy_flags)
+      ~w(t p n s h a e x v atp atp-timeout atp-timout atp-args atp-call-interval atp-race
+         atp-max-jobs trust-external strategies noaxiomselection consistency-only version
+         strategy usage help relevancefiltering passmark aging relevance-passmark relevance-aging
+         lambda-elim seq scheduled print-signature print-clauses cnf xType xLocal
+         embedding-param guided noOrdCheck1 noOrdCheck2 noOrdCheck3 no-default-types DEBUG
+         atpdebug) ++
+        @modes ++ Map.keys(@strategy_flags)
 
     for key <- Map.keys(params), is_binary(key), key not in known do
       if key in @ignored_flags,
-        do: warn("Option '#{key}' is not supported by Astraea and ignored"),
+        do: warn("Option '#{key}' has no effect in Astraea"),
         else: warn("Unknown option '#{key}' ignored")
     end
 

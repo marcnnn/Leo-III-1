@@ -99,7 +99,10 @@ defmodule Astraea.TptpLower do
 
   defp do_lower_unit(unit, opts, embedding_params) do
     {stmts, ctx} =
-      unit |> Tptp.Unit.statements() |> Enum.map(&elem(&1, 1)) |> Elaborator.elaborate()
+      unit
+      |> Tptp.Unit.statements()
+      |> Enum.map(&elem(&1, 1))
+      |> Elaborator.elaborate(default_types: Keyword.get(opts, :default_types, true))
 
     {logic, stmts} = Enum.split_with(stmts, &match?({:logic, _}, &1))
 
