@@ -47,6 +47,7 @@ defmodule Astraea.Prover do
   }
 
   alias Astraea.External.Reconstruct
+  alias Astraea.Prover.Guided
   alias Astraea.Portfolio.LemmaBus
   alias Astraea.Input.Arith
 
@@ -158,7 +159,8 @@ defmodule Astraea.Prover do
             domains: %{},
             domain_instances: 0,
             inverses: %{},
-            despaired: false
+            despaired: false,
+            guided: nil
 
   @type result ::
           {:proved, [ProofChecker.step()], map()}
@@ -311,6 +313,12 @@ defmodule Astraea.Prover do
       saturation, iteration or reduction limit) hands its clauses to the external
       provers once more and waits for them until the deadline (Leo-III
       `despairSubmit`, default `true`)
+  Guided search (Leo-III `--guided`, see `Astraea.Prover.Guided`):
+    * `:guided` - ask for commands before every given-clause iteration; the
+      deadline no longer ends the run, the other limits do. `kill` ends it with
+      `{:resource_out, stats}` where `stats.guided == :killed` (default `false`)
+    * `:guided_io` - device the commands are read from and printed to
+      (default `:stdio`)
   Leo-III preprocessing and strategy parameters (`RunStrategy`, `Configuration`):
     * `:sos` - set of support (Leo-III `sos`): binary inferences (resolution,
       paramodulation) need a premise descending from the conjecture. The conjecture
@@ -369,6 +377,11 @@ defmodule Astraea.Prover do
       coop_max_clauses: Keyword.get(opts, :cooperate_max_clauses, 400),
       avatar: Keyword.get(opts, :avatar, false),
       sat_solver: if(Keyword.get(opts, :avatar, false), do: CdclSat.new(), else: nil),
+      guided:
+        if(Keyword.get(opts, :guided, false),
+          do: Guided.new(Keyword.get(opts, :guided_io, :stdio)),
+          else: nil
+        ),
       sos:
         Keyword.get(opts, :sos, false) and
           MapSet.size(Keyword.get(opts, :sos_clauses, MapSet.new())) > 0
@@ -566,7 +579,12 @@ defmodule Astraea.Prover do
   end
 
   defp saturation_loop(%__MODULE__{} = state) do
+    {action, state} = interact(state)
+
     cond do
+      action == :kill ->
+        finish(state, {:resource_out, Map.put(stats(state), :guided, :killed)})
+
       not is_nil(state.refuted) ->
         finish(state, finalize_proof(state, state.refuted))
 
@@ -576,7 +594,7 @@ defmodule Astraea.Prover do
       reductions_exceeded?(state) ->
         despair(state, :resource_out)
 
-      System.monotonic_time(:millisecond) >= state.deadline_ms ->
+      is_nil(state.guided) and System.monotonic_time(:millisecond) >= state.deadline_ms ->
         finish(state, {:resource_out, stats(state)})
 
       true ->
@@ -599,6 +617,18 @@ defmodule Astraea.Prover do
 
   defp reductions_exceeded?(_state), do: false
 
+  # Leo-III `Interaction`: in guided mode, commands between iterations.
+  defp interact(%__MODULE__{guided: nil} = state), do: {:cont, state}
+  defp interact(%__MODULE__{} = state), do: Guided.interact(state)
+
+  # The next given clause; guided mode may override the queue (`take`).
+  defp select_given(%__MODULE__{guided: nil} = state) do
+    {given, passive} = PassiveQueue.pop(state.passive)
+    {given, passive, nil}
+  end
+
+  defp select_given(%__MODULE__{} = state), do: Guided.select(state.guided, state.passive)
+
   # One iteration of the given-clause loop (Leo-III `SeqLoop`): select, simplify
   # (condensation, unit simplification, demodulation), drop if redundant, else
   # simplify the processed set with it (backward subsumption and demodulation),
@@ -606,11 +636,12 @@ defmodule Astraea.Prover do
   # expanded by search-time clausification (`Calculus.Cnf`): its clauses replace it,
   # so it neither simplifies the processed set nor becomes active.
   defp given_clause_step(%__MODULE__{} = state) do
-    {given, passive} = PassiveQueue.pop(state.passive)
+    {given, passive, guided} = select_given(state)
 
     state = %{
       state
       | passive: passive,
+        guided: guided,
         passive_index: FVIndex.delete(state.passive_index, [given.id]),
         iterations: state.iterations + 1
     }
@@ -3495,7 +3526,7 @@ defmodule Astraea.Prover do
 
     sub_opts =
       state.opts
-      |> Keyword.drop([:cooperate, :seed])
+      |> Keyword.drop([:cooperate, :seed, :guided])
       |> Keyword.merge(timeout_ms: remaining, seed: seed)
 
     case prove_clauses(state.arena, Enum.map(core_items, & &1.lits), sub_opts) do
