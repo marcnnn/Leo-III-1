@@ -51,6 +51,7 @@ defmodule Astraea.Prover do
   alias Astraea.Input.Arith
 
   alias Astraea.Calculus.{
+    AC,
     ArgCong,
     Avatar,
     Choice,
@@ -314,6 +315,8 @@ defmodule Astraea.Prover do
       many instances per clause, `-1` for no bound, `0` off (default `0`)
     * `:injectivity` - derive inverse-function lemmas from injectivity clauses
       (Leo-III `detectInjectivity`, always on there; default `false`)
+    * `:ac_simp` - AC normalization by ordered rewriting with a derived
+      left-commutativity lemma (Leo-III `acsimp` flag, default `false`)
   """
   @spec prove_clauses(Arena.t(), [ProofChecker.clause()], keyword()) ::
           result() | {:proved_external, map()}
@@ -502,8 +505,8 @@ defmodule Astraea.Prover do
 
     axiom_items = Enum.reverse(axiom_items)
 
-    # Leo-III preprocessing lemmas (`detectInjectivity`), derived by kernel steps
-    # from the input clauses.
+    # Leo-III preprocessing lemmas (`detectInjectivity`, `detectAC` + `acSimp`),
+    # derived by kernel steps from the input clauses.
     {state, lemma_items} = preprocessing_lemmas(state, axiom_items)
 
     # Pass 2: Condense, unit-simplify, and equality-resolve initial clauses
@@ -2414,7 +2417,8 @@ defmodule Astraea.Prover do
     end
   end
 
-  # Inverse-function lemmas (`Calculus.Injectivity`) of the input clauses.
+  # Inverse-function lemmas (`Calculus.Injectivity`) and the AC left-commutativity
+  # lemma (`Calculus.AC`) of the input clauses.
   defp preprocessing_lemmas(%__MODULE__{} = state, items) do
     {state, inverses} =
       if calculus_opt(state, :injectivity, false) do
@@ -2436,7 +2440,10 @@ defmodule Astraea.Prover do
         {state, []}
       end
 
-    {state, Enum.reverse(inverses)}
+    {state, ac_lemmas} =
+      if calculus_opt(state, :ac_simp, false), do: ac_lemmas(state, items), else: {state, []}
+
+    {state, Enum.reverse(inverses) ++ ac_lemmas}
   end
 
   defp add_inverse(%__MODULE__{} = state, info) do
@@ -2526,6 +2533,93 @@ defmodule Astraea.Prover do
       end
     else
       _ -> :error
+    end
+  end
+
+  defp ac_lemmas(%__MODULE__{} = state, items) do
+    specs =
+      Enum.flat_map(items, fn item ->
+        case AC.detect(state.arena, item.lits) do
+          {kind, f, info} -> [{{kind, f}, {item, info}}]
+          :none -> []
+        end
+      end)
+      |> Enum.reverse()
+      |> Map.new()
+
+    for({{:assoc, f}, a} <- specs, c = Map.get(specs, {:comm, f}), c != nil, do: {a, c})
+    |> Enum.reduce({state, []}, fn {a, c}, {st, acc} ->
+      case left_commutativity(st, a, c) do
+        {:ok, st, lemma} -> {st, [lemma | acc]}
+        :error -> {st, acc}
+      end
+    end)
+  end
+
+  # `f x (f y z) = f y (f x z)` from A and C, see `Calculus.AC`.
+  defp left_commutativity(%__MODULE__{} = state, {a_item, a}, {c_item, c}) do
+    ty =
+      Enum.find_value(a_item.fvars, fn {var, ty} -> if var == a.x, do: ty end)
+
+    {arena, [x, y, z]} =
+      Enum.reduce(0..2, {state.arena, []}, fn i, {ar, acc} ->
+        {ar, v} = Arena.mk_fvar(ar, state.next_fvar_id + i, ty)
+        {ar, acc ++ [v]}
+      end)
+
+    state = %{state | arena: arena, next_fvar_id: state.next_fvar_id + 3}
+
+    if Enum.any?(c_item.fvars, fn {var, cty} -> var == c.a and cty != ty end) do
+      :error
+    else
+      # A[x, y, z] as `f x (f y z) = f (f x y) z`, A[y, x, z] as `f (f y x) z = f y (f x z)`.
+      {state, s1} =
+        oriented_instance(state, a_item, %{a.x => x, a.y => y, a.z => z}, not a.flipped)
+
+      {state, a2} = oriented_instance(state, a_item, %{a.x => y, a.y => x, a.z => z}, a.flipped)
+      {state, c1} = emit_subst_step(state, c_item, %{c.a => x, c.b => y}, 1)
+
+      with {:ok, state, s2} <- rewrite_unit(state, c1, s1),
+           {:ok, state, lc} <- rewrite_unit(state, a2, s2) do
+        {:ok, state, lc}
+      end
+    end
+  end
+
+  # The instance of a unit equation under `subst`, flipped by `:symm` if `flip?`.
+  defp oriented_instance(state, item, subst, flip?) do
+    {state, inst} = emit_subst_step(state, item, subst, 1)
+
+    if flip? do
+      [{:pos, eq}] = MapSet.to_list(inst.lits)
+      {@tag_eq, _, _, l, r} = Arena.get_node(state.arena, eq)
+      {arena, sym} = Arena.mk_eq(state.arena, r, l)
+
+      add_step(
+        %{state | arena: arena},
+        {:symm, state.next_step_id, inst.id},
+        MapSet.new([{:pos, sym}]),
+        1
+      )
+    else
+      {state, inst}
+    end
+  end
+
+  # Paramodulation of the unit equation `eq_item` (left to right) into the unit `target`.
+  defp rewrite_unit(state, eq_item, target) do
+    [{:pos, eq}] = MapSet.to_list(eq_item.lits)
+    [{pol, atom} = lit] = MapSet.to_list(target.lits)
+    {@tag_eq, _, _, l, r} = Arena.get_node(state.arena, eq)
+    {arena, replaced} = ProofChecker.replace_subterm(state.arena, atom, l, r)
+    {arena, new_atom} = Arena.beta_eta_norm(arena, replaced)
+
+    if new_atom == atom do
+      :error
+    else
+      step = {:paramod, state.next_step_id, eq_item.id, target.id, eq, lit, {pol, new_atom}}
+      {state, item} = add_step(%{state | arena: arena}, step, MapSet.new([{pol, new_atom}]), 1)
+      {:ok, state, item}
     end
   end
 

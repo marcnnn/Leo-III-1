@@ -2,7 +2,7 @@ defmodule Astraea.ProverLeo3FeaturesTest do
   use ExUnit.Case, async: true
 
   alias Astraea.{Arena, ProofChecker, Prover, Schedule, TptpLower}
-  alias Astraea.Calculus.{DomainConstraint, Injectivity}
+  alias Astraea.Calculus.{AC, DomainConstraint, Injectivity}
 
   defp prove(src, opts) do
     Prover.prove_string(src, Keyword.merge([timeout_ms: 1_500], opts))
@@ -154,6 +154,55 @@ defmodule Astraea.ProverLeo3FeaturesTest do
 
       {arena, pos1} = Arena.mk_eq(arena, x1, y2)
       assert :none == Injectivity.detect(arena, MapSet.new([{:neg, neg}, {:pos, pos1}]))
+    end
+  end
+
+  describe "AC simplification (Leo-III detectAC / acSimp)" do
+    @ac_thm """
+    thf(f_t, type, f: $i > $i > $i).
+    thf(a_t, type, a: $i). thf(b_t, type, b: $i). thf(c_t, type, c: $i).
+    thf(d_t, type, d: $i). thf(e_t, type, e: $i).
+    thf(as, axiom, ! [X: $i, Y: $i, Z: $i]: ((f @ (f @ X @ Y) @ Z) = (f @ X @ (f @ Y @ Z)))).
+    thf(co, axiom, ! [X: $i, Y: $i]: ((f @ X @ Y) = (f @ Y @ X))).
+    thf(g, conjecture,
+      (f @ (f @ a @ e) @ (f @ b @ (f @ c @ d))) = (f @ d @ (f @ c @ (f @ e @ (f @ b @ a))))).
+    """
+
+    @ac_csa """
+    thf(f_t, type, f: $i > $i > $i).
+    thf(a_t, type, a: $i). thf(b_t, type, b: $i). thf(c_t, type, c: $i).
+    thf(as, axiom, ! [X: $i, Y: $i, Z: $i]: ((f @ (f @ X @ Y) @ Z) = (f @ X @ (f @ Y @ Z)))).
+    thf(co, axiom, ! [X: $i, Y: $i]: ((f @ X @ Y) = (f @ Y @ X))).
+    thf(g, conjecture, (f @ a @ b) = (f @ a @ c)).
+    """
+
+    test "normalizes modulo AC with the derived left-commutativity lemma" do
+      steps = assert_kernel_proof(prove(@ac_thm, ac_simp: true, max_iterations: 20))
+      # The lemma's derivation starts from a flipped instance of associativity.
+      assert Enum.any?(steps, &match?({:symm, _, _}, &1))
+    end
+
+    test "does not identify different AC terms" do
+      refute match?({:proved, _, _}, prove(@ac_csa, ac_simp: true, max_iterations: 200))
+    end
+
+    test "detects A and C in both orientations" do
+      arena = Arena.new()
+      {arena, ty} = Arena.intern_type(arena, {:arrow, :i, {:arrow, :i, :i}})
+      {arena, f} = Arena.mk_const(arena, "f", ty)
+      {[x, y, z], arena} = fvars(arena, 3)
+      app = fn ar, s, t -> Astraea.Calculus.Terms.mk_apps(ar, f, [s, t]) end
+      {arena, fxy} = app.(arena, x, y)
+      {arena, fyx} = app.(arena, y, x)
+      {arena, fyz} = app.(arena, y, z)
+      {arena, l} = app.(arena, fxy, z)
+      {arena, r} = app.(arena, x, fyz)
+      {arena, comm} = Arena.mk_eq(arena, fxy, fyx)
+      {arena, assoc} = Arena.mk_eq(arena, r, l)
+
+      assert {:comm, ^f, _} = AC.detect(arena, MapSet.new([{:pos, comm}]))
+      assert {:assoc, ^f, %{flipped: true}} = AC.detect(arena, MapSet.new([{:pos, assoc}]))
+      assert :none == AC.detect(arena, MapSet.new([{:neg, comm}]))
     end
   end
 
