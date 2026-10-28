@@ -11,7 +11,8 @@ defmodule Astraea.Clausifier do
      option `:andrews_eq`) and unfolded bi-implications (`(~A | B) & (~B | A)` -> `A = B`).
   3. Applies SInE (Sumo Inference Engine) symbol-rarity premise selection when
      `length(axioms) > sine_limit`, or Leo-III's relevance filter
-     (`Astraea.RelevanceFilter`, option `:relevance_filter`) instead.
+     (`Astraea.RelevanceFilter`, option `:relevance_filter`) or Leo-III's SInE
+     (`Astraea.Sine`, option `:sine`) instead.
   4. Expands higher-order positive congruence, negative functional extensionality (`FuncExt`),
      and Boolean extensionality (`BoolExt`) with shared-conjunct factoring during NNF +
      content-addressed Skolemization.
@@ -60,7 +61,7 @@ defmodule Astraea.Clausifier do
   already is an equational literal.
   """
 
-  alias Astraea.{Arena, ProofChecker, RelevanceFilter, TptpLower}
+  alias Astraea.{Arena, ProblemStatistics, ProofChecker, RelevanceFilter, Sine, TptpLower}
 
   # Node tags (u8) matching `Astraea.Arena`
   @tag_const 1
@@ -117,6 +118,15 @@ defmodule Astraea.Clausifier do
     * `:relevance_filter` - `nil` (default), `:auto` or `%{passmark: p, aging: a}`:
       Leo-III's relevance filter (`--relevance-passmark`, `--relevance-aging`, see
       `Astraea.RelevanceFilter`) instead of SInE
+    * `:sine` - `nil` (default), `:auto`, `%{threshold: t, max_size: n, max_depth: d}`
+      or a `"t;n;d"` string: Leo-III's SInE (`--sine`, see `Astraea.Sine`) instead
+      of Astraea's SInE and the relevance filter. `:auto`, and a string Leo-III
+      cannot parse, guess the configuration from the axiom counts
+    * `:standard_sine` - guess Leo-III's `defaultConfig` instead of a table entry
+      (Leo-III `--standard-sine`, default `false`)
+    * `:axiom_counts` - `{internal, external}` or an `Astraea.ProblemStatistics`:
+      `axiom`/`hypothesis` formulas of the problem file and of its includes, for
+      the guess (default: every such formula counts as internal)
   """
   @spec clausify(TptpLower.t(), keyword()) :: {Arena.t(), [ProofChecker.clause()]}
   def clausify(%TptpLower{} = lowered, opts \\ []) do
@@ -133,6 +143,7 @@ defmodule Astraea.Clausifier do
     inline_bridges = Keyword.get(opts, :inline_bridges, false)
     andrews_eq = Keyword.get(opts, :andrews_eq, true)
     relevance_filter = Keyword.get(opts, :relevance_filter)
+    sine = Keyword.get(opts, :sine)
 
     # 1. Extract constant definitions `c = rhs` and inline across axioms & conjectures
     {arena, def_map, defined_names} = extract_definitions(arena, lowered.axioms)
@@ -143,10 +154,20 @@ defmodule Astraea.Clausifier do
         role == "definition" and MapSet.member?(defined_names, name)
       end)
 
-    # 2. Apply the relevance filter if requested, else SInE if large theory
-    #    (> sine_limit axioms) and conjectures exist
+    # 2. Apply Leo-III's SInE or the relevance filter if requested (in that order,
+    #    as Leo-III's `--sine` wins), else SInE if large theory (> sine_limit
+    #    axioms) and conjectures exist
     selected_axioms =
       cond do
+        sine != nil ->
+          Sine.select(
+            arena,
+            raw_axioms,
+            lowered.conjectures,
+            def_map,
+            sine_config(sine, lowered, opts)
+          )
+
         relevance_filter != nil ->
           RelevanceFilter.select(
             arena,
@@ -244,6 +265,30 @@ defmodule Astraea.Clausifier do
     }
 
     {arena, Enum.uniq(all_clauses ++ extra), info}
+  end
+
+  # Leo-III `getBestFilterConfig` with the problem's axiom counts. Leo-III counts
+  # the `axiom` and `hypothesis` formulas, before and after the included ones.
+  defp sine_config(sine, %TptpLower{} = lowered, opts) do
+    {internal, external} =
+      case Keyword.get(opts, :axiom_counts) do
+        %ProblemStatistics{} = stats ->
+          {stats.local_axioms, stats.included_axioms}
+
+        {internal, external} ->
+          {internal, external}
+
+        nil ->
+          {Enum.count(lowered.axioms, fn {_n, role, _id} ->
+             Astraea.Input.Elaborator.base_role(role) in ["axiom", "hypothesis"]
+           end), 0}
+      end
+
+    Sine.config(sine,
+      internal: internal,
+      external: external,
+      standard: Keyword.get(opts, :standard_sine, false)
+    )
   end
 
   defp preprocess_formula(%Arena{} = arena, term_id, def_map, {leibniz_eq, andrews_eq}) do

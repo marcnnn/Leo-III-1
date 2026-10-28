@@ -186,6 +186,11 @@ defmodule Astraea.Prover do
   def prove_lowered(%TptpLower{} = lowered, opts \\ []) do
     clausify_opts = clausify_opts(opts)
 
+    clausify_opts =
+      if lowered.axiom_counts,
+        do: Keyword.put(clausify_opts, :axiom_counts, lowered.axiom_counts),
+        else: clausify_opts
+
     {arena, clauses, info} = Clausifier.clausify_with_info(lowered, clausify_opts)
 
     opts =
@@ -221,7 +226,9 @@ defmodule Astraea.Prover do
     :leibniz_eq,
     :andrews_eq,
     :instantiate_sets,
-    :relevance_filter
+    :relevance_filter,
+    :sine,
+    :standard_sine
   ]
 
   defp clausify_opts(opts),

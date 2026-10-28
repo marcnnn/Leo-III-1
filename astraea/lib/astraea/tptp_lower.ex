@@ -38,7 +38,8 @@ defmodule Astraea.TptpLower do
             conjectures: [],
             definitions: [],
             incomplete: [],
-            fragments: []
+            fragments: [],
+            axiom_counts: nil
 
   @type t :: %__MODULE__{
           arena: Arena.t(),
@@ -48,7 +49,8 @@ defmodule Astraea.TptpLower do
           conjectures: [{String.t(), Arena.term_id()}],
           definitions: [{String.t(), Arena.term_id()}],
           incomplete: [term()],
-          fragments: [atom()]
+          fragments: [atom()],
+          axiom_counts: {non_neg_integer(), non_neg_integer()} | nil
         }
 
   @doc """
@@ -106,7 +108,11 @@ defmodule Astraea.TptpLower do
 
     {stmts, incomplete} = Monomorphizer.run(stmts, Keyword.get(opts, :monomorphization, []))
     fragments = ctx.features |> MapSet.to_list() |> Enum.sort()
-    {:ok, emit(stmts, incomplete, fragments)}
+    # Axioms of the problem file and of its includes, for Leo-III's SInE
+    # configuration table (`Astraea.Sine`).
+    stats = Astraea.ProblemStatistics.from_unit(unit)
+    lowered = emit(stmts, incomplete, fragments)
+    {:ok, %{lowered | axiom_counts: {stats.local_axioms, stats.included_axioms}}}
   rescue
     e -> {:error, Exception.message(e)}
   end

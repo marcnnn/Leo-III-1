@@ -1,10 +1,11 @@
 defmodule Astraea.Leo3RemainingTest do
   @moduledoc """
-  The kernel's type check on substitutions.
+  The kernel's type check on substitutions and the axiom counts for Leo-III's
+  SInE table.
   """
   use ExUnit.Case, async: true
 
-  alias Astraea.{Arena, ProofChecker, Prover}
+  alias Astraea.{Arena, ProofChecker, Prover, TptpLower}
 
   @thm_src """
   thf(q_type, type, q: ($i > $i) > $o).
@@ -16,6 +17,24 @@ defmodule Astraea.Leo3RemainingTest do
   thf(ax_q_id, axiom, q @ (^ [X: $i]: X)).
   thf(conj_qg, conjecture, q @ g).
   """
+
+  setup do
+    dir =
+      Path.join(
+        System.tmp_dir!(),
+        "astraea_leo3_remaining_test_#{System.unique_integer([:positive])}"
+      )
+
+    File.mkdir_p!(dir)
+    on_exit(fn -> File.rm_rf!(dir) end)
+    %{dir: dir}
+  end
+
+  defp write_problem(dir, source) do
+    path = Path.join(dir, "thm.p")
+    File.write!(path, source)
+    path
+  end
 
   defp p_of_x do
     arena = Arena.new()
@@ -57,6 +76,15 @@ defmodule Astraea.Leo3RemainingTest do
       assert {:error, _} =
                ProofChecker.derive_steps(arena, [axiom, {:subst, 2, 1, %{1 => fy, 2 => b}}])
     end
+  end
+
+  test "lowering records the axioms of the problem file and of its includes", %{dir: dir} do
+    ax = Path.join(dir, "ax.ax")
+    File.write!(ax, "thf(p_type, type, p: $o).\nthf(ax1, axiom, p).\nthf(ax2, axiom, ~ ~ p).\n")
+    path = write_problem(dir, "include('ax.ax').\nthf(ax3, axiom, p).\nthf(c, conjecture, p).\n")
+
+    assert {:ok, lowered} = TptpLower.from_file(path, tptp_root: dir)
+    assert lowered.axiom_counts == {1, 2}
   end
 
   describe "ordering checks after unification" do
