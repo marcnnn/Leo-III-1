@@ -55,6 +55,7 @@ defmodule Astraea.Prover do
     AC,
     ArgCong,
     Avatar,
+    BoolHoist,
     Choice,
     Cnf,
     DomainConstraint,
@@ -1467,6 +1468,7 @@ defmodule Astraea.Prover do
   #   :ext_inferences (true) - BoolExt / FuncExt on given clauses
   #   :choice (true) - Hilbert choice instances
   #   :choice_flex (true) - instantiate applied choice-typed variables with choice operators
+  #   :bool_hoist (true) - case split on formulas in argument positions (`Calculus.BoolHoist`)
   #   :ordered (false), :literal_selection (:none | :neg_max) - see `Calculus.Ordering`
   #   :fingerprints (true), :fingerprint_backend (:auto) - partner retrieval
   #   :paramod_flex (false) - also paramodulate into flex-headed subterms
@@ -1497,7 +1499,8 @@ defmodule Astraea.Prover do
            {:cont, state, items10} <- try_choice(state, given),
            {:cont, state, items11} <- try_induction(state, given),
            {:cont, state, items12} <- try_domain_instances(state, given),
-           {:cont, state, items13} <- try_inverse_instances(state, given) do
+           {:cont, state, items13} <- try_inverse_instances(state, given),
+           {:cont, state, items14} <- try_bool_hoist(state, given) do
         clausify_items(
           state,
           items0 ++
@@ -1515,7 +1518,8 @@ defmodule Astraea.Prover do
             items10 ++
             items11 ++
             items12 ++
-            items13
+            items13 ++
+            items14
         )
       end
     else
@@ -2376,6 +2380,54 @@ defmodule Astraea.Prover do
     end
   end
 
+  # Boolean hoisting (`Calculus.BoolHoist`): `C | L[phi]` yields `C | L[$true] | ~phi`
+  # and `C | L[$false] | phi`, each a `:paramod` with a lifted instance of the
+  # tautology `~phi | phi`.
+  defp try_bool_hoist(%__MODULE__{} = state, given) do
+    targets =
+      if state.higher_order and calculus_opt(state, :bool_hoist, true),
+        do: BoolHoist.candidates(state.arena, given.lits),
+        else: []
+
+    each_inference(state, targets, fn st, {{pol, atom} = lit, phi} ->
+      {arena, phi_eq} = Arena.mk_eq(st.arena, phi, phi)
+
+      {st, refl} =
+        add_step(
+          %{st | arena: arena},
+          {:refl, st.next_step_id, phi},
+          MapSet.new([{:pos, phi_eq}]),
+          0
+        )
+
+      taut = MapSet.new([{:neg, phi}, {:pos, phi}])
+
+      {st, taut} =
+        add_step(st, {:cnf, st.next_step_id, refl.id, {:pos, phi_eq}, {:bool_eq, :left}}, taut, 0)
+
+      Enum.reduce([{:pos, "$true"}, {:neg, "$false"}], {:cont, st, []}, fn {case_pol, truth},
+                                                                           {:cont, st, acc} ->
+        {arena, truth_const} = Arena.mk_const(st.arena, truth, :o)
+        {arena, case_eq} = Arena.mk_eq(arena, phi, truth_const)
+        lifted_lits = taut.lits |> MapSet.delete({case_pol, phi}) |> MapSet.put({:pos, case_eq})
+        step = {:cnf, st.next_step_id, taut.id, {case_pol, phi}, :lift_bool}
+        {st, lifted} = add_step(%{st | arena: arena}, step, lifted_lits, 0)
+
+        {arena, replaced} = ProofChecker.replace_subterm(st.arena, atom, phi, truth_const)
+        {arena, new_atom} = Arena.beta_eta_norm(arena, replaced)
+
+        lits =
+          given.lits
+          |> MapSet.delete(lit)
+          |> MapSet.put({pol, new_atom})
+          |> MapSet.union(MapSet.delete(lifted.lits, {:pos, case_eq}))
+
+        step = {:paramod, st.next_step_id, lifted.id, given.id, case_eq, lit, {pol, new_atom}}
+        {st, item} = add_step(%{st | arena: arena}, step, lits, given.depth + 1, given.guards)
+        {:cont, st, [item | acc]}
+      end)
+    end)
+  end
 
   # 9. Function synthesis via choice (`Calculus.FuncSpec`)
   defp try_func_spec(%__MODULE__{} = state, given) do

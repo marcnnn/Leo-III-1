@@ -368,6 +368,19 @@ defmodule Astraea.CalculusTest do
     assert is_integer(stats.unification_cutoffs)
   end
 
+  test "Boolean hoisting splits formulas in argument positions (SYN983^1)" do
+    src = """
+    thf(a_const, type, a: $o).
+    thf(b_const, type, b: $o).
+    thf(p_const, type, p: $o > $o).
+    thf(thm, conjecture, (((p @ a) & (p @ b)) => (p @ (a & b)))).
+    """
+
+    assert {:proved, steps, _} = Prover.prove_string(src, timeout_ms: 2_000)
+    assert :paramod in kinds(steps)
+    assert {:saturated, _} = Prover.prove_string(src, timeout_ms: 2_000, bool_hoist: false)
+  end
+
   test "primitive substitution plus search-time clausification" do
     src = """
     thf(a_type, type, a: $i).
