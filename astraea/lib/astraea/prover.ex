@@ -37,7 +37,22 @@ defmodule Astraea.Prover do
   alias Astraea.Engine.{Demodulator, Fragment, FVIndex, HeadIndex, PassiveQueue, Subsumption}
   alias Astraea.External.Reconstruct
   alias Astraea.Input.Arith
-  alias Astraea.Calculus.{ArgCong, Avatar, Choice, Cnf, EqFact, FingerprintIndex, FuncSpec, Ordering, PrimSubst, SpecialInstances, Terms, Unify}
+
+  alias Astraea.Calculus.{
+    ArgCong,
+    Avatar,
+    Choice,
+    Cnf,
+    EqFact,
+    FingerprintIndex,
+    FuncSpec,
+    Ordering,
+    PrimSubst,
+    SpecialInstances,
+    Terms,
+    Unify
+  }
+
   alias Astraea.Engine.CdclSat
 
   # Below this remaining budget an external call cannot finish in time.
@@ -391,25 +406,25 @@ defmodule Astraea.Prover do
         {:cont, {:cont, st}}
       else
         if MapSet.size(c_item.lits) == 0 do
-        {:halt, {:proved, st, c_item.id}}
-      else
-        {st, cond_item} = condense_clause(st, c_item)
+          {:halt, {:proved, st, c_item.id}}
+        else
+          {st, cond_item} = condense_clause(st, c_item)
 
-        case unit_simplify(st, cond_item) do
-          {:proved, st2, empty_id} ->
-            {:halt, {:proved, st2, empty_id}}
+          case unit_simplify(st, cond_item) do
+            {:proved, st2, empty_id} ->
+              {:halt, {:proved, st2, empty_id}}
 
-          {:ok, st2, simp_item} ->
-            case try_immediate_eq_resolution(st2, simp_item) do
-              {:proved, st3, empty_id} ->
-                {:halt, {:proved, st3, empty_id}}
+            {:ok, st2, simp_item} ->
+              case try_immediate_eq_resolution(st2, simp_item) do
+                {:proved, st3, empty_id} ->
+                  {:halt, {:proved, st3, empty_id}}
 
-              {:cont, st3, derived_items} ->
-                st4 = enqueue_passive(st3, [simp_item | derived_items])
-                {:cont, {:cont, st4}}
-            end
+                {:cont, st3, derived_items} ->
+                  st4 = enqueue_passive(st3, [simp_item | derived_items])
+                  {:cont, {:cont, st4}}
+              end
+          end
         end
-      end
       end
     end)
   end
@@ -422,7 +437,6 @@ defmodule Astraea.Prover do
        when is_integer(max_iters) and iters >= max_iters do
     finish(state, {:resource_out, stats(state)})
   end
-
 
   defp saturation_loop(%__MODULE__{} = state) do
     cond do
@@ -526,7 +540,11 @@ defmodule Astraea.Prover do
           FVIndex.insert(state.active_index, item.id, Subsumption.subsumption_fv(item))
     }
 
-    state = state |> add_unit(item) |> fingerprint_activate(item) |> note_wide_equation(item)
+    state =
+      state
+      |> add_unit(item)
+      |> fingerprint_activate(item)
+      |> note_wide_equation(item)
 
     if state.demodulation,
       do: %{
@@ -613,7 +631,13 @@ defmodule Astraea.Prover do
         state = %{state | arena: arena}
 
         {state, evaluated} =
-          add_step(state, {:arith_eval, state.next_step_id, item.id, lits}, lits, item.depth, item.guards)
+          add_step(
+            state,
+            {:arith_eval, state.next_step_id, item.id, lits},
+            lits,
+            item.depth,
+            item.guards
+          )
 
         if MapSet.size(lits) == 0 do
           case handle_empty_clause(state, evaluated) do
@@ -641,7 +665,13 @@ defmodule Astraea.Prover do
           state = %{state | arena: arena}
 
           {state, evaluated} =
-            add_step(state, {:eval, state.next_step_id, item.id, lits}, lits, item.depth, item.guards)
+            add_step(
+              state,
+              {:eval, state.next_step_id, item.id, lits},
+              lits,
+              item.depth,
+              item.guards
+            )
 
           if MapSet.size(lits) == 0 do
             case handle_empty_clause(state, evaluated) do
@@ -810,7 +840,8 @@ defmodule Astraea.Prover do
         case ProofChecker.derive_steps(state.arena, all_steps) do
           {:ok, _arena, derived} ->
             case Map.get(derived, final_empty_id) do
-              empty_clause when is_struct(empty_clause, MapSet) and map_size(empty_clause.map) == 0 ->
+              empty_clause
+              when is_struct(empty_clause, MapSet) and map_size(empty_clause.map) == 0 ->
                 {:ok, state, final_empty_id}
 
               _other ->
@@ -889,7 +920,10 @@ defmodule Astraea.Prover do
 
                     if MapSet.member?(st2.seen_clauses, sig_key),
                       do: {:cont, {st2, acc}},
-                      else: {:cont, {%{st2 | seen_clauses: MapSet.put(st2.seen_clauses, sig_key)}, [item | acc]}}
+                      else:
+                        {:cont,
+                         {%{st2 | seen_clauses: MapSet.put(st2.seen_clauses, sig_key)},
+                          [item | acc]}}
                 end
             end
           end
@@ -997,8 +1031,15 @@ defmodule Astraea.Prover do
             {ar, truth_const} = Arena.mk_const(state.arena, truth_name, :o)
             {ar, eq} = Arena.mk_eq(ar, p, truth_const)
             step = {:cnf, state.next_step_id, redex.rule.item.id, {rule_pol, p}, :lift_bool}
+
             {st, lifted} =
-              add_step(%{state | arena: ar}, step, MapSet.new([{:pos, eq}]), redex.rule.item.depth, redex.rule.item.guards)
+              add_step(
+                %{state | arena: ar},
+                step,
+                MapSet.new([{:pos, eq}]),
+                redex.rule.item.depth,
+                redex.rule.item.guards
+              )
 
             {st, lifted, eq}
           end
@@ -1262,7 +1303,19 @@ defmodule Astraea.Prover do
            {:cont, state, items10} <- try_choice(state, given) do
         clausify_items(
           state,
-          items0 ++ items1 ++ items2 ++ items2b ++ items3 ++ items4 ++ items5 ++ items5b ++ items6 ++ items7 ++ items8 ++ items9 ++ items10
+          items0 ++
+            items1 ++
+            items2 ++
+            items2b ++
+            items3 ++
+            items4 ++
+            items5 ++
+            items5b ++
+            items6 ++
+            items7 ++
+            items8 ++
+            items9 ++
+            items10
         )
       end
     else
@@ -1356,7 +1409,9 @@ defmodule Astraea.Prover do
 
   defp replay_cnf(%__MODULE__{} = state, item, {:expand, lit, branches}) do
     each_inference(state, branches, fn st, {rule, lits, sub} ->
-      {st, child} = add_step(st, {:cnf, st.next_step_id, item.id, lit, rule}, lits, item.depth, item.guards)
+      {st, child} =
+        add_step(st, {:cnf, st.next_step_id, item.id, lit, rule}, lits, item.depth, item.guards)
+
       replay_cnf(st, child, sub)
     end)
   end
@@ -1377,7 +1432,16 @@ defmodule Astraea.Prover do
       {arena, new_eq} = Arena.mk_eq(arena, norm_l, norm_r)
       st = %{state | arena: arena}
       step = {:func_ext, st.next_step_id, clause_item.id, fvar_id, var_ty}
-      {st, ext_item} = add_step(st, step, MapSet.new([{:pos, new_eq}]), clause_item.depth + 1, clause_item.guards)
+
+      {st, ext_item} =
+        add_step(
+          st,
+          step,
+          MapSet.new([{:pos, new_eq}]),
+          clause_item.depth + 1,
+          clause_item.guards
+        )
+
       {:cont, st, [ext_item]}
     else
       _ -> {:cont, state, []}
@@ -1712,7 +1776,16 @@ defmodule Astraea.Prover do
         {arena, true_const} = Arena.mk_const(st.arena, "$true", :o)
         {arena, eq} = Arena.mk_eq(arena, eq_atom_inst, true_const)
         step = {:cnf, st.next_step_id, eq_inst.id, {:pos, eq_atom_inst}, :lift_bool}
-        {st, lifted} = add_step(%{st | arena: arena}, step, MapSet.new([{:pos, eq}]), eq_clause.depth, eq_inst.guards)
+
+        {st, lifted} =
+          add_step(
+            %{st | arena: arena},
+            step,
+            MapSet.new([{:pos, eq}]),
+            eq_clause.depth,
+            eq_inst.guards
+          )
+
         {st, lifted, eq}
       else
         {st, eq_inst, eq_atom_inst}
@@ -1777,6 +1850,7 @@ defmodule Astraea.Prover do
                  elem(Arena.get_node(state.arena, atom_id), 0) != 6 and
                  not fvar_node?(state.arena, atom_id) do
               true_const = Arena.lookup_const(state.arena, "$true", :o)
+
               if true_const do
                 [{atom_id, atom_id, true_const}]
               else
@@ -1972,7 +2046,7 @@ defmodule Astraea.Prover do
     end
   end
 
-# 11. Higher-Order Superposition: Argument Congruence (`Calculus.ArgCong`)
+  # 11. Higher-Order Superposition: Argument Congruence (`Calculus.ArgCong`)
   defp try_arg_cong(%__MODULE__{} = state, given) do
     if state.higher_order and given.depth <= calculus_opt(state, :arg_cong_depth, 2) do
       candidates = ArgCong.candidates(state.arena, given)
@@ -2014,33 +2088,34 @@ defmodule Astraea.Prover do
           {s, sub_item, {eq1_sub, eq2_sub}} =
             apply_subst_to_pair(s, given, subst, eq1_id, eq2_id)
 
-          if eq1_sub != eq2_sub and MapSet.member?(sub_item.lits, {:pos, eq1_sub}) and MapSet.member?(sub_item.lits, {:pos, eq2_sub}) do
+          if eq1_sub != eq2_sub and MapSet.member?(sub_item.lits, {:pos, eq1_sub}) and
+               MapSet.member?(sub_item.lits, {:pos, eq2_sub}) do
             {@tag_eq, _, _, l1, r1} = Arena.get_node(s.arena, eq1_sub)
             {@tag_eq, _, _, l2, r2} = Arena.get_node(s.arena, eq2_sub)
 
             case ProofChecker.match_eq_sides(l1, r1, l2, r2) do
-            {_common, rem_a, rem_b} ->
-              {arena, neg_eq} = Arena.mk_eq(s.arena, rem_a, rem_b)
-              s = %{s | arena: arena}
+              {_common, rem_a, rem_b} ->
+                {arena, neg_eq} = Arena.mk_eq(s.arena, rem_a, rem_b)
+                s = %{s | arena: arena}
 
-              new_lits =
-                sub_item.lits
-                |> MapSet.delete({:pos, eq1_sub})
-                |> MapSet.put({:neg, neg_eq})
+                new_lits =
+                  sub_item.lits
+                  |> MapSet.delete({:pos, eq1_sub})
+                  |> MapSet.put({:neg, neg_eq})
 
-              step = {:eq_fact, s.next_step_id, sub_item.id, eq1_sub, eq2_sub}
-              {s, fact_item} = add_step(s, step, new_lits, sub_item.depth + 1, sub_item.guards)
+                step = {:eq_fact, s.next_step_id, sub_item.id, eq1_sub, eq2_sub}
+                {s, fact_item} = add_step(s, step, new_lits, sub_item.depth + 1, sub_item.guards)
 
-              case try_immediate_eq_resolution(s, fact_item) do
-                {:proved, _, _} = proved ->
-                  proved
+                case try_immediate_eq_resolution(s, fact_item) do
+                  {:proved, _, _} = proved ->
+                    proved
 
-                {:cont, s2, eq_items} ->
-                  {s3, fresh_item} = freshen_clause_item(s2, fact_item)
-                  {:cont, s3, [fresh_item | eq_items]}
-              end
+                  {:cont, s2, eq_items} ->
+                    {s3, fresh_item} = freshen_clause_item(s2, fact_item)
+                    {:cont, s3, [fresh_item | eq_items]}
+                end
 
-            nil ->
+              nil ->
                 {:cont, s, []}
             end
           else

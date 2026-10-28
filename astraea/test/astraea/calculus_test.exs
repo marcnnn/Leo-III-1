@@ -3,7 +3,20 @@ defmodule Astraea.CalculusTest do
   use ExUnitProperties
 
   alias Astraea.{Arena, ProofChecker, Prover}
-  alias Astraea.Calculus.{ArgCong, Choice, Cnf, EqFact, FingerprintIndex, FuncSpec, Ordering, PrimSubst, SpecialInstances, Terms, Unify}
+
+  alias Astraea.Calculus.{
+    ArgCong,
+    Choice,
+    Cnf,
+    EqFact,
+    FingerprintIndex,
+    FuncSpec,
+    Ordering,
+    PrimSubst,
+    SpecialInstances,
+    Terms,
+    Unify
+  }
 
   # ---------------------------------------------------------------------------
   # Random terms over a small higher-order signature:
@@ -473,12 +486,14 @@ defmodule Astraea.CalculusTest do
              )
            )
   end
+
   test "funcspec synthesizes choice terms for flexible function specifications" do
     {arena, s} = signature()
     {arena, fa} = Arena.mk_app(arena, s[:F], s.a)
     {arena, fb} = Arena.mk_app(arena, s[:F], s.b)
     {arena, eq1} = Arena.mk_eq(arena, fa, s.b)
     {arena, eq2} = Arena.mk_eq(arena, fb, s.a)
+
     clause = %{
       id: 1,
       lits: MapSet.new([{:neg, eq1}, {:neg, eq2}]),
@@ -496,6 +511,7 @@ defmodule Astraea.CalculusTest do
     thf(b_type, type, b: $i).
     thf(conj, conjecture, ? [F: $i > $i]: (((F @ a) = b) & ((F @ b) = a))).
     """
+
     assert {:proved, steps, _} = Prover.prove_string(src, funcspec: true, timeout_ms: 2_000)
     assert :subst in kinds(steps)
   end
@@ -526,6 +542,7 @@ defmodule Astraea.CalculusTest do
     assert length(cand_map[11]) == 1
     assert length(cand_map[12]) == 1
   end
+
   test "argument congruence detects functional equalities and kernel verifies :cong" do
     {arena, s} = signature()
     {arena, eq_fg} = Arena.mk_eq(arena, s.f, s[:F])
@@ -576,9 +593,10 @@ defmodule Astraea.CalculusTest do
 
     pairs = EqFact.candidate_pairs(arena, clause)
     assert length(pairs) >= 1
+
     assert Enum.any?(pairs, fn {e1, e2, s1, s2, _r1, _r2} ->
-      (e1 == eq1 and e2 == eq2) and (s1 == fx and s2 == fx)
-    end)
+             e1 == eq1 and e2 == eq2 and (s1 == fx and s2 == fx)
+           end)
 
     # Kernel verification of sound refutation using :eq_fact
     proof = [
@@ -595,11 +613,14 @@ defmodule Astraea.CalculusTest do
     # Forgery rejection: non-matching sides rejected
     {arena, other_c} = Arena.mk_const(arena, "c", :i)
     {arena, eq3} = Arena.mk_eq(arena, other_c, s.b)
+
     forged_proof = [
       {:axiom, 1, MapSet.new([{:pos, eq1}, {:pos, eq3}])},
       {:eq_fact, 2, 1, eq1, eq3}
     ]
-    assert {:error, {:invalid_eq_fact, 2, 1}} = ProofChecker.verify_refutation(arena, forged_proof)
+
+    assert {:error, {:invalid_eq_fact, 2, 1}} =
+             ProofChecker.verify_refutation(arena, forged_proof)
   end
 
   test "equality factoring and argument congruence in end-to-end refutation" do

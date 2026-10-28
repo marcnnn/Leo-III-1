@@ -54,7 +54,9 @@ defmodule Astraea.Engine.Demodulator do
                  not Arena.truth_const?(arena, eq, "$true") and
                  not Arena.truth_const?(arena, eq, "$false") do
               case Arena.lookup_const(arena, "$true", :o) do
-                nil -> []
+                nil ->
+                  []
+
                 true_const ->
                   [%{id: item.id, item: item, eq: nil, lhs: eq, rhs: true_const, kind: :pos_bool}]
               end
@@ -73,7 +75,9 @@ defmodule Astraea.Engine.Demodulator do
                  not Arena.truth_const?(arena, p, "$true") and
                  not Arena.truth_const?(arena, p, "$false") do
               case Arena.lookup_const(arena, "$false", :o) do
-                nil -> []
+                nil ->
+                  []
+
                 false_const ->
                   [%{id: item.id, item: item, eq: nil, lhs: p, rhs: false_const, kind: :neg_bool}]
               end

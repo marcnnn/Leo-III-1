@@ -234,7 +234,7 @@ defmodule Astraea.Tstp do
   # Ground arithmetic evaluation (input workstream): the step states its conclusion.
   defp conclusion(arena, _derived, {:arith_eval, _id, _p, clause}), do: {arena, clause}
 
-# Ground lambda / combinator / boolean evaluation
+  # Ground lambda / combinator / boolean evaluation
   defp conclusion(arena, _derived, {:eval, _id, _p, clause}), do: {arena, clause}
 
   defp conclusion(arena, derived, {:eq_fact, _id, p, eq1_id, eq2_id}) do
@@ -317,7 +317,7 @@ defmodule Astraea.Tstp do
   defp rule({:refl, _, _}), do: {"refl", "thm"}
   defp rule({:symm, _, _}), do: {"symmetry", "thm"}
   defp rule({:trans, _, _, _}), do: {"transitivity", "thm"}
-defp rule({:cong, _, _, _, _}), do: {"arg_cong", "thm"}
+  defp rule({:cong, _, _, _, _}), do: {"arg_cong", "thm"}
   defp rule({:eq_fact, _, _, _, _}), do: {"eq_fact", "thm"}
   defp rule({:func_ext, _, _, _, _}), do: {"func_ext", "thm"}
   defp rule({:paramod, _, _, _, _, _, _}), do: {"paramod", "thm"}

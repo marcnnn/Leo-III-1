@@ -85,7 +85,9 @@ defmodule Astraea.External.Provers do
        name: :cvc5,
        executables: ["cvc5"],
        formats: [:thf, :tff],
-       args: fn %{ms: ms}, file -> ["--lang=tptp", "--tlimit=#{ms}", "--dump-unsat-cores", file] end
+       args: fn %{ms: ms}, file ->
+         ["--lang=tptp", "--tlimit=#{ms}", "--dump-unsat-cores", file]
+       end
      }}
   end
 

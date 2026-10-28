@@ -36,7 +36,9 @@ defmodule Astraea.Calculus.AvatarTest do
     assert length(comps) == 1
   end
 
-  test "splits mixed clause with one ground literal and two linked variable literals", %{arena: arena} do
+  test "splits mixed clause with one ground literal and two linked variable literals", %{
+    arena: arena
+  } do
     # C = r(c) | p(X, Y) | q(Y, Z)
     # Ground: r(c)
     # Linked by Y: p(X, Y) and q(Y, Z)
@@ -70,7 +72,9 @@ defmodule Astraea.Calculus.AvatarTest do
     assert open_comp == MapSet.new([{:pos, pxy}, {:neg, qyz}])
   end
 
-  test "resolve_propositional_unsat reconstructs valid resolution DAG ending in empty clause", %{arena: arena} do
+  test "resolve_propositional_unsat reconstructs valid resolution DAG ending in empty clause", %{
+    arena: arena
+  } do
     alias Astraea.ProofChecker
 
     {arena, g1} = Arena.mk_const(arena, "g1", :o)
@@ -89,11 +93,12 @@ defmodule Astraea.Calculus.AvatarTest do
     assert empty_id == 5
     assert length(steps) == 2
 
-    all_steps = [
-      {:axiom, 1, c1},
-      {:axiom, 2, c2},
-      {:axiom, 3, c3}
-    ] ++ steps
+    all_steps =
+      [
+        {:axiom, 1, c1},
+        {:axiom, 2, c2},
+        {:axiom, 3, c3}
+      ] ++ steps
 
     assert :ok == ProofChecker.verify_refutation(arena, all_steps)
   end

@@ -352,6 +352,7 @@ defmodule Astraea.EngineTest do
       {:proved, _, _} -> :ok
     end
   end
+
   test "Boolean unit demodulation indexes non-equational units and rewrites subterms" do
     {arena, s} = signature()
     # Positive unit: p(a)
