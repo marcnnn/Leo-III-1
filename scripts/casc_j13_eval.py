@@ -2,7 +2,8 @@
 """Runs an overnight comparative benchmark across CASC-J13 THF problems on armix.
 
 Evaluates:
-  1. Astraea (LCF-verified higher-order micro-prover)
+  1. Astraea (newest 16-wide portfolio with FluidSup, Stated Induction, DiscriminationTree,
+              and optional competitive CASC racers)
   2. Leo-III 1.8.1 (standard baseline, with E-prover backend)
   3. ShotTx (multi-agent blackboard tableau prover for STT)
 
@@ -76,7 +77,7 @@ def run_cmd_with_timeout(cmd, cwd, env, timeout_s):
     else:
         status = "GaveUp"
 
-    solved = 1 if status in ("Theorem", "Unsatisfiable") else 0
+    solved = 1 if status in ("Theorem", "Unsatisfiable", "ContradictoryAxioms") else 0
     return {
         "status": status,
         "solved": solved,
@@ -89,7 +90,10 @@ def main():
     parser = argparse.ArgumentParser(description="Run CASC-J13 comparison benchmark")
     parser.add_argument("--timeout", type=float, default=30.0, help="Per-problem timeout in seconds (default: 30.0)")
     parser.add_argument("--limit", type=int, default=None, help="Limit number of problems to test (default: all 400)")
-    parser.add_argument("--provers", nargs="+", default=["astraea", "leo3", "shottx"], help="Provers to run")
+    parser.add_argument("--provers", nargs="+", default=["astraea", "leo3", "shottx"],
+                        help="Provers to run (e.g. astraea, astraea_internal, leo3, shottx)")
+    parser.add_argument("--astraea-mode", choices=["competitive", "internal", "cli"], default="competitive",
+                        help="Astraea execution mode: competitive (wide-16 + external racers, default), internal (wide-16 pure LCF), or cli (legacy scheduled run)")
     parser.add_argument("--out", type=str, default=None, help="Output CSV path")
     args = parser.parse_args()
 
@@ -101,7 +105,7 @@ def main():
     env = dict(
         os.environ,
         TPTP=tptp_root,
-        PATH=f"{home}/.asdf/shims:{home}/.cargo/bin:{home}/tools/jdk/bin:{home}/tools/leo3/bin:{home}/tools/eprover-ho/bin:{home}/tools/eprover/bin:{os.environ.get('PATH', '')}",
+        PATH=f"{home}/.asdf/shims:{home}/.cargo/bin:{home}/tools/jdk/bin:{home}/tools/leo3/bin:{home}/tools/eprover-ho/bin:{home}/tools/eprover/bin:{home}/tools/vampire/bin:{home}/tools/cvc5/bin:{os.environ.get('PATH', '')}",
         ELIXIR_ERL_OPTIONS="+fnu",
         LC_ALL="en_US.UTF-8",
         LANG="en_US.UTF-8"
@@ -119,7 +123,7 @@ def main():
     print(f"=== Starting CASC-J13 Comparative Benchmark ===")
     print(f"Problems: {len(problems)} (TNE: 100, TEQ: 300)")
     print(f"Timeout per problem: {args.timeout}s")
-    print(f"Provers: {args.provers}")
+    print(f"Provers: {args.provers} (Astraea mode: {args.astraea_mode})")
     print(f"Output: {out_csv}")
     print("-" * 60)
 
@@ -140,11 +144,26 @@ def main():
             print(f"[{idx}/{len(problems)}] ({division}) {prob}:")
 
             for prover in args.provers:
-                if prover == "astraea":
-                    cmd = [
-                        "mix", "run", "-e",
-                        f'Astraea.CLI.main(["{prob_path}", "-t", "{int(math.ceil(args.timeout))}"])'
-                    ]
+                if prover in ("astraea", "astraea_competitive", "astraea_internal"):
+                    mode = "internal" if prover == "astraea_internal" else ("competitive" if prover == "astraea_competitive" else args.astraea_mode)
+                    timeout_ms = int(args.timeout * 1000)
+                    if mode == "cli":
+                        cmd = [
+                            "mix", "run", "-e",
+                            f'Astraea.CLI.main(["{prob_path}", "-t", "{int(math.ceil(args.timeout))}"])'
+                        ]
+                    else:
+                        comp_flag = "true" if mode == "competitive" else "false"
+                        elixir_expr = (
+                            f'alias Astraea.{{Portfolio, TptpCorpus}};\n'
+                            f'root = "{tptp_root}";\n'
+                            f'path = "{prob_path}";\n'
+                            f'opts = [tptp_root: root, timeout_ms: {timeout_ms}, competitive: {comp_flag}, strategies: Portfolio.wide_strategies(16)];\n'
+                            f'res = Portfolio.prove_file(path, opts);\n'
+                            f'status_str = res |> Portfolio.szs_status() |> Atom.to_string() |> Macro.camelize();\n'
+                            f'IO.puts("% SZS status #{{status_str}} for #{{Path.basename(path)}}")\n'
+                        )
+                        cmd = ["mix", "run", "-e", elixir_expr]
                     cwd = REPO / "astraea"
                 elif prover == "leo3":
                     cmd = [

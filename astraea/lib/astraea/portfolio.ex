@@ -117,6 +117,40 @@ defmodule Astraea.Portfolio do
   end
 
   @doc """
+  Up to 16 concurrent strategies (Pillar 5 of `Notes/beating_zipperposition_plan.md`):
+  the four defaults, the dedicated `:funcspec` and `:eval_reflection` strategies,
+  one strategy per calculus extension (FluidSup, induction, special instances), and
+  variations of selection, unification bounds and premise selection. Strategies
+  are ordered by expected value, so `wide_strategies(n)` takes the `n` best; pass
+  the result as `:strategies` to `prove_lowered/2`.
+  """
+  @spec wide_strategies(pos_integer()) :: [strategy_spec()]
+  def wide_strategies(width \\ 16) when width >= 1 do
+    [goal, tight, inline, broad] = defaults = default_strategies()
+    {_, goal_opts} = goal
+    {_, tight_opts} = tight
+    {_, inline_opts} = inline
+    {_, broad_opts} = broad
+
+    extra = [
+      {:fluid, Keyword.merge(goal_opts, fluid_sup: true, paramod_flex: true)},
+      {:induction, Keyword.merge(goal_opts, induction: true, unify_depth: 3)},
+      funcspec_strategy(),
+      eval_reflection_strategy(),
+      {:tight_neg_select, Keyword.put(tight_opts, :literal_selection, :neg_max)},
+      {:broad_deep_unify, Keyword.merge(broad_opts, unify_depth: 4, unifier_count: 4)},
+      {:inline_prim_subst, Keyword.put(inline_opts, :prim_subst, 2)},
+      {:goal_special_avatar, Keyword.merge(goal_opts, special_instances: true, avatar: true)},
+      {:goal_flex_all, Keyword.put(goal_opts, :flex_resolution, :all)},
+      {:wide_sine_weight, Keyword.merge(inline_opts, sine_limit: 120, inline_bridges: false)},
+      {:goal_age_heavy, Keyword.put(goal_opts, :pick_ratio, score: 1, age: 1)},
+      {:complete_saturation, [sine_limit: nil]}
+    ]
+
+    Enum.take(defaults ++ extra, width)
+  end
+
+  @doc """
   The dedicated `:funcspec` strategy for function synthesis via choice.
   """
   @spec funcspec_strategy() :: strategy_spec()

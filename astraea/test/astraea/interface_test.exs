@@ -305,6 +305,19 @@ defmodule Astraea.InterfaceTest do
 
       assert Enum.take(names, 4) == defaults
       assert length(names) == length(Enum.uniq(names))
+      assert :fluid in names and :induction in names
+    end
+
+    test "the wide portfolio extends the defaults up to 16 distinct strategies" do
+      wide = Portfolio.wide_strategies()
+      names = Enum.map(wide, &elem(&1, 0))
+
+      assert length(wide) == 16
+      assert names == Enum.uniq(names)
+      assert Enum.take(wide, 4) == Portfolio.default_strategies()
+      assert Portfolio.wide_strategies(6) == Enum.take(wide, 6)
+      assert Keyword.get(Map.new(wide)[:fluid], :fluid_sup)
+      assert Keyword.get(Map.new(wide)[:induction], :induction)
     end
 
     test "slices fit the timeout and run at most `cores` strategies" do

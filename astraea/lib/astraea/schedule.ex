@@ -186,7 +186,13 @@ defmodule Astraea.Schedule do
     # saturation with `stats.complete` proves CounterSatisfiable/Satisfiable.
     saturate = %{name: :complete_saturation, share: 1, opts: [sine_limit: nil]}
 
-    first ++ [saturate] ++ leo3_derived ++ deep
+    # FluidSup and stated-induction instances (Pillars 3 and 4).
+    extensions =
+      for {name, opts} <- Portfolio.wide_strategies(),
+          name in [:fluid, :induction],
+          do: %{name: name, share: 1, opts: Keyword.put(opts, :max_iterations, @deep_iterations)}
+
+    first ++ [saturate] ++ extensions ++ leo3_derived ++ deep
   end
 
   @doc """

@@ -1,4 +1,4 @@
-# Usage: mix run ../scripts/astraea_eval_split.exs smoke|dev|extended [concurrency] [--competitive]
+# Usage: mix run ../scripts/astraea_eval_split.exs smoke|dev|extended [concurrency] [--competitive] [--width N] [--csv PATH]
 alias Astraea.{Portfolio, TptpCorpus}
 args = System.argv()
 split = String.to_existing_atom(Enum.at(args, 0, "smoke"))
@@ -10,6 +10,15 @@ conc = case Enum.at(args, 1) do
   end
 end
 competitive? = Enum.any?(args, &(&1 in ["--competitive", "competitive"]))
+# `--width N` races `Portfolio.wide_strategies(N)` instead of the four defaults.
+width = case Enum.find_index(args, &(&1 == "--width")) do
+  nil -> nil
+  i -> args |> Enum.at(i + 1) |> String.to_integer()
+end
+csv = case Enum.find_index(args, &(&1 == "--csv")) do
+  nil -> nil
+  i -> Enum.at(args, i + 1)
+end
 root = TptpCorpus.default_tptp_root()
 entries = TptpCorpus.load_split_entries(split)
 total = length(entries)
@@ -19,16 +28,34 @@ results =
   entries
   |> Task.async_stream(fn e ->
     opts = [tptp_root: root, timeout_ms: 2_500, competitive: competitive?]
+    opts = if width, do: Keyword.put(opts, :strategies, Portfolio.wide_strategies(width)), else: opts
+    t0 = System.monotonic_time(:millisecond)
     res = Portfolio.prove_file(Path.join(root, e.rel_path), opts)
+    ms = System.monotonic_time(:millisecond) - t0
     idx = :atomics.add_get(counter, 1, 1)
     if rem(idx, 25) == 0 or idx == total do
       status_tag = if is_tuple(res), do: elem(res, 0), else: res
       IO.puts("Progress: #{idx}/#{total} (last: #{e.problem} -> #{status_tag})")
     end
-    {e, res}
+    {e, res, ms}
   end, max_concurrency: conc, timeout: 35_000, on_timeout: :kill_task)
   |> Enum.zip(entries)
-  |> Enum.map(fn {{:ok, r}, _} -> r; {{:exit, _}, e} -> {e, :timeout} end)
+  |> Enum.map(fn {{:ok, {e, r, ms}}, _} -> {e, r, ms}; {{:exit, _}, e} -> {e, :timeout, 35_000} end)
+
+if csv do
+  rows = for {e, r, ms} <- results do
+    {tag, stats} = case r do
+      {t, _steps, s} when is_map(s) -> {t, s}
+      {t, s} when is_map(s) -> {t, s}
+      {t, _} -> {t, %{}}
+      t -> {t, %{}}
+    end
+    Enum.join([e.problem, e.status, tag, stats |> Map.get(:winning_strategy) |> inspect() |> String.replace(",", ";"), ms], ",")
+  end
+  File.write!(csv, "problem,status,result,winner,ms\n" <> Enum.join(rows, "\n") <> "\n")
+end
+
+results = Enum.map(results, fn {e, r, _ms} -> {e, r} end)
 
 thm = ["Theorem", "ContradictoryAxioms"]
 csa = ["CounterSatisfiable", "Satisfiable"]
