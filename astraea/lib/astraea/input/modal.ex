@@ -27,6 +27,47 @@ defmodule Astraea.Input.Modal do
   rigid and pointwise readings coincide. Such equality elsewhere, quantification
   over non-individual types with non-constant domains, interpreted symbols other
   than `$true`/`$false`, and polymorphism are rejected.
+
+  ## Embedding parameters
+
+  `embed/4` takes the parameters of Leo-III's `--embedding-param` (the
+  `ModalEmbedding` options of `logic-embedding` 2.2.3), validated by
+  `parse_params/1`. Without parameters the output is the semantic embedding
+  above. Model answers are disabled for modal input, so every variant only has
+  to be sound for proofs: its axioms must hold in every model of the intended
+  semantics (equivalent or weaker), never stronger.
+
+    * `MODALITIES_SEMANTICAL` (default): frame conditions on `$$mrel`.
+    * `MODALITIES_SYNTACTICAL`: the frame conditions are replaced by global axiom
+      schemas over `Phi: $$mworld > $o` (T `[]P => P`, B `P => []<>P`,
+      D `[]P => <>P`, 4 `[]P => [][]P`, 5 `<>P => []<>P`, CD `<>P => []P`,
+      C4 `[][]P => []P`). Each schema is valid on every frame with the matching
+      property, so it holds in every intended model; with standard semantics it
+      is even equivalent (instantiate `Phi` with `$$mrel @ w`, `= v` or the
+      constant true). S5U has no modal axiom schema; it falls back to the T and 5
+      schemas (an equivalence relation), which is weaker. Takes precedence over
+      `MODALITIES_SEMANTICAL`, as in Leo-III.
+    * `DOMAINS_SEMANTICAL` (default): monotonicity axioms on `$$mexists`.
+    * `DOMAINS_SYNTACTICAL`: cumulative domains get the converse Barcan formula
+      `[](![X]: P @ X) => ![X]: [](P @ X)`, decreasing domains the Barcan formula
+      `(![X]: [](P @ X)) => [](![X]: P @ X)`, per sort and modality, globally for
+      every `P` and with the relativised quantifiers. CBF is valid on cumulative,
+      BF on decreasing domains; instantiating `P` with `$$mexists` gives back
+      the semantic condition. Varying and constant domains are unaffected.
+      Takes precedence over `DOMAINS_SEMANTICAL`.
+    * `ALLOW_EMPTY_DOMAINS`: drops the non-emptiness axioms of `$$mexists`. Fewer
+      axioms are weaker. Constant domains keep Astraea's non-empty HOL sorts.
+    * `NO_UNIVERSAL_S5`: S5U is axiomatised as an equivalence relation (T and 5)
+      instead of the universal relation, which is weaker. Unlike Leo-III,
+      `$modal_system_S5` is an equivalence relation already by default, so the
+      parameter only affects `$modal_system_S5U`.
+    * `MONOMORPHIC`, `POLYMORPHIC`: Leo-III's choice between per-sort and
+      polymorphic existence predicates. Astraea is monomorphic (one
+      `$$mexists` per sort); both are accepted without effect.
+    * `FORCE_HIGHERORDER`: disables `logic-embedding`'s redirect of first-order
+      modal problems to a TFF embedding. Astraea always embeds into HOL; accepted
+      without effect.
+    * `SILENT`: suppresses the library's diagnostics; accepted without effect.
   """
 
   alias Astraea.Input.IR
@@ -71,6 +112,40 @@ defmodule Astraea.Input.Modal do
   }
 
   @local_roles ~w(hypothesis assumption conjecture negated_conjecture)
+
+  @params ~w(monomorphic polymorphic modalities_semantical modalities_syntactical
+             domains_semantical domains_syntactical force_higherorder
+             allow_empty_domains silent no_universal_s5)a
+
+  @typedoc "An embedding parameter, the lower-case form of Leo-III's name."
+  @type param :: atom()
+
+  @doc """
+  Validates embedding parameters given as atoms or strings in any case (Leo-III
+  spells them `MODALITIES_SYNTACTICAL`). Returns the normalised lower-case atoms
+  without duplicates, or the first unknown name.
+  """
+  @spec parse_params([atom() | String.t()]) ::
+          {:ok, [param()]} | {:error, {:unknown_embedding_param, String.t()}}
+  def parse_params(params) do
+    params
+    |> Enum.reduce_while([], fn p, acc ->
+      name = p |> to_string() |> String.downcase()
+
+      case Enum.find(@params, &(Atom.to_string(&1) == name)) do
+        nil -> {:halt, {:error, {:unknown_embedding_param, to_string(p)}}}
+        atom -> {:cont, [atom | acc]}
+      end
+    end)
+    |> case do
+      {:error, _} = err -> err
+      acc -> {:ok, acc |> Enum.reverse() |> Enum.uniq()}
+    end
+  end
+
+  @doc "The accepted embedding parameter names, as Leo-III spells them."
+  @spec param_names() :: [String.t()]
+  def param_names, do: Enum.map(@params, &(&1 |> Atom.to_string() |> String.upcase()))
 
   @typedoc "Parsed semantics: domain kind, frame conditions, global terms flag."
   @type spec :: %{domains: atom(), frame: [atom()], terms: :local | :global}
@@ -182,10 +257,18 @@ defmodule Astraea.Input.Modal do
   @doc """
   Embeds elaborated statements under `spec`. Returns the translated statements
   followed by the frame and domain axioms, and the next free variable id.
+  `params` are embedding parameters as returned by `parse_params/1`.
   """
-  @spec embed([tuple()], spec(), non_neg_integer()) :: {[tuple()], non_neg_integer()}
-  def embed(stmts, spec, next_id) do
-    st = %{spec: spec, next: next_id, rels: MapSet.new([nil]), domains: MapSet.new()}
+  @spec embed([tuple()], spec(), non_neg_integer(), [param()]) ::
+          {[tuple()], non_neg_integer()}
+  def embed(stmts, spec, next_id, params \\ []) do
+    st = %{
+      spec: %{spec | frame: effective_frame(spec.frame, params)},
+      params: MapSet.new(params),
+      next: next_id,
+      rels: MapSet.new([nil]),
+      domains: MapSet.new()
+    }
 
     {stmts, st} =
       Enum.map_reduce(stmts, st, fn
@@ -208,6 +291,19 @@ defmodule Astraea.Input.Modal do
     extra = Enum.map(frame ++ domain, fn {n, ir} -> {:formula, n, "axiom", [], ir} end)
     {stmts ++ extra, st.next}
   end
+
+  # S5U has no modal axiom schema, so the syntactical variant (like
+  # NO_UNIVERSAL_S5) uses an equivalence relation instead.
+  defp effective_frame(frame, params) do
+    if :universal in frame and
+         (:no_universal_s5 in params or :modalities_syntactical in params) do
+      frame |> Enum.flat_map(&if(&1 == :universal, do: [:t, :five], else: [&1])) |> Enum.uniq()
+    else
+      frame
+    end
+  end
+
+  defp param?(st, p), do: MapSet.member?(st.params, p)
 
   defp statement(st, role, ir) do
     [base | sub] = String.split(role, "-", parts: 2)
@@ -389,8 +485,13 @@ defmodule Astraea.Input.Modal do
     |> Enum.sort_by(&to_string/1)
     |> Enum.flat_map_reduce(st, fn ix, st ->
       Enum.map_reduce(st.spec.frame, st, fn cond, st ->
-        {st, ir} = frame(st, cond, &IR.app(rel(ix), [&1, &2]))
-        {{"$$modal_frame_#{cond}#{ix}", ir}, st}
+        if param?(st, :modalities_syntactical) do
+          {st, ir} = schema(st, cond, ix)
+          {{"$$modal_schema_#{cond}#{ix}", ir}, st}
+        else
+          {st, ir} = frame(st, cond, &IR.app(rel(ix), [&1, &2]))
+          {{"$$modal_frame_#{cond}#{ix}", ir}, st}
+        end
       end)
     end)
     |> then(fn {axioms, st} -> {st, axioms} end)
@@ -416,6 +517,53 @@ defmodule Astraea.Input.Modal do
     {st, body}
   end
 
+  # The modal axiom schema of frame condition `cond` for modality `ix`, embedded
+  # like a global statement and closed over the proposition `Phi`.
+  defp schema(st, cond, ix) do
+    {st, {:var, pid, _} = p} = fresh(st, @o)
+    box = &{:modal, :box, ix, &1}
+    dia = &{:modal, :dia, ix, &1}
+
+    formula =
+      case cond do
+        :t -> imp(box.(p), p)
+        :b -> imp(p, box.(dia.(p)))
+        :d -> imp(box.(p), dia.(p))
+        :four -> imp(box.(p), box.(box.(p)))
+        :five -> imp(dia.(p), box.(dia.(p)))
+        :cd -> imp(dia.(p), box.(p))
+        :c4 -> imp(box.(box.(p)), box.(p))
+      end
+
+    global_schema(st, [{:var, pid, lift_ty(@o)}], formula)
+  end
+
+  # `![Vars]: ![W]: formula at W`, a schema instance valid at every world.
+  defp global_schema(st, vars, formula) do
+    {st, w} = fresh(st, @w)
+    {st, body} = at(st, formula, w)
+    {st, all(vars ++ [w], body)}
+  end
+
+  # The (converse) Barcan formula of sort `ty` along modality `ix`, embedded with
+  # relativised quantifiers and closed over `P: ty > $o`.
+  defp barcan(st, kind, ty, ix) do
+    {st, {:var, pid, _} = p} = fresh(st, {:fun, ty, @o})
+    {st, {:var, xid, _} = x} = fresh(st, ty)
+    {st, {:var, yid, _} = y} = fresh(st, ty)
+    box = &{:modal, :box, ix, &1}
+    px = {:quant, :all, xid, ty, {:app, p, x}}
+    py = &{:quant, :all, yid, ty, &1.({:app, p, y})}
+
+    formula =
+      case kind do
+        :cumulative -> imp(box.(px), py.(box))
+        :decreasing -> imp(py.(box), box.(px))
+      end
+
+    global_schema(st, [{:var, pid, lift_ty({:fun, ty, @o})}], formula)
+  end
+
   defp domain_axioms(st) do
     st.domains
     |> Enum.sort()
@@ -425,21 +573,44 @@ defmodule Astraea.Input.Modal do
       {st, v} = fresh(st, @w)
       e = &IR.app(exists(ty), [&1, &2])
       name = "$$modal_domain_#{IR.sort_name(ty)}"
-      nonempty = {name <> "_nonempty", all([w], ex(x, e.(x, w)))}
 
-      monotone =
-        for ix <- Enum.sort_by(st.rels, &to_string/1), st.spec.domains != :varying do
-          r = IR.app(rel(ix), [w, v])
+      nonempty =
+        if param?(st, :allow_empty_domains),
+          do: [],
+          else: [{name <> "_nonempty", all([w], ex(x, e.(x, w)))}]
 
-          body =
-            if st.spec.domains == :cumulative,
-              do: imp(and_(e.(x, w), r), e.(x, v)),
-              else: imp(and_(e.(x, v), r), e.(x, w))
+      rels = Enum.sort_by(st.rels, &to_string/1)
 
-          {"#{name}_#{st.spec.domains}#{ix}", all([x, w, v], body)}
+      {monotone, st} =
+        cond do
+          st.spec.domains == :varying ->
+            {[], st}
+
+          param?(st, :domains_syntactical) ->
+            tag = if st.spec.domains == :cumulative, do: "cbf", else: "bf"
+
+            Enum.map_reduce(rels, st, fn ix, st ->
+              {st, ir} = barcan(st, st.spec.domains, ty, ix)
+              {{"#{name}_#{tag}#{ix}", ir}, st}
+            end)
+
+          true ->
+            axioms =
+              for ix <- rels do
+                r = IR.app(rel(ix), [w, v])
+
+                body =
+                  if st.spec.domains == :cumulative,
+                    do: imp(and_(e.(x, w), r), e.(x, v)),
+                    else: imp(and_(e.(x, v), r), e.(x, w))
+
+                {"#{name}_#{st.spec.domains}#{ix}", all([x, w, v], body)}
+              end
+
+            {axioms, st}
         end
 
-      {[nonempty | monotone], st}
+      {nonempty ++ monotone, st}
     end)
     |> then(fn {axioms, st} -> {st, axioms} end)
   end

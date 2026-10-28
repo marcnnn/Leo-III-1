@@ -55,8 +55,11 @@ defmodule Astraea.TptpLower do
 
   @doc """
   Loads a TPTP file (expanding `include`s from `tptp_root`) and lowers all
-  statements into an `Astraea.Arena`. Options: `:tptp_root`, and `:monomorphization`
-  (keyword list for `Astraea.Input.Monomorphizer.run/2`).
+  statements into an `Astraea.Arena`. Options: `:tptp_root`, `:monomorphization`
+  (keyword list for `Astraea.Input.Monomorphizer.run/2`), and `:embedding_params`
+  (Leo-III's `--embedding-param` values for modal problems, see
+  `Astraea.Input.Modal.parse_params/1`; an unknown name gives
+  `{:error, {:unknown_embedding_param, name}}`).
   """
   @spec from_file(Path.t(), keyword()) :: {:ok, t()} | {:error, term()}
   def from_file(path, opts \\ []) do
@@ -88,6 +91,13 @@ defmodule Astraea.TptpLower do
 
   @spec lower_unit(Tptp.Unit.t(), keyword()) :: {:ok, t()} | {:error, term()}
   def lower_unit(%Tptp.Unit{} = unit, opts \\ []) do
+    case Modal.parse_params(Keyword.get(opts, :embedding_params, [])) do
+      {:ok, params} -> do_lower_unit(unit, opts, params)
+      {:error, _} = err -> err
+    end
+  end
+
+  defp do_lower_unit(unit, opts, embedding_params) do
     {stmts, ctx} =
       unit |> Tptp.Unit.statements() |> Enum.map(&elem(&1, 1)) |> Elaborator.elaborate()
 
@@ -99,7 +109,9 @@ defmodule Astraea.TptpLower do
           stmts
 
         [{:logic, spec}] ->
-          {stmts, _next_id} = Modal.embed(stmts, Modal.parse_spec(spec), ctx.next_id)
+          {stmts, _next_id} =
+            Modal.embed(stmts, Modal.parse_spec(spec), ctx.next_id, embedding_params)
+
           stmts
 
         _ ->
