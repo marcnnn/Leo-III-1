@@ -1,4 +1,4 @@
-# Usage: mix run ../scripts/astraea_eval_split.exs smoke|dev|extended [concurrency] [--competitive] [--width N] [--csv PATH]
+# Usage: mix run ../scripts/astraea_eval_split.exs smoke|dev|extended [concurrency] [--competitive] [--width N] [--lemma-bus] [--csv PATH]
 alias Astraea.{Portfolio, TptpCorpus}
 args = System.argv()
 split = String.to_existing_atom(Enum.at(args, 0, "smoke"))
@@ -15,6 +15,7 @@ width = case Enum.find_index(args, &(&1 == "--width")) do
   nil -> nil
   i -> args |> Enum.at(i + 1) |> String.to_integer()
 end
+lemma_bus? = "--lemma-bus" in args
 csv = case Enum.find_index(args, &(&1 == "--csv")) do
   nil -> nil
   i -> Enum.at(args, i + 1)
@@ -29,6 +30,7 @@ results =
   |> Task.async_stream(fn e ->
     opts = [tptp_root: root, timeout_ms: 2_500, competitive: competitive?]
     opts = if width, do: Keyword.put(opts, :strategies, Portfolio.wide_strategies(width)), else: opts
+    opts = if lemma_bus?, do: Keyword.put(opts, :lemma_bus, true), else: opts
     t0 = System.monotonic_time(:millisecond)
     res = Portfolio.prove_file(Path.join(root, e.rel_path), opts)
     ms = System.monotonic_time(:millisecond) - t0

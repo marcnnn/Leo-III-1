@@ -54,6 +54,7 @@ defmodule Astraea.Portfolio do
   }
 
   alias Astraea.External.Reconstruct
+  alias Astraea.Portfolio.LemmaBus
 
   # The ContradictoryAxioms check clausifies all axioms; when that takes longer the
   # answer is Theorem.
@@ -214,6 +215,9 @@ defmodule Astraea.Portfolio do
 
   `:cooperate` is passed to every internal strategy (see `Astraea.Prover.prove_clauses/3`).
 
+  `:lemma_bus` (default `false`) lets the internal strategies share derived unit
+  lemmas with their derivations (`Astraea.Portfolio.LemmaBus`).
+
   `:external_policy` decides how external answers are used:
     * `:race` (default) - the first definitive answer, internal or external, wins
     * `:fallback` - an external answer is only returned when no internal strategy
@@ -271,6 +275,7 @@ defmodule Astraea.Portfolio do
         true ->
           []
       end
+
     policy = Keyword.get(opts, :external_policy, :race)
     compress? = Keyword.get(opts, :compress, true)
     conjecture? = lowered.conjectures != []
@@ -304,6 +309,9 @@ defmodule Astraea.Portfolio do
 
         {pid, {mon_ref, strat_name}}
       end)
+
+    if Keyword.get(opts, :lemma_bus, false),
+      do: LemmaBus.connect(Map.keys(internal_workers))
 
     external_workers =
       Map.new(externals, fn {ext_name, ext_opts} ->

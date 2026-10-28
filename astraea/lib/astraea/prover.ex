@@ -41,11 +41,13 @@ defmodule Astraea.Prover do
     Fragment,
     FVIndex,
     HeadIndex,
+    LemmaTransfer,
     PassiveQueue,
     Subsumption
   }
 
   alias Astraea.External.Reconstruct
+  alias Astraea.Portfolio.LemmaBus
   alias Astraea.Input.Arith
 
   alias Astraea.Calculus.{
@@ -121,6 +123,10 @@ defmodule Astraea.Prover do
             fluid_inferences: 0,
             induction_goals: [],
             induction_inferences: 0,
+            lemma_peers: [],
+            lemma_keys: MapSet.new(),
+            lemmas_sent: 0,
+            lemmas_received: 0,
             wide_equations: false,
             arith: false,
             higher_order: false,
@@ -476,6 +482,8 @@ defmodule Astraea.Prover do
         finish(state, {:resource_out, stats(state)})
 
       true ->
+        state = exchange_lemmas(state)
+
         case cooperate(state) do
           {:done, result, state} -> finish(state, result)
           {:cont, state} -> given_clause_step(state)
@@ -568,6 +576,7 @@ defmodule Astraea.Prover do
       |> add_unit(item)
       |> fingerprint_activate(item)
       |> note_wide_equation(item)
+      |> publish_lemma(item)
 
     if state.demodulation,
       do: %{
@@ -2758,6 +2767,8 @@ defmodule Astraea.Prover do
       backward_rewritten: state.backward_rewritten,
       fluid_inferences: state.fluid_inferences,
       induction_inferences: state.induction_inferences,
+      lemmas_sent: state.lemmas_sent,
+      lemmas_received: state.lemmas_received,
       index_backend: state.active_index.backend,
       unification_cutoffs: state.unification_cutoffs,
       complete: reasons == [],
@@ -2805,6 +2816,81 @@ defmodule Astraea.Prover do
 
   defp normalize_external({name, ext_opts}) when is_atom(name) and is_list(ext_opts),
     do: {name, ext_opts}
+
+  # ---------------------------------------------------------------------------
+  # Lemma sharing between portfolio workers (`Portfolio.LemmaBus`)
+  # ---------------------------------------------------------------------------
+
+  # Sharing every derived unit floods the siblings: on `TPTP-Dev` (16 workers,
+  # 30 lemmas each, depth >= 1) the bus cost 15 of 119 solved problems (Entry 018).
+  @max_lemmas_sent 10
+  @max_lemmas_received 20
+  @max_lemma_weight 24
+  @min_lemma_depth 2
+
+  # Derived unit clauses outside AVATAR splits go to the sibling workers; one-step
+  # consequences of the input are left out, every sibling derives them itself.
+  defp publish_lemma(%__MODULE__{lemma_peers: []} = state, _item), do: state
+
+  defp publish_lemma(%__MODULE__{} = state, item) do
+    if state.lemmas_sent < @max_lemmas_sent and item.depth >= @min_lemma_depth and
+         MapSet.size(item.lits) == 1 and
+         MapSet.size(item.guards) == 0 and item.weight <= @max_lemma_weight do
+      case LemmaTransfer.export(state.arena, state.steps, item.id) do
+        {:ok, payload} ->
+          [{pol, atom}] = MapSet.to_list(item.lits)
+          {key, _vars} = LemmaTransfer.export_term(state.arena, atom)
+          LemmaBus.publish(state.lemma_peers, Map.put(payload, :key, {pol, key}))
+          %{state | lemmas_sent: state.lemmas_sent + 1}
+
+        :error ->
+          state
+      end
+    else
+      state
+    end
+  end
+
+  # Imported lemmas enter the passive set once the kernel has replayed their
+  # derivation; the steps stay in the step map for proof reconstruction.
+  defp exchange_lemmas(%__MODULE__{} = state) do
+    if calculus_opt(state, :lemma_bus, false) do
+      {peers, payloads} = LemmaBus.drain()
+      state = if peers, do: %{state | lemma_peers: peers}, else: state
+
+      Enum.reduce(payloads, state, fn payload, st ->
+        key = Map.get(payload, :key)
+
+        if st.lemmas_received >= @max_lemmas_received or MapSet.member?(st.lemma_keys, key),
+          do: st,
+          else: import_lemma(%{st | lemma_keys: MapSet.put(st.lemma_keys, key)}, payload)
+      end)
+    else
+      state
+    end
+  end
+
+  defp import_lemma(%__MODULE__{} = state, payload) do
+    {:ok, arena, steps, root, next_step, next_fvar} =
+      LemmaTransfer.import(state.arena, payload, state.next_step_id, state.next_fvar_id)
+
+    case ProofChecker.derive_steps(arena, steps) do
+      {:ok, arena, derived} ->
+        state = %{
+          state
+          | arena: arena,
+            steps: Enum.reduce(steps, state.steps, &Map.put(&2, elem(&1, 1), &1)),
+            next_step_id: next_step,
+            next_fvar_id: max(state.next_fvar_id, next_fvar),
+            lemmas_received: state.lemmas_received + 1
+        }
+
+        enqueue_passive(state, [clause_item(state, root, Map.fetch!(derived, root), 1)])
+
+      {:error, _} ->
+        state
+    end
+  end
 
   defp cooperate(%__MODULE__{cooperate: []} = state), do: {:cont, state}
 

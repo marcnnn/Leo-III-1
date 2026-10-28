@@ -2,13 +2,14 @@ defmodule Astraea.EngineTest do
   use ExUnit.Case, async: true
   use ExUnitProperties
 
-  alias Astraea.{Arena, NxKernel, ProofChecker, Prover}
+  alias Astraea.{Arena, NxKernel, Portfolio, ProofChecker, Prover}
 
   alias Astraea.Engine.{
     Demodulator,
     DiscriminationTree,
     FVIndex,
     Kernels,
+    LemmaTransfer,
     PassiveQueue,
     Subsumption
   }
@@ -415,6 +416,53 @@ defmodule Astraea.EngineTest do
     opts = [demodulation: false, backward_subsumption: false, index_backend: :elixir]
     assert {:proved, steps, stats} = Prover.prove_string(@rewrite_src, opts)
     assert stats.rewrites == 0
+    assert :ok == ProofChecker.verify_refutation(stats.arena, steps)
+  end
+
+  @skolem_src """
+  thf(nat_t, type, nat: $tType).
+  thf(z_t, type, z: nat). thf(s_t, type, s: nat > nat).
+  thf(p_t, type, p: nat > $o). thf(q_t, type, q: nat > $o).
+  thf(ind, axiom, ! [P: nat > $o]: (((P @ z) & (! [N: nat]: ((P @ N) => (P @ (s @ N)))))
+                                   => (! [N: nat]: (P @ N)))).
+  thf(bp, axiom, p @ z). thf(bq, axiom, q @ z).
+  thf(sp, axiom, ! [N: nat]: (((p @ N) & (q @ N)) => (p @ (s @ N)))).
+  thf(sq, axiom, ! [N: nat]: (((p @ N) & (q @ N)) => (q @ (s @ N)))).
+  thf(c, conjecture, ! [N: nat]: ((p @ N) & (q @ N))).
+  """
+
+  test "lemma transfer replays a derivation in an unrelated arena" do
+    for {src, opts} <- [{@rewrite_src, []}, {@skolem_src, [induction: true, timeout_ms: 5_000]}] do
+      assert {:proved, steps, stats} = Prover.prove_string(src, opts)
+      step_map = Map.new(steps, &{elem(&1, 1), &1})
+      root = steps |> List.last() |> elem(1)
+
+      assert {:ok, payload} = LemmaTransfer.export(stats.arena, step_map, root, 10_000)
+      assert :error == LemmaTransfer.export(stats.arena, step_map, root, 1)
+
+      # Unrelated ids: a fresh arena with other nodes, steps and variables already in use.
+      {arena, _} = Arena.mk_const(Arena.new(), "unrelated", :i)
+
+      assert {:ok, arena, imported, new_root, next_step, next_fvar} =
+               LemmaTransfer.import(arena, payload, 1_000, 5_000)
+
+      assert next_step == 1_000 + length(imported)
+      assert next_fvar > 5_000
+      assert {:ok, _arena, derived} = ProofChecker.derive_steps(arena, imported)
+      assert Map.fetch!(derived, new_root) == MapSet.new()
+    end
+  end
+
+  test "portfolio workers share lemmas over the bus and still produce verified proofs" do
+    {:ok, lowered} = Astraea.TptpLower.from_string(@skolem_src)
+
+    assert {:proved, steps, stats} =
+             Portfolio.prove_lowered(lowered,
+               strategies: Portfolio.wide_strategies(6),
+               lemma_bus: true,
+               timeout_ms: 5_000
+             )
+
     assert :ok == ProofChecker.verify_refutation(stats.arena, steps)
   end
 
