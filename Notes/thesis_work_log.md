@@ -564,3 +564,32 @@ To further eliminate non-deterministic search cutoffs and accelerate higher-orde
   * **Frontier Standing**:
     * Surpasses stock Leo-III (10s budget, 110 theorems) by **+43.6%** (158 vs 110) in 1/4 the runtime.
     * Outperforms Satallax (~62%), placing Astraea within ~3% of `cvc5` (~69%) on the world CASC THF ladder.
+
+---
+
+## Entry 018: Discrimination-Tree Demodulation, FluidSup, Stated Induction, 16-Wide Portfolio and Lemma Bus (2026-10-27)
+
+Pillars 2-5 of `Notes/beating_zipperposition_plan.md`, implemented in Elixir without kernel changes. Every new inference is a `:subst` instance followed, where needed, by the existing `:paramod`; shared lemmas carry their derivations and are replayed by the kernel. All options are off by default, so the four-strategy portfolio is unchanged.
+
+* **Pillar 2, discrimination tree (`Astraea.Engine.DiscriminationTree`)**: replaces the head-symbol `HeadIndex` for rewrite rules (forward and backward demodulation, `Session.DemodCache`). Patterns are flattened in preorder over the binary arena nodes that `Arena.match_pattern/4` walks; keys are typed variables, ground subterms by hash-consed id, and typed structural nodes. Equations are retrieved in both orientations. A StreamData property checks that the tree returns every pattern the matcher accepts. Removal is by clause id along stored paths.
+* **Pillar 3, FluidSup (`Astraea.Calculus.Fluid`, `fluid_sup: true`)**: rewriting inside an applied variable `Y us` binds `Y := ^[xs]: G xs l` (fresh `G`), so the instance `G us l` contains `l`, and ordinary paramodulation yields `G us r`. Pre-unification of `Y us =? Z l` cannot be used: `Calculus.Unify` closes that flex-flex pair with bindings that drop `l`. The fingerprint partner filter only indexes rigid subterms, so clauses with fluid subterms are added as partners explicitly. Fluid lambdas are not handled.
+* **Pillar 4, induction, restricted for soundness (`Astraea.Calculus.Induction`, `induction: true`)**: the plan's version (recognise constructor patterns, assert an induction schema) is unsound in THF; see the note added to the plan. The implemented rule instantiates the predicate variable of a stated induction axiom with the goal `^[X]: ~C[X]`, abstracted over the Skolem constant of a ground input clause. On a test problem that needs the conjunctive predicate `p N & q N`, the run without the rule exhausts its resources and the run with it finds a verified proof; without the stated axiom nothing is proved.
+* **Pillar 5, wide portfolio (`Portfolio.wide_strategies/1`, eval flag `--width N`)**: the four defaults plus `funcspec`, `eval_reflection`, `fluid`, `induction` and eight variations (literal selection, unification bounds, SInE window, pick ratio, special instances with AVATAR, complete saturation). `Schedule.strategies/0` gains the `fluid` and `induction` slots.
+* **Pillar 5, lemma bus (`Portfolio.LemmaBus`, `Engine.LemmaTransfer`, `lemma_bus: true`)**: workers exchange derived unit clauses peer to peer. A lemma is exported with its ancestor steps in portable form (symbols by name, types structurally, Skolems by their quantified formula, so `mk_skolem/3` reproduces the hash). It is imported under fresh step and variable ids, replayed by `ProofChecker.derive_steps/2` before use, and stays in the step map for the final `verify_refutation/2`. AVATAR steps are not exported. A test replays a complete skolemized induction refutation in an unrelated arena.
+
+* **Evaluation on `armix` (`TPTP-Dev`, internal mode, 2.5 s, one problem at a time so each race has all 14 cores)**:
+
+  | Configuration | Theorems (LCF) | False proofs | LCF failures |
+  |---|---|---|---|
+  | Head index vs. discrimination tree, 4 strategies, both runs side by side | 106 vs. 104 | 0 | 0 |
+  | 4 default strategies | 113 (112 in the CSV re-run) | 0 | 0 |
+  | 16 strategies | **119** (118 in the CSV re-run) | 0 | 0 |
+  | 16 strategies + lemma bus (30 sent, unlimited imports) | 104 | 0 | 0 |
+  | 16 strategies + throttled lemma bus (10 sent, 20 imports, depth >= 2, dedup) | 113 | 0 | 0 |
+
+  * The four problems that differed in the index A/B are solved by both builds in sequential re-runs; interleaved timings are equal within noise. At 2.5 s the rule sets are small (NUM767^1 is proved with 0 rewrites), so the tree's benefit should show in large-theory LTB runs, not on Dev.
+  * 16 vs. 4 strategies gains CSR138^1, CSR139^1, ITP196^1, PHI004^4, SEV162^5 and SYO170^5 and loses SEV205^5. `complete_saturation` additionally answers 21 CounterSatisfiable/Satisfiable problems with their correct status.
+  * **Attribution:** re-running the 17 problems won by the `induction` or `fluid` strategies with only that strategy, the new rules fired 0 times, and every problem is also proved with the rule switched off. The gain comes from strategy diversity (`unify_depth: 3`, `paramod_flex`, selection and SInE variations), not from FluidSup or induction. Dev has no problems with a stated induction principle.
+  * The lemma bus loses problems even when throttled (AGT031^1, PHI004^4, SEU668^2, SEU938^5, SYO048^1; SEU668^2 drops from 257 ms to a timeout) and gains none. It stays off by default.
+
+* **Tests:** 177 passing (12 properties), including the discrimination-tree property, FluidSup binding and firing, stated-induction proof and its negative counterpart, wide-portfolio shape, lemma round trip, and a bus-enabled race with a verified proof.
